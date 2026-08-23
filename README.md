@@ -136,6 +136,56 @@ npm run dev             # http://localhost:5173
 - **本地 Embedding + Reranker**：默认可使用 Ollama 的 Qwen3 4B Q4_K_M 量化模型；Milvus 按模型/维度使用独立 collection，摄取前同时查询当前与 legacy collection 的 chunk ID，已生成的向量不会重复 Embedding
 - **自愈重试**：摄取异常（FAILED/卡住）每 90 秒自动重试，LLM 配置修复后自动恢复向量模式（也可手动"重建索引"）
 
+## T10 RAG 固定检索与引用流程
+
+`kb_search` 对每个请求严格按以下固定顺序执行，不以关键词命中作为回答前提：
+
+1. query 归一化（NFKC、控制字符清理、Latin 小写、空白折叠）；
+2. 使用同一 normalized query 并行执行 Milvus vector top-20 与后端 BM25 top-20；
+3. 对两路结果统一执行 `doc_type` / `product_id` metadata filter；
+4. 仅按唯一 `chunk_id` 做 RRF（`k=60`），稳定排序并截取 top-10；
+5. 可选 HTTP reranker 重排，随后截取最终 top-4；关闭时直接使用 RRF top-4；
+6. 将 reranker 分数（或归一化后的 vector/BM25 分数）用于 answerability：`top1 >= high_score`，或 `top1 >= min_score` 且 `top1 - top2 >= min_margin`；
+7. 仅在可回答时，按最终排名构造 `S1` 至 `S4` 的 XML source context；
+8. 模型生成后在输出边界执行 citation guard，通过后才向客户端发送 RAG 自然语言 token 与 `done.content`。
+
+上下文块使用 `<source>`，例如：
+
+```xml
+<source id="S1" chunk_id="123" title="退换货条款">
+七天无理由退货……
+</source>
+```
+
+模型对知识库事实必须使用句末 `[S1]` 形式，且只能引用本次 `<source id="S1">` 上下文中存在的 ID。缺少引用或出现未知 `[S#]` 时不重试模型，也不会泄漏原回答；citation guard 会确定性替换为“当前知识库证据不足，暂时无法可靠回答该问题。”并返回空 citations。answerability 未通过时同样不向模型提供候选正文。
+
+降级行为是确定的：单个召回腿异常时保留另一腿并标记 `degraded`；两腿都异常时返回独立的“知识库暂时不可用”结果；reranker 关闭不算降级，开启后若超时、HTTP/协议/评分失败则保留 RRF top-4、记录 `reranker_unavailable` 并继续 answerability 判断。单元测试使用替身，不要求 Milvus、后端 BM25、reranker 或其他网络服务。
+
+answerability 与 evidence normalization 的当前默认值如下；它们只是**未经校准的可运行基线**，并不代表跨模型最优值：
+
+```env
+RAG_ANSWER_MIN_SCORE=0.45
+RAG_ANSWER_HIGH_CONFIDENCE_SCORE=0.65
+RAG_ANSWER_MIN_MARGIN=0.05
+RAG_VECTOR_SCORE_CENTER=0.45
+RAG_VECTOR_SCORE_SCALE=0.12
+RAG_BM25_SCORE_SCALE=8.0
+```
+
+校准命令和 JSONL schema 见 [eval/README.md](eval/README.md)；其报告只写显式 `--output`，绝不修改应用配置或 `.env`。
+
+本地 `Qwen/Qwen3-Reranker-4B` HTTP 边界由以下字段配置（默认关闭，不绑定具体推理框架）：
+
+```env
+RAG_RERANKER_ENABLED=false
+RAG_RERANKER_MODEL=Qwen/Qwen3-Reranker-4B
+RAG_RERANKER_BASE_URL=http://localhost:8001
+RAG_RERANKER_ENDPOINT=/v1/rerank
+RAG_RERANKER_API_KEY=
+RAG_RERANKER_TIMEOUT_S=10
+RAG_RERANKER_BATCH_SIZE=10
+```
+
 ## Windows Ollama 本地 RAG 模型
 
 模型通过 `D:\Ollama\ollama.exe` 管理，实际模型目录由 `OLLAMA_MODELS` 决定。RTX 3050 4GB 环境使用 Q4_K_M，并把上下文限制为 2048、GPU offload 限制为 10 层，避免默认 40960 上下文启动时内存不足。
