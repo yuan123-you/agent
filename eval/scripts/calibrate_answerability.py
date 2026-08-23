@@ -16,8 +16,10 @@ def evaluate_thresholds(rows, *, min_score, high_score, min_margin):
 
     for row in rows:
         top1 = row["top1"]
+        top2 = row["top2"]
+        margin_satisfied = top2 is None or top1 - top2 >= min_margin
         predicted = top1 >= high_score or (
-            top1 >= min_score and top1 - row["top2"] >= min_margin
+            top1 >= min_score and margin_satisfied
         )
         actual = row["answerable"]
         true_positive += predicted and actual

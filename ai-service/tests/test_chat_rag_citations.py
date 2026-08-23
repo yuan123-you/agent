@@ -20,17 +20,25 @@ class _Graph:
         rag=True,
         answerable=True,
         reason="answerable",
+        preamble_parts=(),
     ):
         self.context = context
         self.answer_parts = answer_parts
         self.rag = rag
         self.answerable = answerable
         self.reason = reason
+        self.preamble_parts = preamble_parts
         self.completed = False
         self.calls = 0
 
     async def astream_events(self, *_args, **_kwargs):
         self.calls += 1
+        for part in self.preamble_parts:
+            yield {
+                "event": "on_chat_model_stream",
+                "metadata": {"langgraph_node": "agent"},
+                "data": {"chunk": AIMessageChunk(content=part)},
+            }
         if self.rag:
             self.context.update({
                 "rag_used": True,
@@ -78,6 +86,7 @@ def _setup(
     rag=True,
     answerable=True,
     reason="answerable",
+    preamble_parts=(),
 ):
     context = {}
     graph = _Graph(
@@ -86,6 +95,7 @@ def _setup(
         rag=rag,
         answerable=answerable,
         reason=reason,
+        preamble_parts=preamble_parts,
     )
     monkeypatch.setattr(chat, "graph", graph)
     monkeypatch.setattr(chat, "set_tool_ctx", lambda ctx: setattr(graph, "context", ctx))
@@ -160,7 +170,7 @@ async def test_retrieval_unavailable_keeps_distinct_stream_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_non_rag_tokens_still_stream_immediately(monkeypatch):
+async def test_non_rag_tokens_preserve_provider_chunks_after_rag_decision(monkeypatch):
     graph = _setup(monkeypatch, answer_parts=["普通", "回答"], rag=False)
     response = await chat.chat_stream(_request(), _Request())
     stream = response.body_iterator
@@ -168,9 +178,29 @@ async def test_non_rag_tokens_still_stream_immediately(monkeypatch):
     first = _decode(await anext(stream))
 
     assert first == ("token", {"content": "普通"})
-    assert graph.completed is False
+    assert graph.completed is True
     remaining = [_decode(item) async for item in stream]
     assert [data["content"] for event, data in remaining if event == "token"] == ["回答"]
     done = next(data for event, data in remaining if event == "done")
     assert done["content"] == "普通回答"
     assert "citations" not in done
+
+
+@pytest.mark.asyncio
+async def test_preamble_before_kb_search_never_leaks_or_duplicates(monkeypatch):
+    preamble = "我先凭印象回答：可以退货。"
+    _setup(
+        monkeypatch,
+        preamble_parts=[preamble],
+        answer_parts=["依据条款，", "支持七天退货。[S1]"],
+    )
+    response = await chat.chat_stream(_request(), _Request())
+
+    events = [_decode(item) async for item in response.body_iterator]
+    token_contents = [data["content"] for event, data in events if event == "token"]
+    done = next(data for event, data in events if event == "done")
+
+    assert preamble not in json.dumps(events, ensure_ascii=False)
+    assert "".join(token_contents) == done["content"]
+    assert done["content"] == "依据条款，支持七天退货。[S1]"
+    assert token_contents == [done["content"]]

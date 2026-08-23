@@ -99,6 +99,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         parts: list[str] = []
         usage: dict = {}
         known_ids: set[str] = set()
+        rag_started = False
         # 可观测：开启本会话 trace（session=conversation_id）
         traced = start_trace(conversation_id=req.conversation_id, user_id=req.user_id,
                              metadata={"message": _short(req.message, 200), "trace_id": ""})
@@ -128,13 +129,14 @@ async def chat_stream(req: ChatRequest, request: Request):
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
                                 parts.append(content)
-                                if not ctx.get("rag_used"):
-                                    yield sse("token", {"content": content})
                             um = getattr(chunk, "usage_metadata", None)
                             if um:
                                 usage = {"promptTokens": um.get("input_tokens", 0),
                                          "completionTokens": um.get("output_tokens", 0)}
                         elif kind == "on_tool_start":
+                            if ev.get("name") == "kb_search" and not rag_started:
+                                parts.clear()
+                                rag_started = True
                             args = ev["data"].get("input")
                             # 可观测：工具开始
                             span = tool_span(ev["name"], input_data=_short(args, 300)) if traced else None
@@ -147,6 +149,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                                         {k: _short(v, 100) for k, v in args.items()},
                             })
                         elif kind == "on_tool_end":
+                            if ev.get("name") == "kb_search" and not rag_started:
+                                parts.clear()
+                                rag_started = True
                             out = ev["data"].get("output")
                             known_ids.update(collect_known_ids(_short(out, 4000)))
                             # 可观测：工具结束
@@ -176,7 +181,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                             final_text = content
                             break
             citations: tuple[dict, ...] = ()
-            if ctx.get("rag_used"):
+            rag_used = bool(ctx.get("rag_used") or rag_started)
+            if rag_used:
                 validation = validate_citations(
                     final_text,
                     allowed=ctx.get("rag_allowed_citations") or {},
@@ -190,8 +196,12 @@ async def chat_stream(req: ChatRequest, request: Request):
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):
                 yield sse("action", action)
-            if ctx.get("rag_used"):
+            if rag_used:
                 yield sse("token", {"content": guarded})
+            else:
+                streamed_parts = parts if "".join(parts) == guarded else [guarded]
+                for part in streamed_parts:
+                    yield sse("token", {"content": part})
             done = {
                 "content": guarded,
                 "tokenUsage": usage,
@@ -199,7 +209,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 "degraded": bool(ctx.get("degraded")),
                 "timedOut": timed_out,
             }
-            if ctx.get("rag_used"):
+            if rag_used:
                 done["citations"] = list(citations)
             yield sse("done", done)
         except Exception as e:

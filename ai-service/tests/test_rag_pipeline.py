@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.clients.backend_client import BackendClient
+from app.rag import retrieval
 from app.rag.retrieval import RetrievalPipeline
 from app.rag.vectorstore import VectorStore
 
@@ -236,3 +237,29 @@ async def test_vector_adapter_requests_exact_top_k_and_returns_complete_metadata
         "source": "条款",
         "score": .8,
     }]
+
+
+@pytest.mark.asyncio
+async def test_cached_pipeline_degrades_when_vectorstore_initialization_fails(monkeypatch):
+    from app.clients.backend_client import backend_client
+    from app.rag import vectorstore
+
+    def unavailable_vectorstore():
+        raise RuntimeError("milvus initialization detail must stay internal")
+
+    monkeypatch.setattr(vectorstore, "get_vectorstore", unavailable_vectorstore)
+    monkeypatch.setattr(
+        backend_client,
+        "kb_keyword_search",
+        AsyncMock(return_value={"hits": [raw_hit(9, score=100.0)]}),
+    )
+    retrieval.get_retrieval_pipeline.cache_clear()
+    try:
+        result = await retrieval.get_retrieval_pipeline().search("退货")
+    finally:
+        retrieval.get_retrieval_pipeline.cache_clear()
+
+    assert result.answerable is True
+    assert [hit.chunk_id for hit in result.hits] == [9]
+    assert result.degraded is True
+    assert result.degraded_reasons == ("vector_unavailable",)

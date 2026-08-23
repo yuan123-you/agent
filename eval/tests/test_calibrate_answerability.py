@@ -86,3 +86,19 @@ def test_cli_writes_only_explicit_output(tmp_path):
         "chosen/report.json",
         "input.jsonl",
     ]
+
+
+def test_single_candidate_null_top2_satisfies_margin():
+    metrics = evaluate_thresholds(
+        [{"answerable": True, "top1": .45, "top2": None}],
+        min_score=.45,
+        high_score=.65,
+        min_margin=.15,
+    )
+
+    assert metrics == {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "reject_rate": 0.0,
+    }

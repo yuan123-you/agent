@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Mapping
 
 
-_CITATION_RE = re.compile(r"\[(S[1-9][0-9]*)\]")
+_SOURCE_MARKER_RE = re.compile(r"\[(S[0-9]+)\]")
+_CANONICAL_SOURCE_RE = re.compile(r"S[1-9][0-9]*")
 _EVIDENCE_INSUFFICIENT = "当前知识库证据不足，暂时无法可靠回答该问题。"
 _RETRIEVAL_UNAVAILABLE = "知识库暂时不可用，请稍后再试。"
 
@@ -34,10 +35,13 @@ def validate_citations(
             reason="retrieval_unavailable" if unavailable else (rag_reason or "unanswerable"),
         )
 
-    referenced = list(dict.fromkeys(_CITATION_RE.findall(content)))
+    referenced = list(dict.fromkeys(_SOURCE_MARKER_RE.findall(content)))
     if not referenced:
         return CitationValidation(_EVIDENCE_INSUFFICIENT, (), False, "missing_citation")
-    if any(source_id not in allowed for source_id in referenced):
+    if any(
+        _CANONICAL_SOURCE_RE.fullmatch(source_id) is None or source_id not in allowed
+        for source_id in referenced
+    ):
         return CitationValidation(_EVIDENCE_INSUFFICIENT, (), False, "unknown_citation")
 
     citations = tuple(

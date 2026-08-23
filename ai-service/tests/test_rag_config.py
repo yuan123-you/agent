@@ -24,3 +24,13 @@ def test_t10_defaults():
 def test_invalid_settings_fail(values):
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **values)
+
+
+def test_rrf_top_k_stays_capped_when_both_recall_windows_are_raised():
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            rag_vector_recall_k=40,
+            rag_bm25_recall_k=40,
+            rag_rrf_top_k=21,
+        )

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     rag_vector_recall_k: int = Field(default=20, gt=0)
     rag_bm25_recall_k: int = Field(default=20, gt=0)
     rag_rrf_k: int = Field(default=60, gt=0)
-    rag_rrf_top_k: int = Field(default=10, gt=0)
+    rag_rrf_top_k: int = Field(default=10, gt=0, le=20)
     rag_final_top_k: int = Field(default=4, gt=0)
     rag_answer_min_score: float = Field(default=0.45, ge=0, le=1)
     rag_answer_high_confidence_score: float = Field(default=0.65, ge=0, le=1)

@@ -364,8 +364,11 @@ def get_retrieval_pipeline() -> RetrievalPipeline:
     from app.rag.reranker import get_reranker
     from app.rag.vectorstore import get_vectorstore
 
+    async def vector_search(query: str, *, top_k: int):
+        return await get_vectorstore().search(query, top_k=top_k)
+
     return RetrievalPipeline(
-        vector_search=get_vectorstore().search,
+        vector_search=vector_search,
         bm25_search=backend_client.kb_keyword_search,
         reranker=get_reranker() if settings.rag_reranker_enabled else None,
     )

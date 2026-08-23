@@ -51,11 +51,12 @@ python scripts/run_eval.py --json     # JSON 输出
 
 ```json
 {"query": "用户问题", "answerable": true, "top1": 0.82, "top2": 0.31}
+{"query": "单候选问题", "answerable": true, "top1": 0.58, "top2": null}
 ```
 
 - `query`：用于人工审阅的数据集问题。
 - `answerable`：该问题是否应由当前知识库证据回答的人工标签。
-- `top1` / `top2`：生产检索链路最终排序前两项的 evidence score。
+- `top1` / `top2`：生产检索链路最终排序前两项的 evidence score；只有一个候选时 `top2` 必须为 JSON `null`，与生产规则一致，此时分差条件视为满足。
 
 从仓库根目录运行有限阈值网格扫描：
 

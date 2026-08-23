@@ -1,3 +1,5 @@
+import pytest
+
 from app.rag.citations import validate_citations
 
 
@@ -71,3 +73,14 @@ def test_only_public_structured_metadata_is_returned():
     result = validate_citations("支持七天退货。[S1]", allowed=allowed, answerable=True)
 
     assert result.citations == ({"id": "S1", "chunk_id": 7, "title": "退换货条款"},)
+
+
+@pytest.mark.parametrize("forged", ["[S0]", "[S01]"])
+def test_mixed_valid_and_noncanonical_source_markers_fail(forged):
+    result = validate_citations(
+        f"真实依据[S1]，伪造依据{forged}", allowed=ALLOWED, answerable=True
+    )
+
+    assert result.valid is False
+    assert result.reason == "unknown_citation"
+    assert result.citations == ()

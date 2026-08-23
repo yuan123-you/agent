@@ -98,12 +98,15 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
     result = await retrieval.get_retrieval_pipeline().search(
         query, doc_type=doc_type, product_id=product_id
     )
-    citations = [asdict(citation) for citation in result.citations]
+    citations = (
+        [asdict(citation) for citation in result.citations]
+        if result.answerable else []
+    )
     citation_titles = {
         citation["chunk_id"]: citation["title"] for citation in citations
     }
     hits = []
-    for hit in result.hits:
+    for hit in result.hits if result.answerable else ():
         serialized = asdict(hit)
         serialized["matched_by"] = sorted(serialized["matched_by"])
         serialized["source"] = citation_titles.get(hit.chunk_id, "知识库资料")
@@ -127,7 +130,7 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
     return {
         "answerable": result.answerable,
         "reason": result.reason,
-        "context": result.context,
+        "context": result.context if result.answerable else "",
         "citations": citations,
         "hits": hits,
         "degraded": result.degraded,

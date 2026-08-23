@@ -134,3 +134,25 @@ def test_shop_prompt_requires_source_ids_without_title_citations():
     assert '不得声称知识库中不存在相关资料' in SHOP_SYSTEM_PROMPT
     assert '检索为空时明确说明"知识库暂无相关资料"' not in SHOP_SYSTEM_PROMPT
     assert '（来源：《退换货条款》）' not in SHOP_SYSTEM_PROMPT
+
+
+@pytest.mark.asyncio
+async def test_unanswerable_candidates_never_expose_body_content(monkeypatch):
+    sentinel = "REJECTED_CANDIDATE_SENTINEL_BODY"
+    rejected = RetrievalCandidate(
+        2, 11, -1, "POLICY", sentinel, "internal-policy-title", vector_score=.01
+    )
+    result_value = RetrievalResult(
+        False, "insufficient_evidence", (rejected,), "", (), False, ()
+    )
+    monkeypatch.setattr(
+        retrieval, "get_retrieval_pipeline", lambda: FakePipeline(result_value)
+    )
+    set_tool_ctx({})
+
+    result = await kb_search.ainvoke({"query": "低分政策"})
+    payload = json.dumps(result, ensure_ascii=False)
+
+    assert result["answerable"] is False
+    assert result["hits"] == []
+    assert sentinel not in payload
