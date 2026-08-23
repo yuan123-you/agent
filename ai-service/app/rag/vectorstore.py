@@ -49,19 +49,14 @@ class VectorStore:
 
     async def search(self, query: str, doc_type: str = "ALL",
                      product_id: int | None = None, top_k: int = 4) -> dict:
-        """向量检索 + 标量过滤（Milvus 中只保留 ACTIVE 文档的向量）"""
+        """Recall ACTIVE vector candidates; request metadata filters run in the pipeline."""
         emb = await self.embeddings.aembed_query(query)
-        parts: list[str] = []
-        if doc_type and doc_type != "ALL":
-            parts.append(f'doc_type == "{doc_type}"')
-        if product_id:
-            parts.append(f"(product_id == {product_id} or product_id == -1)")
-        filter_expr = " and ".join(parts) if parts else "doc_id >= 0"
+        filter_expr = "doc_id >= 0"
         res = await asyncio.to_thread(
             self.client.search,
             collection_name=settings.milvus_collection,
             data=[emb],
-            limit=top_k * 2,
+            limit=top_k,
             filter=filter_expr,
             output_fields=["content", "doc_id", "product_id", "doc_type"],
             search_params={"ef": 128},
@@ -78,6 +73,7 @@ class VectorStore:
                 "content": entity.get("content", ""),
                 "chunk_id": int(h.get("id", 0)),  # Milvus 主键 = kb_chunk.id，作双路 RRF 融合身份
                 "doc_id": doc_id,
+                "product_id": entity.get("product_id"),
                 "docType": entity.get("doc_type", ""),
                 "score": round(float(h.get("distance", 0)), 4),
             })

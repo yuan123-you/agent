@@ -112,9 +112,7 @@ class BackendClient:
     async def kb_keyword_search(self, query: str, doc_type: str = "ALL",
                                 product_id: int | None = None, top_k: int = 4) -> dict:
         """关键词检索（RAG 兜底）：向量 Embedding 不可用或无命中时调用后端检索 ACTIVE 文档分块"""
-        return await self._post("/internal/kb/search", {
-            "query": query, "docType": doc_type, "productId": product_id, "topK": top_k,
-        })
+        return await self._post("/internal/kb/search", {"query": query, "topK": top_k})
 
     async def kb_titles(self, doc_ids: list[int]) -> dict:
         """文档标题批量查询：docId → title 映射（向量命中后用于展示来源标题）"""

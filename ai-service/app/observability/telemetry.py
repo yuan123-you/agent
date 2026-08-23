@@ -185,6 +185,9 @@ def observe_retrieval(name: str = "rag::search"):
 def span_ctx(name: str, **kw):
     """普通 span 上下文管理器（装饰器无法覆盖处兜底）。"""
     class _Ctx:
+        def __init__(self):
+            self.output = kw.get("output")
+
         def __enter__(self):
             trace = _trace()
             self.span = trace.span(name=name, **kw) if trace else None
@@ -193,10 +196,13 @@ def span_ctx(name: str, **kw):
         def __exit__(self, exc_type, exc, tb):
             if self.span is not None:
                 try:
-                    self.span.end(output={"error": str(exc)} if exc else kw.get("output"))
+                    self.span.end(output={"error": str(exc)} if exc else self.output)
                 except Exception:
                     pass
             return False
+
+        def complete(self, output=None):
+            self.output = output
 
     return _Ctx()
 

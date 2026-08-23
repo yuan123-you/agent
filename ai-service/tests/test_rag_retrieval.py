@@ -40,6 +40,15 @@ def test_rrf_merges_only_by_chunk_id_with_rank_starting_at_one():
     assert fused[0].bm25_score == 4
 
 
+def test_rrf_ignores_preexisting_candidate_rrf_score():
+    item = candidate(1)
+    item.rrf_score = 99.0
+
+    fused = reciprocal_rank_fusion([("vector", [item])], limit=10, rrf_k=60)
+
+    assert fused[0].rrf_score == 1 / 61
+
+
 def test_rrf_ties_are_stable_by_best_leg_rank_then_chunk_id():
     fused = reciprocal_rank_fusion([
         ("vector", [candidate(2)]),

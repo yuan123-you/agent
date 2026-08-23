@@ -18,7 +18,7 @@ from pymilvus import DataType, MilvusClient
 from app.clients.llm import get_embeddings
 from app.config import settings
 from app.rag.vectorstore import MilvusUnavailableError
-from app.rag.reranker import get_reranker
+from app.rag.reranker import OllamaReranker, get_reranker
 
 logger = logging.getLogger("ai-service.product-index")
 
@@ -220,6 +220,20 @@ def _rrf(ranked_lists: list[list[tuple[int, float]]], k: int = 60) -> dict[int, 
     return scores
 
 
+def _get_product_reranker():
+    """Keep Stage 1 product dict reranking on its legacy Ollama contract only."""
+    if not settings.reranker_enabled:
+        return None
+    if not settings.rag_reranker_enabled:
+        return get_reranker()
+    return OllamaReranker(
+        base_url=settings.reranker_base_url,
+        model=settings.reranker_model,
+        timeout=settings.reranker_timeout_s,
+        keep_alive=settings.ollama_keep_alive,
+    )
+
+
 async def hybrid_product_search(keyword: str | None, category: str | None,
                                 min_price: float | None, max_price: float | None,
                                 top_k: int = 5) -> dict | None:
@@ -257,7 +271,8 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
             "name", "brand", "category", "sellingPoints", "specs", "description"
         ))
         candidates.append({"product_id": pid, "content": content})
-    ranked = await get_reranker().rerank(kw, candidates, top_n=top_k)
+    reranker = _get_product_reranker()
+    ranked = await reranker.rerank(kw, candidates, top_n=top_k) if reranker else candidates[:top_k]
     top = [
         pidx.corpus.products[item["product_id"]]
         for item in ranked if item.get("product_id") in pidx.corpus.products
