@@ -7,17 +7,15 @@ import com.aimall.backend.entity.KbDoc;
 import com.aimall.backend.mapper.KbChunkMapper;
 import com.aimall.backend.mapper.KbDocMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 知识库内部回调：分块落库（预分配 id）+ 摄取结果回写 + 关键词检索（RAG 向量不可用时的兜底）
@@ -29,6 +27,7 @@ public class InternalKbController {
 
     private final KbDocMapper kbDocMapper;
     private final KbChunkMapper kbChunkMapper;
+    private final Bm25Retriever bm25Retriever;
 
     @Data
     public static class ChunkItem {
@@ -123,95 +122,56 @@ public class InternalKbController {
     }
 
     /**
-     * 关键词检索（RAG 兜底）：向量 Embedding 不可用时，AI 服务退化为本接口检索 ACTIVE 文档分块。
-     * 检索逻辑：查询按空格/标点切词（≥2 字），任一词命中即召回，按命中词数排序。
+     * Exact in-process BM25 retrieval across storage-valid ACTIVE knowledge-base chunks.
+     * Request-side document filters intentionally belong to the AI pipeline after both legs return.
      */
     @PostMapping("/search")
     public ApiResponse<Map<String, Object>> search(@RequestBody SearchBody body) {
-        int topK = body.getTopK() == null ? 4 : Math.min(body.getTopK(), 10);
-        List<String> terms = splitTerms(body.getQuery());
         Map<String, Object> data = new HashMap<>();
-        if (terms.isEmpty()) {
+        if (body.getQuery() == null || body.getQuery().isBlank()) {
             data.put("hits", List.of());
             data.put("total", 0);
             return ApiResponse.ok(data);
         }
 
-        LambdaQueryWrapper<KbChunk> wrapper = new LambdaQueryWrapper<KbChunk>()
-                .inSql(KbChunk::getDocId, "SELECT id FROM kb_doc WHERE status = 'ACTIVE' AND deleted = 0")
-                .and(body.getDocType() != null && !"ALL".equals(body.getDocType())
-                                && !body.getDocType().isBlank(),
-                        w -> w.eq(KbChunk::getDocType, body.getDocType())
-                                .or().isNull(KbChunk::getDocType))
-                .and(w -> {
-                    for (int i = 0; i < terms.size(); i++) {
-                        if (i > 0) {
-                            w.or();
-                        }
-                        w.like(KbChunk::getContent, terms.get(i));
-                    }
-                })
-                .last("LIMIT 200");
-        List<KbChunk> chunks = kbChunkMapper.selectList(wrapper);
-
-        // 命中词数排序（相关性近似），稳定排序
-        Map<Long, KbDoc> docCache = new HashMap<>();
-        List<Map<String, Object>> hits = new ArrayList<>();
-        for (KbChunk c : chunks) {
-            int match = 0;
-            for (String t : terms) {
-                if (c.getContent() != null && c.getContent().contains(t)) {
-                    match++;
-                }
-            }
-            KbDoc doc = docCache.computeIfAbsent(c.getDocId(), id -> kbDocMapper.selectById(id));
-            Map<String, Object> hit = new HashMap<>();
-            hit.put("content", c.getContent());
-            hit.put("chunk_id", c.getId());  // 双路 RRF 融合身份，与向量腿（Milvus 主键）对齐
-            hit.put("source", doc != null ? doc.getTitle() : ("知识库文档#" + c.getDocId()));
-            hit.put("docType", c.getDocType());
-            hit.put("score", Math.min(0.9, 0.5 + match * 0.1));
-            hit.put("_match", match);
-            hits.add(hit);
+        List<KbDoc> docs = kbDocMapper.selectList(new QueryWrapper<KbDoc>()
+                .eq("status", "ACTIVE")
+                .eq("deleted", 0));
+        if (docs.isEmpty()) {
+            data.put("hits", List.of());
+            data.put("total", 0);
+            return ApiResponse.ok(data);
         }
-        hits.sort(Comparator.comparingInt(h -> -((int) h.get("_match"))));
-        hits = hits.stream().limit(topK).peek(h -> h.remove("_match")).toList();
 
+        Map<Long, KbDoc> docsById = new HashMap<>();
+        for (KbDoc doc : docs) {
+            docsById.put(doc.getId(), doc);
+        }
+        List<KbChunk> chunks = kbChunkMapper.selectList(new QueryWrapper<KbChunk>()
+                .in("doc_id", docsById.keySet()));
+        List<Bm25Retriever.Document> corpus = chunks.stream()
+                .map(chunk -> {
+                    KbDoc doc = docsById.get(chunk.getDocId());
+                    return new Bm25Retriever.Document(chunk.getId(), chunk.getDocId(), chunk.getProductId(),
+                            chunk.getDocType(), chunk.getContent(), doc.getTitle());
+                })
+                .toList();
+        List<Bm25Retriever.Hit> matches = bm25Retriever.search(body.getQuery(), corpus,
+                body.getTopK() == null ? 4 : body.getTopK());
+        List<Map<String, Object>> hits = matches.stream().map(match -> {
+            Bm25Retriever.Document document = match.document();
+            Map<String, Object> hit = new HashMap<>();
+            hit.put("chunk_id", document.chunkId());
+            hit.put("doc_id", document.docId());
+            hit.put("product_id", document.productId());
+            hit.put("docType", document.docType());
+            hit.put("content", document.content());
+            hit.put("source", document.source());
+            hit.put("score", match.score());
+            return hit;
+        }).toList();
         data.put("hits", hits);
         data.put("total", hits.size());
         return ApiResponse.ok(data);
-    }
-
-    /** 中文查询切词：按空白/标点切分；数字与汉字间空格归一（"7 天"→"7天"）；
-     * 长词（>8 字）追加 3-gram 滑窗提升召回；全量限 8 个词 */
-    private List<String> splitTerms(String query) {
-        Set<String> terms = new HashSet<>();
-        if (query == null || query.isBlank()) {
-            return List.of();
-        }
-        String normalized = query.trim()
-                .replaceAll("(\\d)\\s+([\\u4e00-\\u9fa5\\d])", "$1$2")
-                .replaceAll("([\\u4e00-\\u9fa5])\\s+(\\d)", "$1$2");
-        for (String part : normalized.split("[\\s，。？?！!、,;；:：\"'（）()\\[\\]{}]+")) {
-            String t = part.trim();
-            if (t.length() < 2) {
-                continue;
-            }
-            if (t.length() <= 8) {
-                terms.add(t);
-            } else {
-                // 长句滑窗 3-gram（步长 2）
-                for (int i = 0; i + 3 <= t.length(); i += 2) {
-                    terms.add(t.substring(i, i + 3));
-                    if (terms.size() >= 12) {
-                        break;
-                    }
-                }
-            }
-        }
-        if (terms.isEmpty() && normalized.length() >= 2) {
-            terms.add(normalized.substring(0, Math.min(4, normalized.length())));
-        }
-        return List.copyOf(terms).stream().limit(8).toList();
     }
 }
