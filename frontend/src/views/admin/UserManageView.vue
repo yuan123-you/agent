@@ -49,7 +49,7 @@
         <el-form-item label="用户名" prop="username"><el-input v-model="agentForm.username" /></el-form-item>
         <el-form-item label="密码" prop="password"><el-input v-model="agentForm.password" type="password" show-password /></el-form-item>
         <el-form-item label="昵称" prop="nickname"><el-input v-model="agentForm.nickname" /></el-form-item>
-        <el-form-item label="手机号"><el-input v-model="agentForm.phone" /></el-form-item>
+        <el-form-item label="手机号" prop="phone"><el-input v-model="agentForm.phone" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialog = false">取消</el-button>

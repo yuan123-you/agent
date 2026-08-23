@@ -5,8 +5,10 @@ import com.aimall.backend.entity.User;
 import com.aimall.backend.mapper.MerchantMapper;
 import com.aimall.backend.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -40,6 +42,40 @@ class RegistrationServiceTest {
         service.registerMerchant(merchantRequest("seller01", "源选店"));
         verify(userMapper).insert(argThat((User u) -> "MERCHANT".equals(u.getRole())));
         verify(merchantMapper).insert(argThat((com.aimall.backend.entity.Merchant m) -> m.getUserId() == 12L && "源选店".equals(m.getShopName()) && "ACTIVE".equals(m.getStatus())));
+    }
+
+    @Test
+    void preservesCustomerPasswordWhitespaceWhenEncoding() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.insert(any(User.class))).thenAnswer(i -> { i.<User>getArgument(0).setId(13L); return 1; });
+        AuthDtos.CustomerRegisterRequest request = customerRequest("buyer02");
+        request.setPassword(" 123456 ");
+
+        service.registerCustomer(request);
+
+        verify(passwordEncoder).encode(" 123456 ");
+    }
+
+    @Test
+    void convertsCustomerInsertDuplicateKeyToUsernameConflict() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.insert(any(User.class))).thenThrow(new DuplicateKeyException("uk_user_username"));
+
+        assertThatThrownBy(() -> service.registerCustomer(customerRequest("buyer01")))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(2005);
+                    assertThat(error.getMessage()).isEqualTo("用户名已存在");
+                });
+    }
+
+    @Test
+    void convertsMerchantInsertDuplicateKeyAndDoesNotCreateShop() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.insert(any(User.class))).thenThrow(new DuplicateKeyException("uk_user_username"));
+
+        assertThatThrownBy(() -> service.registerMerchant(merchantRequest("seller01", "源选店")))
+                .isInstanceOfSatisfying(BizException.class, error -> assertThat(error.getCode()).isEqualTo(2005));
+        verifyNoInteractions(merchantMapper);
     }
 
     @Test

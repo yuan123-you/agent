@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,6 +47,33 @@ class AdminUserServiceTest {
         verify(userMapper).insert(argThat((User u) -> "agent02".equals(u.getUsername())
                 && "hashed-password".equals(u.getPassword())
                 && "AGENT".equals(u.getRole()) && "ACTIVE".equals(u.getStatus())));
+    }
+
+    @Test
+    void preservesAgentPasswordWhitespaceWhenEncoding() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.insert(any(User.class))).thenAnswer(i -> {
+            i.<User>getArgument(0).setId(13L);
+            return 1;
+        });
+        AdminUserService.CreateAgentRequest request = agentRequest("agent03");
+        request.setPassword(" 123456 ");
+
+        service.createAgent(request);
+
+        verify(passwordEncoder).encode(" 123456 ");
+    }
+
+    @Test
+    void convertsAgentInsertDuplicateKeyToUsernameConflict() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(userMapper.insert(any(User.class))).thenThrow(new DuplicateKeyException("uk_user_username"));
+
+        assertThatThrownBy(() -> service.createAgent(agentRequest("agent02")))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(2005);
+                    assertThat(error.getMessage()).isEqualTo("用户名已存在");
+                });
     }
 
     @Test

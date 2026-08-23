@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -36,12 +37,16 @@ public class AdminUserService {
         }
         User user = new User();
         user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setNickname(request.getNickname().trim());
         user.setPhone(request.getPhone() == null ? null : request.getPhone().trim());
         user.setRole("AGENT");
         user.setStatus("ACTIVE");
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            throw new BizException(2005, "用户名已存在");
+        }
         return user.getId();
     }
 

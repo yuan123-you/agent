@@ -32,6 +32,9 @@
             <el-form-item label="昵称">
               <el-input v-model="regForm.nickname" placeholder="昵称" />
             </el-form-item>
+            <el-form-item label="手机号（可选）">
+              <el-input v-model="regForm.phone" placeholder="手机号" />
+            </el-form-item>
             <el-form-item v-if="registrationKind === 'MERCHANT'" label="店铺名称">
               <el-input v-model="regForm.shopName" placeholder="店铺名称" />
             </el-form-item>
@@ -60,7 +63,7 @@ const tab = ref('login')
 const loading = ref(false)
 const loginForm = reactive({ username: '', password: '' })
 const registrationKind = ref<RegistrationKind>('CUSTOMER')
-const regForm = reactive({ username: '', password: '', nickname: '', shopName: '' })
+const regForm = reactive({ username: '', password: '', nickname: '', phone: '', shopName: '' })
 
 async function doLogin() {
   if (!loginForm.username || !loginForm.password) {

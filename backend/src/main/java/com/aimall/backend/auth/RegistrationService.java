@@ -7,6 +7,7 @@ import com.aimall.backend.mapper.MerchantMapper;
 import com.aimall.backend.mapper.UserMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,12 +44,16 @@ public class RegistrationService {
         }
         User user = new User();
         user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setNickname(request.getNickname().trim());
         user.setPhone(request.getPhone() == null ? null : request.getPhone().trim());
         user.setRole(role);
         user.setStatus("ACTIVE");
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            throw new BizException(2005, "用户名已存在");
+        }
         return user;
     }
 }
