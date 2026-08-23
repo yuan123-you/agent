@@ -168,8 +168,10 @@ def observe_retrieval(name: str = "rag::search"):
                         "hit_count": len(result.get("hits") or []),
                         "metric": "hits",
                     })
+                elif isinstance(result, (list, tuple)):
+                    span.end(output={"result_type": "sequence", "result_count": len(result)})
                 else:
-                    span.end(output={"result": result})
+                    span.end(output={"result_type": "none" if result is None else "object"})
                 return result
             except Exception as e:
                 if span is not None:

@@ -156,3 +156,44 @@ async def test_observe_retrieval_sanitizes_escaping_exception_output(monkeypatch
 
     assert trace.spans[0].output == {"error": "span_failed"}
     assert sentinel not in json.dumps(trace.spans[0].output)
+
+
+@pytest.mark.asyncio
+async def test_observe_retrieval_non_dict_results_record_only_safe_shape(monkeypatch):
+    trace = FakeTrace()
+    token = telemetry._trace_ctx.set({"trace": trace, "client": None})
+    monkeypatch.setattr(telemetry, "tracing_enabled", lambda: True)
+    content_sentinel = "SENTINEL_NON_DICT_CONTENT"
+    title_sentinel = "SENTINEL_NON_DICT_TITLE"
+    sequence_result = [{"content": content_sentinel, "title": title_sentinel}]
+
+    class CandidateLike:
+        content = content_sentinel
+        title = title_sentinel
+
+    object_result = CandidateLike()
+
+    @telemetry.observe_retrieval("rag::sequence_search")
+    async def sequence_search(query):
+        return sequence_result
+
+    @telemetry.observe_retrieval("rag::object_search")
+    async def object_search(query):
+        return object_result
+
+    try:
+        returned_sequence = await sequence_search("safe query")
+        returned_object = await object_search("safe query")
+    finally:
+        telemetry._trace_ctx.reset(token)
+
+    assert returned_sequence is sequence_result
+    assert returned_object is object_result
+    assert trace.spans[0].output == {"result_type": "sequence", "result_count": 1}
+    assert trace.spans[1].output == {"result_type": "object"}
+    serialized = json.dumps([
+        {"input": span.kwargs, "output": span.output}
+        for span in trace.spans
+    ])
+    assert content_sentinel not in serialized
+    assert title_sentinel not in serialized
