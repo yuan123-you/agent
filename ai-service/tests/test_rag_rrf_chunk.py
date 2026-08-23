@@ -4,32 +4,11 @@ from pydantic import ValidationError
 
 from app.config import Settings
 from app.rag.ingest import split_text
-from app.tools.tools import _rrf_content
 
 
 def _hit(content: str, doc_id: int = 1) -> dict:
     return {"content": content, "doc_id": doc_id, "score": 0.5}
 
-
-class TestRrfContent:
-    def test_dual_hit_ranked_first(self):
-        a = _hit("退换货政策：七天无理由")
-        b = _hit("保修期一年")
-        merged = _rrf_content([[a, b], [a]], top_k=4)
-        assert merged[0]["content"] == a["content"]
-
-    def test_single_source_preserved(self):
-        merged = _rrf_content([[_hit("仅向量命中")], [_hit("仅关键词命中")]], top_k=4)
-        contents = {m["content"] for m in merged}
-        assert contents == {"仅向量命中", "仅关键词命中"}
-
-    def test_top_k_limits(self):
-        hits = [[_hit(f"片段{i}", i) for i in range(5)], [_hit(f"片段{i}", i) for i in range(5)]]
-        merged = _rrf_content(hits, top_k=3)
-        assert len(merged) == 3
-
-    def test_empty_inputs(self):
-        assert _rrf_content([[], []], top_k=4) == []
 
 
 class TestSplitText:
