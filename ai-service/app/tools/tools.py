@@ -1,13 +1,12 @@
 """工具定义：身份上下文由服务端 ContextVar 注入（不信任模型生成的身份）"""
 import contextvars
 import logging
+from dataclasses import asdict
 
 from langchain_core.tools import tool
 
-from app import rag as _rag
+from app.rag import retrieval
 from app.clients.backend_client import backend_client
-from app.config import settings
-from app.rag.reranker import get_reranker
 from app.observability.telemetry import observe_retrieval
 from app.rag.product_index import hybrid_product_search
 from app.tools.web_search import web_search
@@ -26,14 +25,7 @@ def get_tool_ctx() -> dict:
     return _tool_ctx.get()
 
 
-async def _kb_search(query: str, doc_type: str = "ALL", product_id: int | None = None, top_k: int = 4) -> dict:
-    """经惰性 getter 解析向量库（运行期取到缓存实例），便于测试 monkeypatch 替换。"""
-    return await _rag.vectorstore.get_vectorstore().search(
-        query, doc_type=doc_type, product_id=product_id, top_k=top_k)
-
-
-# RAG 检索节点打点（可观测：命中数与来源）
-_observe_kb = observe_retrieval("rag::kb_search")(_kb_search)
+# 检索节点打点（可观测：命中数与来源）
 _observe_product = observe_retrieval("rag::product_search")(hybrid_product_search)
 
 
@@ -101,50 +93,46 @@ async def order_create(product_id: int, quantity: int = 1,
 @tool
 async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = None, top_k: int = 4) -> dict:
     """检索知识库（商品介绍/售后政策/常见问题）。回答退换货政策、保修规则、商品介绍细节时调用。
-    返回检索到的内容片段与来源，回答时必须基于这些内容并注明来源。
-    未命中时 hits 为空且 empty=true，此时应明确告知用户知识库暂无相关资料，禁止编造。"""
-    # 双路检索 RRF 混排：向量（Milvus）+ 关键词（后端 MySQL），按 chunk_id 融合。
-    # 任一腿命中即返回；向量腿单独命中也要保留，避免"关键词零命中否定向量召回"的误判。
-    # 关键词链路异常（kw_err）时退化为纯向量。
-    vector_hits, kw_hits = [], []
-    kw_err: Exception | None = None
-    try:
-        vector_result = await _observe_kb(query, doc_type=doc_type, product_id=product_id, top_k=top_k)
-        vector_hits = (vector_result or {}).get("hits") or []
-    except Exception as e:
-        logger.warning("vector search failed: %s", e)
-    try:
-        kw_result = await backend_client.kb_keyword_search(
-            query, doc_type=doc_type, product_id=product_id, top_k=top_k)
-        kw_hits = (kw_result or {}).get("hits") or []
-    except Exception as e:
-        kw_err = e
-        logger.warning("keyword search failed: %s", e)
+    返回结构化来源 context；answerable=false 表示证据不足或检索不可用，禁止根据常识补全政策。
+    top_k 仅为兼容既有工具调用保留，最终候选数由检索流水线统一配置。"""
+    result = await retrieval.get_retrieval_pipeline().search(
+        query, doc_type=doc_type, product_id=product_id
+    )
+    citations = [asdict(citation) for citation in result.citations]
+    citation_titles = {
+        citation["chunk_id"]: citation["title"] for citation in citations
+    }
+    hits = []
+    for hit in result.hits:
+        serialized = asdict(hit)
+        serialized["matched_by"] = sorted(serialized["matched_by"])
+        serialized["source"] = citation_titles.get(hit.chunk_id, "知识库资料")
+        hits.append(serialized)
 
-    # 双路 RRF 融合：任一路命中即返回（含仅向量命中），避免关键词零命中误判为空
-    if vector_hits or kw_hits:
-        candidate_k = max(top_k, settings.reranker_candidates)
-        merged = _rrf_content([vector_hits, kw_hits], candidate_k)
-        ranked = await get_reranker().rerank(query, merged, top_n=top_k)
-        return {"hits": ranked, "total": len(ranked)}
-    return {"hits": [], "total": 0, "empty": True}
+    ctx = get_tool_ctx()
+    ctx.update({
+        "rag_used": True,
+        "rag_answerable": result.answerable,
+        "rag_reason": result.reason,
+        "rag_allowed_citations": {
+            citation["id"]: citation for citation in citations
+        } if result.answerable else {},
+    })
+    ctx["degraded"] = bool(
+        ctx.get("degraded")
+        or result.degraded
+        or result.reason == "retrieval_unavailable"
+    )
 
-
-def _rrf_content(ranked: list[list[dict]], top_k: int, k: int = 60) -> list[dict]:
-    """RRF 混排（k=60 常用）：score = Σ 1/(k + rank)，按 chunk_id 融合。
-    向量与关键词命中同一 chunk 时排名叠加；chunk_id 缺失（如单测/旧数据）回退按正文识别。取 top_k。"""
-    scores: dict[str, float] = {}
-    by_chunk: dict[str, dict] = {}
-    for lst in ranked:
-        for rank, hit in enumerate(lst):
-            key = hit.get("chunk_id") or hit.get("content", "")
-            if not key:
-                continue
-            key = str(key)
-            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-            by_chunk.setdefault(key, hit)
-    ordered = sorted(scores, key=scores.get, reverse=True)
-    return [by_chunk[key] for key in ordered[:top_k]]
+    return {
+        "answerable": result.answerable,
+        "reason": result.reason,
+        "context": result.context,
+        "citations": citations,
+        "hits": hits,
+        "degraded": result.degraded,
+        "degraded_reasons": list(result.degraded_reasons),
+    }
 
 
 @tool
