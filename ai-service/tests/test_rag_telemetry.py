@@ -25,6 +25,8 @@ class FakeTrace:
         self.spans.append(span)
         return span
 
+    observation = span
+
 
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_span_contains_safe_decision_metadata_only():
@@ -101,6 +103,54 @@ def test_tool_span_sanitizes_escaping_exception_output():
         with pytest.raises(RuntimeError, match=sentinel):
             with telemetry.tool_span("failing"):
                 raise RuntimeError(f"tool response contained {sentinel}")
+    finally:
+        telemetry._trace_ctx.reset(token)
+
+    assert trace.spans[0].output == {"error": "span_failed"}
+    assert sentinel not in json.dumps(trace.spans[0].output)
+
+
+@pytest.mark.asyncio
+async def test_observe_retrieval_records_only_safe_hit_aggregates(monkeypatch):
+    trace = FakeTrace()
+    token = telemetry._trace_ctx.set({"trace": trace, "client": None})
+    monkeypatch.setattr(telemetry, "tracing_enabled", lambda: True)
+    content_sentinel = "SENTINEL_CANDIDATE_CONTENT"
+    title_sentinel = "SENTINEL_SOURCE_TITLE"
+
+    @telemetry.observe_retrieval("rag::legacy_search")
+    async def search(query):
+        return {
+            "total": 1,
+            "hits": [{"content": content_sentinel, "source": title_sentinel}],
+        }
+
+    try:
+        result = await search("safe query")
+    finally:
+        telemetry._trace_ctx.reset(token)
+
+    assert result["hits"][0]["content"] == content_sentinel
+    assert trace.spans[0].output == {"total": 1, "hit_count": 1, "metric": "hits"}
+    serialized = json.dumps(trace.spans[0].output)
+    assert content_sentinel not in serialized
+    assert title_sentinel not in serialized
+
+
+@pytest.mark.asyncio
+async def test_observe_retrieval_sanitizes_escaping_exception_output(monkeypatch):
+    trace = FakeTrace()
+    token = telemetry._trace_ctx.set({"trace": trace, "client": None})
+    monkeypatch.setattr(telemetry, "tracing_enabled", lambda: True)
+    sentinel = "SENTINEL_RETRIEVAL_SECRET"
+
+    @telemetry.observe_retrieval("rag::legacy_search")
+    async def search(query):
+        raise RuntimeError(f"retrieval response contained {sentinel}")
+
+    try:
+        with pytest.raises(RuntimeError, match=sentinel):
+            await search("safe query")
     finally:
         telemetry._trace_ctx.reset(token)
 

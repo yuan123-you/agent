@@ -165,7 +165,7 @@ def observe_retrieval(name: str = "rag::search"):
                 if isinstance(result, dict):
                     span.end(output={
                         "total": result.get("total", 0),
-                        "hits": result.get("hits", []),
+                        "hit_count": len(result.get("hits") or []),
                         "metric": "hits",
                     })
                 else:
@@ -174,7 +174,7 @@ def observe_retrieval(name: str = "rag::search"):
             except Exception as e:
                 if span is not None:
                     try:
-                        span.end(output={"error": str(e)})
+                        span.end(output={"error": "span_failed"})
                     except Exception:
                         pass
                 raise
