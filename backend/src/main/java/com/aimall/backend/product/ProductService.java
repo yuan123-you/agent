@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 
 /**
- * 商品服务：买家端检索 + 管理端 CRUD
+ * 商品服务：买家端检索 + 管理端创建与状态维护
  */
 @Service
 @RequiredArgsConstructor
@@ -72,11 +72,6 @@ public class ProductService {
         return product.getId();
     }
 
-    public void update(Long id, ProductSaveRequest req) {
-        Product product = requireProduct(id);
-        copy(req, product);
-        productMapper.updateById(product);
-    }
 
     public void toggleStatus(Long id, String status) {
         if (!"ON_SALE".equals(status) && !"OFF_SHELF".equals(status)) {

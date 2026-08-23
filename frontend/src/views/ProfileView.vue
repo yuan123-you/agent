@@ -69,7 +69,7 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const roleText = computed(
-  () => ({ ADMIN: '管理员', AGENT: '人工客服', CUSTOMER: '买家', MERCHANT: '商家' }[auth.role] || auth.role),
+  () => ({ ADMIN: '管理员', AGENT: '人工客服', CUSTOMER: '买家', MERCHANT: '卖家' }[auth.role] || auth.role),
 )
 
 async function logout() {

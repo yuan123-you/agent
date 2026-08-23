@@ -43,12 +43,6 @@ public class AdminProductController {
         return ApiResponse.ok(productService.create(req));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<Void> update(@PathVariable Long id,
-                                    @Valid @RequestBody ProductService.ProductSaveRequest req) {
-        productService.update(id, req);
-        return ApiResponse.ok();
-    }
 
     @PostMapping("/{id}/status")
     public ApiResponse<Void> toggleStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {

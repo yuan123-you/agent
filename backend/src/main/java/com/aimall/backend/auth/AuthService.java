@@ -28,24 +28,19 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final StringRedisTemplate redisTemplate;
+    private final RegistrationService registrationService;
 
     public Long register(AuthDtos.RegisterRequest req) {
-        Long exists = userMapper.selectCount(new LambdaQueryWrapper<User>()
-                .eq(User::getUsername, req.getUsername()));
-        if (exists != null && exists > 0) {
-            throw new BizException(2005, "用户名已存在");
-        }
-        User user = new User();
-        user.setUsername(req.getUsername());
-        user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setNickname(req.getNickname());
-        user.setPhone(req.getPhone());
-        user.setRole("CUSTOMER");
-        user.setStatus("ACTIVE");
-        userMapper.insert(user);
-        return user.getId();
+        return registrationService.registerCustomer(req);
     }
 
+    public Long registerCustomer(AuthDtos.CustomerRegisterRequest req) {
+        return registrationService.registerCustomer(req);
+    }
+
+    public Long registerMerchant(AuthDtos.MerchantRegisterRequest req) {
+        return registrationService.registerMerchant(req);
+    }
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest req, String ip) {
         // 登录防爆破：同 IP 每分钟 5 次
         try {

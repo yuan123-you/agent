@@ -18,6 +18,10 @@
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="注册" name="register">
+          <el-tabs v-model="registrationKind" class="registration-kind">
+            <el-tab-pane label="买家注册" name="CUSTOMER" />
+            <el-tab-pane label="卖家注册" name="MERCHANT" />
+          </el-tabs>
           <el-form :model="regForm" label-position="top">
             <el-form-item label="用户名">
               <el-input v-model="regForm.username" placeholder="4~32位字母数字下划线" />
@@ -28,12 +32,18 @@
             <el-form-item label="昵称">
               <el-input v-model="regForm.nickname" placeholder="昵称" />
             </el-form-item>
+            <el-form-item label="手机号（可选）">
+              <el-input v-model="regForm.phone" placeholder="手机号" />
+            </el-form-item>
+            <el-form-item v-if="registrationKind === 'MERCHANT'" label="店铺名称">
+              <el-input v-model="regForm.shopName" placeholder="店铺名称" />
+            </el-form-item>
             <el-button type="primary" class="submit" :loading="loading" @click="doRegister">注 册</el-button>
           </el-form>
         </el-tab-pane>
       </el-tabs>
       <el-alert type="info" :closable="false" class="tips"
-        title="演示账号：customer01 买家 / merchant01 商家 / agent01 客服 / admin 管理员，密码均为 123456" />
+        title="演示账号：customer01 买家 / merchant01 卖家 / agent01 客服 / admin 管理员，密码均为 123456" />
     </el-card>
   </div>
 </template>
@@ -43,6 +53,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { buildRegistrationPayload, type RegistrationKind, validateRegistration } from './auth/registration'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -51,7 +62,8 @@ const route = useRoute()
 const tab = ref('login')
 const loading = ref(false)
 const loginForm = reactive({ username: '', password: '' })
-const regForm = reactive({ username: '', password: '', nickname: '' })
+const registrationKind = ref<RegistrationKind>('CUSTOMER')
+const regForm = reactive({ username: '', password: '', nickname: '', phone: '', shopName: '' })
 
 async function doLogin() {
   if (!loginForm.username || !loginForm.password) {
@@ -71,13 +83,18 @@ async function doLogin() {
 }
 
 async function doRegister() {
-  if (!regForm.username || !regForm.password || !regForm.nickname) {
-    ElMessage.warning('请完整填写注册信息')
+  const errors = validateRegistration(registrationKind.value, regForm)
+  if (errors.length) {
+    ElMessage.warning(errors[0])
     return
   }
   loading.value = true
   try {
-    await auth.register({ ...regForm })
+    if (registrationKind.value === 'MERCHANT') {
+      await auth.registerMerchant(buildRegistrationPayload('MERCHANT', regForm))
+    } else {
+      await auth.registerCustomer(buildRegistrationPayload('CUSTOMER', regForm))
+    }
     ElMessage.success('注册成功，请登录')
     tab.value = 'login'
     loginForm.username = regForm.username
@@ -123,6 +140,10 @@ async function doRegister() {
 .submit {
   width: 100%;
   margin-top: 4px;
+}
+
+.registration-kind {
+  margin-bottom: 8px;
 }
 
 .tips {

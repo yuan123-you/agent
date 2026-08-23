@@ -1,7 +1,7 @@
 <template>
   <el-container class="merchant-layout">
     <el-aside width="200px" class="aside">
-      <div class="logo">🏪 商家中心</div>
+      <div class="logo">🏪 卖家中心</div>
       <div class="shop-card">
         <div class="shop-name">{{ profile?.shopName || '...' }}</div>
         <div class="shop-meta">在售 {{ profile?.onSaleCount ?? '-' }} / 共 {{ profile?.totalProducts ?? '-' }}</div>

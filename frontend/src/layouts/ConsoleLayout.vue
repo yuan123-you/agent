@@ -4,6 +4,7 @@
       <div class="logo">AI Mall 控制台</div>
       <el-menu :default-active="activeMenu" router class="menu">
         <template v-if="auth.isAdmin">
+          <el-menu-item index="/admin/dashboard">数据看板</el-menu-item>
           <el-menu-item index="/admin/products">商品管理</el-menu-item>
           <el-menu-item index="/admin/orders">订单管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
@@ -31,16 +32,13 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { consoleActiveMenu } from './consoleLayout'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const activeMenu = computed(() => {
-  if (route.path.startsWith('/workbench')) return '/workbench'
-  const base = '/' + route.path.split('/')[2]
-  return base
-})
+const activeMenu = computed(() => consoleActiveMenu(route.path))
 
 const roleText = computed(() =>
   ({ ADMIN: '管理员', AGENT: '人工客服', CUSTOMER: '买家' }[auth.role] || auth.role),
@@ -55,6 +53,11 @@ async function logout() {
 <style scoped>
 .console-layout {
   height: 100%;
+}
+
+.console-layout > :deep(.el-container),
+.main {
+  min-width: 0;
 }
 
 .aside {
@@ -94,5 +97,35 @@ async function logout() {
 .main {
   overflow-y: auto;
   background: #f5f7fa;
+}
+
+@media (max-width: 760px) {
+  .console-layout {
+    flex-direction: column;
+  }
+
+  .aside {
+    width: 100% !important;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid #e4e7ed;
+  }
+
+  .logo {
+    height: 44px;
+  }
+
+  .menu {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .menu :deep(.el-menu-item) {
+    flex: 0 0 auto;
+  }
+
+  .main {
+    padding: 12px;
+  }
 }
 </style>

@@ -44,8 +44,8 @@ public class SecurityConfig {
                         // chunked 终止块丢失（前端 ERR_INCOMPLETE_CHUNKED_ENCODING）。首次请求已完成鉴权，此处放行安全。
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         // 开放接口
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register",
-                                "/api/v1/auth/refresh").permitAll()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/register/customer",
+                                "/api/v1/auth/register/merchant", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 内部接口：仅 AI 服务（内部令牌）

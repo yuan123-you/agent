@@ -66,7 +66,11 @@ AI 回答正文中以 Markdown 链接语法携带**站内跳转链接**，前端
 
 ### 1.1 认证模块 `/api/v1/auth`
 
-#### POST `/api/v1/auth/register` 注册
+#### POST `/api/v1/auth/register/customer` 买家注册
+
+买家注册的正式接口；请求字段与下表一致，成功响应中 `data.user.role` 为 `CUSTOMER`。保留 `POST /api/v1/auth/register` 作为兼容入口，语义同买家注册。
+
+#### POST `/api/v1/auth/register` 兼容买家注册
 
 | 参数 | 位置 | 类型 | 必填 | 校验 |
 |------|------|------|------|------|
@@ -75,7 +79,27 @@ AI 回答正文中以 Markdown 链接语法携带**站内跳转链接**，前端
 | nickname | body | string | 是 | 1~32 位 |
 | phone | body | string | 否 | 手机号格式 |
 
-响应 data：`{ "userId": 5, "username": "buyer02", "nickname": "新买家" }`（角色固定 CUSTOMER）
+买家注册成功响应仍使用统一 `LoginResponse` 包装；注册本身不签发令牌，因此 `data.accessToken`、`data.refreshToken` 为 `null`，`data.expiresIn` 为 `0`，用户信息位于 `data.user`：
+
+```json
+{
+  "accessToken": null,
+  "refreshToken": null,
+  "expiresIn": 0,
+  "user": {
+    "userId": 5,
+    "username": "buyer02",
+    "nickname": "新买家",
+    "role": "CUSTOMER",
+    "phone": null,
+    "email": null
+  }
+}
+```
+
+#### POST `/api/v1/auth/register/merchant` 卖家注册
+
+请求字段继承买家注册，并新增必填 `shopName`（string，最长 64）。响应结构与上述 `LoginResponse` 相同：token 为 `null`、`expiresIn` 为 `0`，用户信息嵌套在 `data.user`，其中 `role` 为 `MERCHANT`；店铺名不在注册响应中返回。`MERCHANT` 为技术契约字面量，页面展示名称必须是“卖家”。
 
 #### POST `/api/v1/auth/login` 登录
 
@@ -133,7 +157,24 @@ data：`{ "userId", "username", "nickname", "role", "phone", "email" }`
 data：列表字段 + `description`（介绍富文本/MD）+ `specs`（JSON 参数）。
 错误：`2002 商品不存在或已下架`。
 
-### 1.3 订单模块 `/api/v1/orders`
+### 1.3 卖家端 `/api/v1/merchant`（MERCHANT）
+
+所有接口均从当前登录用户解析卖家店铺，并只查询或修改该店铺的数据；产品更新契约保留在卖家端，不向管理员端暴露。
+
+| 接口 | 方法 | 路径 | 请求与实际行为 |
+|------|------|------|----------------|
+| 店铺资料 | GET | `/api/v1/merchant/profile` | 返回 `merchantId`、`shopName`、`shopLogo`、`description`、`address`、`onSaleCount`、`totalProducts` |
+| 本店商品列表 | GET | `/api/v1/merchant/products` | query：可选 `status`，`page`/`size` 默认 1/20；返回 MyBatis `Page<Product>`，按商品 ID 倒序，包含本店下架商品 |
+| 创建商品 | POST | `/api/v1/merchant/products` | body 使用下述商品模板；服务端写入当前 `merchantId`、`status=ON_SALE`、`sales=0`，返回商品 ID |
+| 编辑本店商品 | PUT | `/api/v1/merchant/products/{id}` | body 使用同一商品模板；先校验商品属于当前店铺，再更新 |
+| 上架/下架 | POST | `/api/v1/merchant/products/{id}/status` | body `{ "status": "ON_SALE" | "OFF_SHELF" }`；仅本人店铺商品 |
+| 删除商品 | DELETE | `/api/v1/merchant/products/{id}` | 先校验商品属于当前店铺，再按 ID 删除 |
+| 本店商品评论 | GET | `/api/v1/merchant/reviews` | query：`page`/`size` 默认 1/20；只返回本店商品评论，按评论 ID 倒序 |
+| 回复评论 | POST | `/api/v1/merchant/reviews/{id}/reply` | body `{ "content": "回复内容" }`；仅可回复本人店铺商品的评论 |
+
+商品创建/编辑模板必填：`name`、`brand`、`category`、`price`（≥1）、`stock`（≥0）、`sellingPoints`、`imageUrl`；选填：`specs`、`material`、`origin`、`shipFrom`、`productionDate`、`description`。越权操作返回 `2003`。
+
+### 1.4 订单模块 `/api/v1/orders`
 
 #### POST `/api/v1/orders` 下单（单商品直购）
 
@@ -181,7 +222,7 @@ data.records：
 
 含完整明细、收货信息、各时间戳（paidAt/shippedAt/deliveredAt）。越权 → 403/2003。
 
-### 1.4 会话与消息模块 `/api/v1/chat`
+### 1.5 会话与消息模块 `/api/v1/chat`
 
 #### POST `/api/v1/chat/conversations` 创建会话
 
@@ -260,7 +301,7 @@ data: {"code": 5002, "message": "AI 助手繁忙，请稍后重试或转人工"}
 - 熔断打开：立即返回 error（5002）后结束流。
 - done 后连接关闭；AI 消息（含链接原文）已持久化。
 
-### 1.5 客服工作台 `/api/v1/workbench`（AGENT，P1）
+### 1.6 客服工作台 `/api/v1/workbench`（AGENT，P1）
 
 | 接口 | 方法 | 路径 | 说明 |
 |------|------|------|------|
@@ -269,12 +310,12 @@ data: {"code": 5002, "message": "AI 助手繁忙，请稍后重试或转人工"}
 | 人工发送消息 | POST | `/api/v1/workbench/conversations/{id}/messages` | 普通 JSON 响应（非 SSE），role=AGENT |
 | 结束服务 | POST | `/api/v1/workbench/conversations/{id}/finish` | 会话 CLOSED，触发满意度评价 |
 
-### 1.6 管理后台 `/api/v1/admin`（ADMIN）
+### 1.7 管理后台 `/api/v1/admin`（ADMIN）
 
 | 接口 | 方法 | 路径 | 说明 |
 |------|------|------|------|
 | 商品列表 | GET | `/api/v1/admin/products` | 含下架商品，全状态筛选 |
-| 创建/更新商品 | POST/PUT | `/api/v1/admin/products` | 名称/类目/品牌/价格/库存/卖点/参数/图片 |
+| 创建商品 | POST | `/api/v1/admin/products` | 名称/类目/品牌/价格/库存/卖点/参数/图片；管理员无商品更新端点，`PUT /api/v1/admin/products/{id}` 不存在 |
 | 上架/下架 | POST | `/api/v1/admin/products/{id}/status` | body `{ "status": "OFF_SHELF" }` |
 | 订单列表 | GET | `/api/v1/admin/orders` | 全状态筛选，含买家昵称 |
 | 发货 | POST | `/api/v1/admin/orders/{id}/ship` | body `{ "logisticsNo": "SF123" }`，仅 PAID 可发 |
@@ -285,9 +326,27 @@ data: {"code": 5002, "message": "AI 助手繁忙，请稍后重试或转人工"}
 | 启用/停用文档 | POST | `/api/v1/admin/kb/docs/{id}/status` | 停用后检索不命中 |
 | 重建索引 | POST | `/api/v1/admin/kb/docs/{id}/reindex` | version+1 重建向量 |
 | 删除文档 | DELETE | `/api/v1/admin/kb/docs/{id}` | 软删 + 清 Milvus 向量 |
-| 用户列表 | GET | `/api/v1/admin/users` | P1 |
-| 用户禁用/启用/改角色 | PUT | `/api/v1/admin/users/{id}` | P1，角色限 AGENT/CUSTOMER |
+| 用户列表 | GET | `/api/v1/admin/users` | 查询参数 `role` 仅使用 `CUSTOMER`、`MERCHANT`、`AGENT`；管理端标签不包含 ADMIN |
+| 创建客服 | POST | `/api/v1/admin/users/agents` | 管理员唯一可创建的账号类型；请求为用户名、密码、昵称及可选手机号 |
+| 用户状态更新 | PUT | `/api/v1/admin/users/{id}/status` | body `{ "status": "ACTIVE" | "DISABLED" }`；仅状态变更，不支持角色转换 |
+| 数据看板 | GET | `/api/v1/admin/dashboard` | 见下；“今日”及近 7 日时间窗按 `Asia/Shanghai` 计算 |
 | 使用统计 | GET | `/api/v1/admin/stats/overview` | P1，见下 |
+
+**数据看板响应 data**：
+
+```json
+{
+  "summary": { "userCount": 120, "merchantCount": 8, "onSaleProductCount": 90, "todayOrderCount": 12, "todayGmv": 2680.00, "todayConversationCount": 40 },
+  "orderTrend": [{ "date": "2026-08-23", "orderCount": 12, "gmv": 2680.00 }],
+  "orderStatusDistribution": [{ "status": "PAID", "count": 5 }],
+  "operations": { "waitingHumanConversationCount": 2 },
+  "aiQuality": { "replySuccessRate": 98.5, "toolCallRatio": 42.0, "avgLatencyMs": 760, "totalTokens": 12000 },
+  "topQuestions": [{ "name": "推荐手机", "count": 8 }],
+  "toolCalls": [{ "name": "product_search", "count": 6 }]
+}
+```
+
+指标包括平台用户、卖家、在售商品、今日订单/GMV/会话，近 7 日订单与 GMV、订单状态、待人工会话、AI 回复成功率/工具调用率/平均时延/Token、热门问题与工具调用排行。日期计算统一使用 `Asia/Shanghai`。
 
 **统计响应 data**（P1，极简）：
 

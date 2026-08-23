@@ -19,9 +19,17 @@ public class AuthController {
 
     @PostMapping("/register")
     public ApiResponse<AuthDtos.LoginResponse> register(@Valid @RequestBody AuthDtos.RegisterRequest req) {
-        Long userId = authService.register(req);
-        return ApiResponse.ok(new AuthDtos.LoginResponse(null, null, 0,
-                new AuthDtos.UserVO(userId, req.getUsername(), req.getNickname(), "CUSTOMER", null, null)));
+        return registrationResponse(authService.register(req), req, "CUSTOMER");
+    }
+
+    @PostMapping("/register/customer")
+    public ApiResponse<AuthDtos.LoginResponse> registerCustomer(@Valid @RequestBody AuthDtos.CustomerRegisterRequest req) {
+        return registrationResponse(authService.registerCustomer(req), req, "CUSTOMER");
+    }
+
+    @PostMapping("/register/merchant")
+    public ApiResponse<AuthDtos.LoginResponse> registerMerchant(@Valid @RequestBody AuthDtos.MerchantRegisterRequest req) {
+        return registrationResponse(authService.registerMerchant(req), req, "MERCHANT");
     }
 
     @PostMapping("/login")
@@ -47,6 +55,13 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<AuthDtos.UserVO> me(@AuthenticationPrincipal Long userId) {
         return ApiResponse.ok(authService.me(userId));
+    }
+
+    private ApiResponse<AuthDtos.LoginResponse> registrationResponse(Long userId,
+                                                                      AuthDtos.CustomerRegisterRequest request,
+                                                                      String role) {
+        return ApiResponse.ok(new AuthDtos.LoginResponse(null, null, 0,
+                new AuthDtos.UserVO(userId, request.getUsername(), request.getNickname(), role, null, null)));
     }
 
     private String clientIp(HttpServletRequest request) {

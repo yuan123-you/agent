@@ -4,11 +4,21 @@ export interface UserInfo {
   userId: number
   username: string
   nickname: string
-  role: 'ADMIN' | 'AGENT' | 'CUSTOMER'
+  role: 'ADMIN' | 'AGENT' | 'CUSTOMER' | 'MERCHANT'
   phone?: string
   email?: string
 }
 
+export interface CustomerRegistration {
+  username: string
+  password: string
+  nickname: string
+  phone?: string
+}
+
+export interface MerchantRegistration extends CustomerRegistration {
+  shopName: string
+}
 export interface LoginResp {
   accessToken: string
   refreshToken?: string
@@ -155,3 +165,37 @@ export interface WorkbenchSla {
 }
 
 
+export interface AdminDashboardSummary {
+  userCount: number
+  merchantCount: number
+  onSaleProductCount: number
+  todayOrderCount: number
+  todayGmv: number
+  todayConversationCount: number
+}
+
+export interface AdminDashboardOrderTrend {
+  date: string
+  orderCount: number
+  gmv: number
+}
+
+export interface AdminDashboardStatusCount {
+  status: string
+  count: number
+}
+
+export interface AdminDashboardRankItem {
+  name: string
+  count: number
+}
+
+export interface AdminDashboardVO {
+  summary: AdminDashboardSummary
+  orderTrend: AdminDashboardOrderTrend[]
+  orderStatusDistribution: AdminDashboardStatusCount[]
+  operations: { waitingHumanConversationCount: number }
+  aiQuality: { replySuccessRate: number; toolCallRatio: number; avgLatencyMs: number; totalTokens: number }
+  topQuestions: AdminDashboardRankItem[]
+  toolCalls: AdminDashboardRankItem[]
+}

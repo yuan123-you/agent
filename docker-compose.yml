@@ -6,7 +6,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
       MYSQL_DATABASE: ai_mall
       TZ: Asia/Shanghai
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+08:00
     volumes:
       - mysql-data:/var/lib/mysql
     ports:
@@ -108,6 +108,7 @@ services:
     # 修复 MyBatis-Plus 在容器内 InetAddress.getLocalHost() 解析失败（"Unable to retrieve localhost"）
     hostname: aimall-backend
     environment:
+      TZ: Asia/Shanghai
       MYSQL_HOST: mysql
       MYSQL_DB: ai_mall
       MYSQL_USERNAME: root

@@ -35,9 +35,8 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button size="small" :type="row.status === 'ON_SALE' ? 'warning' : 'success'"
             @click="toggle(row)">
             {{ row.status === 'ON_SALE' ? '下架' : '上架' }}
@@ -49,8 +48,7 @@
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
 
-    <!-- 新建/编辑弹窗 -->
-    <el-dialog v-model="dialog" :title="form.id ? '编辑商品' : '新建商品'" width="560px">
+    <el-dialog v-model="dialog" title="新建商品" width="560px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="商品名">
           <el-input v-model="form.name" />
@@ -94,7 +92,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  apiAdminProductCreate, apiAdminProductStatus, apiAdminProductUpdate, apiAdminProducts,
+  apiAdminProductCreate, apiAdminProductStatus, apiAdminProducts,
 } from '@/api'
 import { CATEGORIES, categoryName } from '@/constants/categories'
 import type { ProductVO } from '@/types/api'
@@ -113,7 +111,7 @@ const emptyForm = (): Partial<ProductVO> => ({
   name: '', brand: '', category: 'PHONE', price: 0, stock: 0,
   imageUrl: '', sellingPoints: '', specs: '', description: '',
 })
-const form = reactive<Partial<ProductVO> & { id?: number }>(emptyForm())
+const form = reactive<Partial<ProductVO>>(emptyForm())
 
 function reload() {
   page.value = 1
@@ -149,12 +147,7 @@ function loadMore() {
 }
 
 function openCreate() {
-  Object.assign(form, emptyForm(), { id: undefined })
-  dialog.value = true
-}
-
-function openEdit(row: ProductVO) {
-  Object.assign(form, row, { id: row.id })
+  Object.assign(form, emptyForm())
   dialog.value = true
 }
 
@@ -165,11 +158,7 @@ async function save() {
   }
   saving.value = true
   try {
-    if (form.id) {
-      await apiAdminProductUpdate(form.id, form)
-    } else {
-      await apiAdminProductCreate(form)
-    }
+    await apiAdminProductCreate(form)
     ElMessage.success('保存成功')
     dialog.value = false
     reload()

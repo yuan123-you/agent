@@ -9,13 +9,12 @@
       <h3 class="page-title">用户管理（{{ total }}）</h3>
       <el-input v-model="keyword" placeholder="搜索用户名/昵称" clearable style="width: 220px"
         @keyup.enter="reload" @clear="reload" />
-      <el-select v-model="role" style="width: 130px" @change="reload">
-        <el-option label="全部角色" value="" />
-        <el-option label="买家" value="CUSTOMER" />
-        <el-option label="客服" value="AGENT" />
-        <el-option label="管理员" value="ADMIN" />
-      </el-select>
+      <el-button v-if="canCreateAgent(activeRole)" type="primary" @click="createDialog = true">创建客服</el-button>
     </div>
+
+    <el-tabs v-model="activeRole" @tab-change="reload">
+      <el-tab-pane v-for="tab in USER_TABS" :key="tab.role" :label="tab.label" :name="tab.role" />
+    </el-tabs>
 
     <el-table v-loading="loading && users.length === 0" :data="users" border stripe>
       <el-table-column prop="userId" label="ID" width="70" />
@@ -33,66 +32,93 @@
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="注册时间" width="160" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="100" fixed="right">
         <template #default="{ row }">
-          <template v-if="row.role !== 'ADMIN'">
-            <el-button size="small" :type="row.status === 'ACTIVE' ? 'warning' : 'success'" @click="toggleStatus(row)">
-              {{ row.status === 'ACTIVE' ? '禁用' : '启用' }}
-            </el-button>
-            <el-button size="small" @click="changeRole(row)">{{ row.role === 'AGENT' ? '转为买家' : '转为客服' }}</el-button>
-          </template>
+          <el-button size="small" :type="row.status === 'ACTIVE' ? 'warning' : 'success'" @click="toggleStatus(row)">
+            {{ row.status === 'ACTIVE' ? '禁用' : '启用' }}
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
 
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && users.length > 0" class="load-state">— 没有更多了 —</div>
+
+    <el-dialog v-model="createDialog" title="创建客服" width="440px" @closed="resetAgentForm">
+      <el-form ref="agentFormRef" :model="agentForm" :rules="agentRules" label-width="80px">
+        <el-form-item label="用户名" prop="username"><el-input v-model="agentForm.username" /></el-form-item>
+        <el-form-item label="密码" prop="password"><el-input v-model="agentForm.password" type="password" show-password /></el-form-item>
+        <el-form-item label="昵称" prop="nickname"><el-input v-model="agentForm.nickname" /></el-form-item>
+        <el-form-item label="手机号" prop="phone"><el-input v-model="agentForm.phone" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialog = false">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="createAgent">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { apiAdminUserUpdate, apiAdminUsers } from '@/api'
-import type { UserInfo } from '@/types/api'
+import type { FormInstance, FormRules } from 'element-plus'
+import { apiAdminAgentCreate, apiAdminUserStatus, apiAdminUsers } from '@/api'
+import type { CustomerRegistration, UserInfo } from '@/types/api'
+import { USER_TABS, canCreateAgent, createLatestRequestRunner, roleText, type UserRoleTab } from './userManagement'
 
-type UserRow = UserInfo & { status: string }
+type UserRow = UserInfo & { status: 'ACTIVE' | 'DISABLED'; createdAt?: string }
 
 const users = ref<UserRow[]>([])
 const loading = ref(false)
 const finished = ref(false)
 const keyword = ref('')
-const role = ref('')
+const activeRole = ref<UserRoleTab>('CUSTOMER')
 const page = ref(1)
 const total = ref(0)
-
-function reload() {
-  page.value = 1
-  finished.value = false
-  users.value = []
-  load()
+const createDialog = ref(false)
+const creating = ref(false)
+const agentFormRef = ref<FormInstance>()
+const agentForm = reactive<CustomerRegistration>({ username: '', password: '', nickname: '', phone: '' })
+const agentRules: FormRules<CustomerRegistration> = {
+  username: [{ required: true, whitespace: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  nickname: [{ required: true, whitespace: true, message: '请输入昵称', trigger: 'blur' }],
 }
 
-/** 懒加载：滚动到底部自动追加下一页 */
-async function load() {
-  if (loading.value || finished.value) return
-  loading.value = true
-  try {
-    const result = await apiAdminUsers({
-      page: page.value, size: 20,
-      ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-      ...(role.value ? { role: role.value } : {}),
-    })
+type PageRequest = { page: number; size: number; role: UserRoleTab; keyword?: string }
+
+const loadLatestPage = createLatestRequestRunner(
+  (params: PageRequest) => apiAdminUsers(params),
+  (result, request) => {
     users.value.push(...(result.records as UserRow[]))
     total.value = result.total
     if (result.records.length === 0 || users.value.length >= result.total) {
       finished.value = true
     } else {
-      page.value++
+      page.value = request.page + 1
     }
-  } finally {
-    loading.value = false
-  }
+  },
+  value => { loading.value = value },
+)
+
+function reload() {
+  page.value = 1
+  total.value = 0
+  finished.value = false
+  users.value = []
+  load(true)
+}
+
+function load(force = false) {
+  if ((!force && loading.value) || finished.value) return
+  const trimmedKeyword = keyword.value.trim()
+  return loadLatestPage({
+    page: page.value,
+    size: 20,
+    role: activeRole.value,
+    ...(trimmedKeyword ? { keyword: trimmedKeyword } : {}),
+  })
 }
 
 function loadMore() {
@@ -101,20 +127,32 @@ function loadMore() {
 
 async function toggleStatus(row: UserRow) {
   const target = row.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
-  await apiAdminUserUpdate(row.userId, { status: target })
+  await apiAdminUserStatus(row.userId, target)
   ElMessage.success(target === 'ACTIVE' ? '已启用' : '已禁用')
   reload()
 }
 
-async function changeRole(row: UserRow) {
-  const target = row.role === 'AGENT' ? 'CUSTOMER' : 'AGENT'
-  await apiAdminUserUpdate(row.userId, { role: target })
-  ElMessage.success(target === 'AGENT' ? '已转为客服' : '已转为买家')
-  reload()
+function resetAgentForm() {
+  agentFormRef.value?.resetFields()
 }
 
-function roleText(r: string): string {
-  return { ADMIN: '管理员', AGENT: '人工客服', CUSTOMER: '买家' }[r] || r
+async function createAgent() {
+  const valid = await agentFormRef.value?.validate()
+  if (!valid) return
+  creating.value = true
+  try {
+    await apiAdminAgentCreate({
+      username: agentForm.username.trim(),
+      password: agentForm.password,
+      nickname: agentForm.nickname.trim(),
+      ...(agentForm.phone?.trim() ? { phone: agentForm.phone.trim() } : {}),
+    })
+    ElMessage.success('客服创建成功')
+    createDialog.value = false
+    reload()
+  } finally {
+    creating.value = false
+  }
 }
 
 onMounted(load)

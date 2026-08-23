@@ -8,6 +8,6 @@ import java.time.Clock;
 public class TimeConfig {
     @Bean
     public Clock clock() {
-        return Clock.systemUTC();
+        return Clock.system(java.time.ZoneId.of("Asia/Shanghai"));
     }
 }

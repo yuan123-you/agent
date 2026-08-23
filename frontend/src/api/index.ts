@@ -1,14 +1,18 @@
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, ConversationVO, KbDocVO, LoginResp, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
+  AddressVO, AdminDashboardVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
 
 // ---------- 认证 ----------
 export const apiLogin = (data: { username: string; password: string }) =>
   post<LoginResp>('/auth/login', data)
-export const apiRegister = (data: { username: string; password: string; nickname: string; phone?: string }) =>
+export const apiRegister = (data: CustomerRegistration) =>
   post<LoginResp>('/auth/register', data)
+export const apiRegisterCustomer = (data: CustomerRegistration) =>
+  post<LoginResp>('/auth/register/customer', data)
+export const apiRegisterMerchant = (data: MerchantRegistration) =>
+  post<LoginResp>('/auth/register/merchant', data)
 export const apiLogout = () => post<void>('/auth/logout')
 export const apiMe = () => get<UserInfo>('/auth/me')
 
@@ -77,8 +81,6 @@ export const apiAdminProducts = (params: Record<string, unknown>) =>
   get<PageResult<ProductVO>>('/admin/products', { params })
 export const apiAdminProductCreate = (data: Partial<ProductVO>) =>
   post<number>('/admin/products', data)
-export const apiAdminProductUpdate = (id: number, data: Partial<ProductVO>) =>
-  put<void>(`/admin/products/${id}`, data)
 export const apiAdminProductStatus = (id: number, status: string) =>
   post<void>(`/admin/products/${id}/status`, { status })
 
@@ -199,11 +201,14 @@ export const apiKbDelete = (id: number) => del<void>(`/admin/kb/docs/${id}`)
 // ---------- 用户管理（ADMIN） ----------
 export const apiAdminUsers = (params: Record<string, unknown>) =>
   get<PageResult<UserInfo & { status: string }>>('/admin/users', { params })
-export const apiAdminUserUpdate = (id: number, data: { status?: string; role?: string }) =>
-  put<void>(`/admin/users/${id}`, data)
+export const apiAdminAgentCreate = (payload: CustomerRegistration) =>
+  post<number>('/admin/users/agents', payload)
+export const apiAdminUserStatus = (id: number, status: 'ACTIVE' | 'DISABLED') =>
+  put<void>(`/admin/users/${id}/status`, { status })
 
 // ---------- 统计（ADMIN） ----------
 export const apiStats = () => get<StatsVO>('/admin/stats/overview')
+export const apiAdminDashboard = () => get<AdminDashboardVO>('/admin/dashboard')
 
 // ---------- 工作台（AGENT） ----------
 export const apiPending = () => get<ConversationVO[]>('/workbench/pending')
@@ -217,5 +222,3 @@ export const apiWorkbenchMessages = (id: number) =>
 export const apiWorkbenchStatus = (id: number) =>
   get<{ conversationId: number; status: string }>(`/workbench/conversations/${id}/status`, { silent: true } as never)
 export const apiWorkbenchSla = () => get<WorkbenchSla>('/workbench/sla')
-
-
