@@ -14,6 +14,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +63,25 @@ class InternalKbSearchTest {
         assertTrue(params(chunks.getValue()).containsValue(10L));
     }
 
+    @Test void searchDefaultsTopKToTwenty() {
+        Bm25Retriever retriever = mock(Bm25Retriever.class);
+        InternalKbController defaultLimitController = new InternalKbController(kbDocMapper, kbChunkMapper, retriever);
+        KbDoc active = doc(10L, "ACTIVE", 100L, "POLICY", "退换货条款");
+        KbChunk activeChunk = chunk(1L, 10L, 100L, "POLICY", "七天无理由退货");
+        Bm25Retriever.Document document = new Bm25Retriever.Document(1L, 10L, 100L,
+                "POLICY", "七天无理由退货", "退换货条款");
+        when(kbDocMapper.selectList(any())).thenReturn(List.of(active));
+        when(kbChunkMapper.selectList(any())).thenReturn(List.of(activeChunk));
+        when(retriever.search(eq("无理由退货"), anyList(), eq(20)))
+                .thenReturn(List.of(new Bm25Retriever.Hit(document, 1.0)));
+
+        InternalKbController.SearchBody body = new InternalKbController.SearchBody();
+        body.setQuery("无理由退货");
+        Map<String, Object> data = defaultLimitController.search(body).getData();
+
+        assertEquals(1, ((List<?>) data.get("hits")).size());
+        verify(retriever).search(eq("无理由退货"), anyList(), eq(20));
+    }
     private Map<String, Object> params(Wrapper<?> wrapper) {
         return ((com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) wrapper).getParamNameValuePairs();
     }

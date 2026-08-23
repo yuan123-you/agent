@@ -157,7 +157,7 @@ public class InternalKbController {
                 })
                 .toList();
         List<Bm25Retriever.Hit> matches = bm25Retriever.search(body.getQuery(), corpus,
-                body.getTopK() == null ? 4 : body.getTopK());
+                body.getTopK() == null ? 20 : body.getTopK());
         List<Map<String, Object>> hits = matches.stream().map(match -> {
             Bm25Retriever.Document document = match.document();
             Map<String, Object> hit = new HashMap<>();
