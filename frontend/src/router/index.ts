@@ -49,7 +49,8 @@ const router = createRouter({
       component: () => import('@/layouts/ConsoleLayout.vue'),
       meta: { roles: ['ADMIN'] },
       children: [
-        { path: '', redirect: '/admin/products' },
+        { path: '', redirect: '/admin/dashboard' },
+        { path: 'dashboard', component: () => import('@/views/admin/DashboardView.vue') },
         { path: 'products', component: () => import('@/views/admin/ProductManageView.vue') },
         { path: 'orders', component: () => import('@/views/admin/OrderManageView.vue') },
         { path: 'kb', component: () => import('@/views/admin/KbManageView.vue') },
@@ -74,7 +75,7 @@ router.beforeEach((to) => {
 
   if (to.meta.public) {
     if (to.path === '/login' && token) {
-      return role === 'ADMIN' ? '/admin/products' : role === 'AGENT' ? '/workbench'
+      return role === 'ADMIN' ? '/admin/dashboard' : role === 'AGENT' ? '/workbench'
         : role === 'MERCHANT' ? '/merchant/products' : '/'
     }
     return true

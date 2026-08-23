@@ -27,7 +27,7 @@ describe('auth home route', () => {
     ['CUSTOMER', '/'],
     ['MERCHANT', '/merchant/products'],
     ['AGENT', '/workbench'],
-    ['ADMIN', '/admin/products'],
+    ['ADMIN', '/admin/dashboard'],
   ])('routes a %s login to an existing role home page', (role, expectedRoute) => {
     const auth = useAuthStore()
     auth.user = { role } as UserInfo

@@ -1,7 +1,7 @@
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
+  AddressVO, AdminDashboardVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
 
 // ---------- 认证 ----------
@@ -210,6 +210,7 @@ export const apiAdminUserStatus = (id: number, status: 'ACTIVE' | 'DISABLED') =>
 
 // ---------- 统计（ADMIN） ----------
 export const apiStats = () => get<StatsVO>('/admin/stats/overview')
+export const apiAdminDashboard = () => get<AdminDashboardVO>('/admin/dashboard')
 
 // ---------- 工作台（AGENT） ----------
 export const apiPending = () => get<ConversationVO[]>('/workbench/pending')

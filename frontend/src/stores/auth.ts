@@ -70,11 +70,10 @@ export const useAuthStore = defineStore('auth', {
     },
     /** 登录后按角色跳转默认页 */
     homeRoute(): string {
-      if (this.isAdmin) return '/admin/products'
+      if (this.isAdmin) return '/admin/dashboard'
       if (this.isAgent) return '/workbench'
       if (this.role === 'MERCHANT') return '/merchant/products'
       return '/'
     },
   },
 })
-

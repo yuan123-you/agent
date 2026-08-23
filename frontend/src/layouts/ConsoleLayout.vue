@@ -4,6 +4,7 @@
       <div class="logo">AI Mall 控制台</div>
       <el-menu :default-active="activeMenu" router class="menu">
         <template v-if="auth.isAdmin">
+          <el-menu-item index="/admin/dashboard">数据看板</el-menu-item>
           <el-menu-item index="/admin/products">商品管理</el-menu-item>
           <el-menu-item index="/admin/orders">订单管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
