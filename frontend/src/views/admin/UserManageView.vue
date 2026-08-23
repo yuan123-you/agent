@@ -65,7 +65,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { apiAdminAgentCreate, apiAdminUserStatus, apiAdminUsers } from '@/api'
 import type { CustomerRegistration, UserInfo } from '@/types/api'
-import { USER_TABS, canCreateAgent, roleText, type UserRoleTab } from './userManagement'
+import { USER_TABS, canCreateAgent, createLatestRequestRunner, roleText, type UserRoleTab } from './userManagement'
 
 type UserRow = UserInfo & { status: 'ACTIVE' | 'DISABLED'; createdAt?: string }
 
@@ -86,34 +86,39 @@ const agentRules: FormRules<CustomerRegistration> = {
   nickname: [{ required: true, whitespace: true, message: '请输入昵称', trigger: 'blur' }],
 }
 
-function reload() {
-  page.value = 1
-  total.value = 0
-  finished.value = false
-  users.value = []
-  load()
-}
+type PageRequest = { page: number; size: number; role: UserRoleTab; keyword?: string }
 
-async function load() {
-  if (loading.value || finished.value) return
-  loading.value = true
-  try {
-    const result = await apiAdminUsers({
-      page: page.value,
-      size: 20,
-      role: activeRole.value,
-      ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-    })
+const loadLatestPage = createLatestRequestRunner(
+  (params: PageRequest) => apiAdminUsers(params),
+  (result, request) => {
     users.value.push(...(result.records as UserRow[]))
     total.value = result.total
     if (result.records.length === 0 || users.value.length >= result.total) {
       finished.value = true
     } else {
-      page.value++
+      page.value = request.page + 1
     }
-  } finally {
-    loading.value = false
-  }
+  },
+  value => { loading.value = value },
+)
+
+function reload() {
+  page.value = 1
+  total.value = 0
+  finished.value = false
+  users.value = []
+  load(true)
+}
+
+function load(force = false) {
+  if ((!force && loading.value) || finished.value) return
+  const trimmedKeyword = keyword.value.trim()
+  return loadLatestPage({
+    page: page.value,
+    size: 20,
+    role: activeRole.value,
+    ...(trimmedKeyword ? { keyword: trimmedKeyword } : {}),
+  })
 }
 
 function loadMore() {
