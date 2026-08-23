@@ -1,7 +1,7 @@
 /** 认证状态（Pinia） */
 import { defineStore } from 'pinia'
-import { apiLogin, apiLogout, apiMe, apiRegister } from '@/api'
-import type { LoginResp, UserInfo } from '@/types/api'
+import { apiLogin, apiLogout, apiMe, apiRegister, apiRegisterCustomer, apiRegisterMerchant } from '@/api'
+import type { CustomerRegistration, LoginResp, MerchantRegistration, UserInfo } from '@/types/api'
 
 interface AuthState {
   token: string
@@ -44,8 +44,14 @@ export const useAuthStore = defineStore('auth', {
       this.setAuth(data)
       return data
     },
-    async register(payload: { username: string; password: string; nickname: string; phone?: string }) {
+    async register(payload: CustomerRegistration) {
       return apiRegister(payload)
+    },
+    async registerCustomer(payload: CustomerRegistration) {
+      return apiRegisterCustomer(payload)
+    },
+    async registerMerchant(payload: MerchantRegistration) {
+      return apiRegisterMerchant(payload)
     },
     async logout() {
       try {

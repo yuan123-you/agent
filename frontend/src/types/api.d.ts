@@ -4,11 +4,21 @@ export interface UserInfo {
   userId: number
   username: string
   nickname: string
-  role: 'ADMIN' | 'AGENT' | 'CUSTOMER'
+  role: 'ADMIN' | 'AGENT' | 'CUSTOMER' | 'MERCHANT'
   phone?: string
   email?: string
 }
 
+export interface CustomerRegistration {
+  username: string
+  password: string
+  nickname: string
+  phone?: string
+}
+
+export interface MerchantRegistration extends CustomerRegistration {
+  shopName: string
+}
 export interface LoginResp {
   accessToken: string
   refreshToken?: string

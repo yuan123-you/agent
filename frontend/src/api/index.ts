@@ -1,14 +1,18 @@
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, ConversationVO, KbDocVO, LoginResp, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
+  AddressVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
 
 // ---------- 认证 ----------
 export const apiLogin = (data: { username: string; password: string }) =>
   post<LoginResp>('/auth/login', data)
-export const apiRegister = (data: { username: string; password: string; nickname: string; phone?: string }) =>
+export const apiRegister = (data: CustomerRegistration) =>
   post<LoginResp>('/auth/register', data)
+export const apiRegisterCustomer = (data: CustomerRegistration) =>
+  post<LoginResp>('/auth/register/customer', data)
+export const apiRegisterMerchant = (data: MerchantRegistration) =>
+  post<LoginResp>('/auth/register/merchant', data)
 export const apiLogout = () => post<void>('/auth/logout')
 export const apiMe = () => get<UserInfo>('/auth/me')
 
