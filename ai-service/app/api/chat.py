@@ -16,6 +16,7 @@ from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
 from app.config import settings
 from app.observability.telemetry import end_trace, get_trace_id, start_trace, tool_span
+from app.rag.citations import validate_citations
 from app.sse import sse
 from app.tools.tools import set_tool_ctx
 
@@ -127,7 +128,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
                                 parts.append(content)
-                                yield sse("token", {"content": content})
+                                if not ctx.get("rag_used"):
+                                    yield sse("token", {"content": content})
                             um = getattr(chunk, "usage_metadata", None)
                             if um:
                                 usage = {"promptTokens": um.get("input_tokens", 0),
@@ -173,18 +175,33 @@ async def chat_stream(req: ChatRequest, request: Request):
                         if getattr(m, "type", "") == "ai" and isinstance(content, str) and content:
                             final_text = content
                             break
+            citations: tuple[dict, ...] = ()
+            if ctx.get("rag_used"):
+                validation = validate_citations(
+                    final_text,
+                    allowed=ctx.get("rag_allowed_citations") or {},
+                    answerable=bool(ctx.get("rag_answerable")),
+                    rag_reason=ctx.get("rag_reason"),
+                )
+                final_text = validation.content
+                citations = validation.citations
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):
                 yield sse("action", action)
-            yield sse("done", {
+            if ctx.get("rag_used"):
+                yield sse("token", {"content": guarded})
+            done = {
                 "content": guarded,
                 "tokenUsage": usage,
                 "latencyMs": int((time.time() - start) * 1000),
                 "degraded": bool(ctx.get("degraded")),
                 "timedOut": timed_out,
-            })
+            }
+            if ctx.get("rag_used"):
+                done["citations"] = list(citations)
+            yield sse("done", done)
         except Exception as e:
             logger.exception("chat stream error: %s", e)
             end_trace(output={"error": str(e)})
