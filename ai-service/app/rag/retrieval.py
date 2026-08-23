@@ -57,8 +57,15 @@ def normalize_query(query: str) -> str:
     """Normalize presentation noise without changing the query's meaning."""
     normalized = unicodedata.normalize("NFKC", query)
     normalized = "".join(char for char in normalized if not (unicodedata.category(char).startswith("C") and not char.isspace()))
-    normalized = normalized.lower()
+    normalized = "".join(
+        char.lower() if "LATIN" in unicodedata.name(char, "") else char
+        for char in normalized
+    )
     return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _safe_source_title(title: str) -> str:
+    return "知识库资料" if re.fullmatch(r"\s*知识库文档#\d+\s*", title) else title
 
 
 def filter_metadata(
@@ -155,7 +162,7 @@ def assess_answerability(candidates: Sequence[RetrievalCandidate]) -> Answerabil
 def build_source_context(candidates: Sequence[RetrievalCandidate]) -> SourceContext:
     """Build stable, XML-escaped source blocks for up to four final candidates."""
     citations = tuple(
-        Citation(id=f"S{index}", chunk_id=candidate.chunk_id, title=candidate.source)
+        Citation(id=f"S{index}", chunk_id=candidate.chunk_id, title=_safe_source_title(candidate.source))
         for index, candidate in enumerate(candidates[:4], start=1)
     )
     blocks = [

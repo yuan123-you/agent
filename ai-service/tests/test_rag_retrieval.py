@@ -21,6 +21,9 @@ def test_normalization_is_conservative():
     assert normalize_query("  ＡI\u0000  退货\n规则  ") == "ai 退货 规则"
 
 
+def test_normalization_lowercases_only_latin_characters():
+    assert normalize_query("ＡI ÀÉ ЖБ ΓΔ") == "ai àé ЖБ ΓΔ"
+
 def test_filter_preserves_order_and_platform_docs():
     ranked = [candidate(1, product_id=99), candidate(2, product_id=-1), candidate(3, product_id=7)]
     assert [c.chunk_id for c in filter_metadata(ranked, "POLICY", 99)] == [1, 2]
@@ -106,6 +109,13 @@ def test_source_context_escapes_xml():
     assert 'chunk_id="7"' in built.context
     assert "&lt;/source&gt; &amp;" in built.context
 
+
+def test_source_context_replaces_internal_placeholder_titles():
+    internal = RetrievalCandidate(4, 10, -1, "POLICY", "正文", "知识库文档#4")
+    built = build_source_context([internal])
+    assert built.citations[0].title == "知识库资料"
+    assert "知识库文档#4" not in built.context
+    assert 'title="知识库资料"' in built.context
 
 def test_source_context_escapes_titles_and_limits_to_four_sources():
     special_title = RetrievalCandidate(1, 10, -1, "POLICY", "x", '规则 "A" & 更多')
