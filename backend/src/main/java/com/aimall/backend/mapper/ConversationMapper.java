@@ -13,6 +13,9 @@ public interface ConversationMapper extends BaseMapper<Conversation> {
     @Select("SELECT COUNT(*) FROM conversation WHERE created_at >= #{since}")
     long countToday(@Param("since") java.time.LocalDateTime since);
 
+    @Select("SELECT COUNT(*) FROM conversation WHERE deleted = 0 AND created_at >= #{start} AND created_at < #{end}")
+    long countCreatedBetween(@Param("start") java.time.LocalDateTime start,
+                             @Param("end") java.time.LocalDateTime end);
     /** 待接入 / 服务中数量（SLA 看板） */
     @Select("SELECT COUNT(*) FROM conversation WHERE status = #{status} AND deleted = 0")
     long countByStatus(@Param("status") String status);

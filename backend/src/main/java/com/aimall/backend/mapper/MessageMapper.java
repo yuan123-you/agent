@@ -56,4 +56,29 @@ public interface MessageMapper extends BaseMapper<Message> {
     @Select("SELECT token_usage FROM message WHERE role = 'AI' AND token_usage IS NOT NULL " +
             "AND created_at >= #{since} LIMIT 2000")
     List<String> selectTodayTokenUsage(@Param("since") LocalDateTime since);
+
+    @Select("SELECT LEFT(content, 16) AS keyword, COUNT(*) AS cnt FROM message " +
+            "WHERE role = 'USER' AND created_at >= #{start} AND created_at < #{end} " +
+            "GROUP BY keyword ORDER BY cnt DESC, keyword LIMIT 10")
+    List<Map<String, Object>> topQuestionsBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT tool_calls FROM message WHERE role = 'AI' AND tool_calls IS NOT NULL " +
+            "AND created_at >= #{start} AND created_at < #{end} LIMIT 500")
+    List<String> selectToolCallsBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COUNT(*) FROM message WHERE role = 'AI' AND tool_calls IS NOT NULL " +
+            "AND tool_calls <> '' AND created_at >= #{start} AND created_at < #{end}")
+    long countAiWithToolBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT status AS status, COUNT(*) AS cnt FROM message WHERE role = 'AI' " +
+            "AND created_at >= #{start} AND created_at < #{end} GROUP BY status")
+    List<Map<String, Object>> countAiByStatusBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COALESCE(ROUND(AVG(latency_ms)), 0) FROM message WHERE role = 'AI' " +
+            "AND latency_ms IS NOT NULL AND created_at >= #{start} AND created_at < #{end}")
+    Long avgAiLatencyBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT token_usage FROM message WHERE role = 'AI' AND token_usage IS NOT NULL " +
+            "AND created_at >= #{start} AND created_at < #{end} LIMIT 2000")
+    List<String> selectTokenUsageBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }
