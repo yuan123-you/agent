@@ -1,0 +1,80 @@
+{"input": "推荐几款PHONE给我", "expected": "PRODUCT_CONSULT", "note": "PHONE"}
+{"input": "有没有 PHONE 性价比高的", "expected": "PRODUCT_CONSULT", "note": "PHONE"}
+{"input": "推荐几款LAPTOP给我", "expected": "PRODUCT_CONSULT", "note": "LAPTOP"}
+{"input": "有没有 LAPTOP 性价比高的", "expected": "PRODUCT_CONSULT", "note": "LAPTOP"}
+{"input": "推荐几款APPLIANCE给我", "expected": "PRODUCT_CONSULT", "note": "APPLIANCE"}
+{"input": "有没有 APPLIANCE 性价比高的", "expected": "PRODUCT_CONSULT", "note": "APPLIANCE"}
+{"input": "推荐几款CLOTHING给我", "expected": "PRODUCT_CONSULT", "note": "CLOTHING"}
+{"input": "有没有 CLOTHING 性价比高的", "expected": "PRODUCT_CONSULT", "note": "CLOTHING"}
+{"input": "推荐几款BEAUTY给我", "expected": "PRODUCT_CONSULT", "note": "BEAUTY"}
+{"input": "有没有 BEAUTY 性价比高的", "expected": "PRODUCT_CONSULT", "note": "BEAUTY"}
+{"input": "推荐几款FOOD给我", "expected": "PRODUCT_CONSULT", "note": "FOOD"}
+{"input": "有没有 FOOD 性价比高的", "expected": "PRODUCT_CONSULT", "note": "FOOD"}
+{"input": "推荐几款MATERNAL给我", "expected": "PRODUCT_CONSULT", "note": "MATERNAL"}
+{"input": "有没有 MATERNAL 性价比高的", "expected": "PRODUCT_CONSULT", "note": "MATERNAL"}
+{"input": "推荐几款SPORTS给我", "expected": "PRODUCT_CONSULT", "note": "SPORTS"}
+{"input": "有没有 SPORTS 性价比高的", "expected": "PRODUCT_CONSULT", "note": "SPORTS"}
+{"input": "推荐几款BOOK给我", "expected": "PRODUCT_CONSULT", "note": "BOOK"}
+{"input": "有没有 BOOK 性价比高的", "expected": "PRODUCT_CONSULT", "note": "BOOK"}
+{"input": "推荐几款HOME给我", "expected": "PRODUCT_CONSULT", "note": "HOME"}
+{"input": "有没有 HOME 性价比高的", "expected": "PRODUCT_CONSULT", "note": "HOME"}
+{"input": "推荐几款JEWELRY给我", "expected": "PRODUCT_CONSULT", "note": "JEWELRY"}
+{"input": "有没有 JEWELRY 性价比高的", "expected": "PRODUCT_CONSULT", "note": "JEWELRY"}
+{"input": "推荐几款BAGS给我", "expected": "PRODUCT_CONSULT", "note": "BAGS"}
+{"input": "有没有 BAGS 性价比高的", "expected": "PRODUCT_CONSULT", "note": "BAGS"}
+{"input": "星耀 X5 Pro怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 X5 Pro和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 X5怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 X5和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 Note 12怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 Note 12和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 X6 Ultra怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 X6 Ultra和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "轻语 Note 14怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "轻语 Note 14和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "轻语 S3怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "轻语 S3和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "锋达 Edge 30怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "锋达 Edge 30和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "锋达 Edge 40 Pro怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "锋达 Edge 40 Pro和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "灵犀 Air怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "灵犀 Air和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 Pad 11怎么样", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "星耀 Pad 11和别的比哪个好", "expected": "PRODUCT_CONSULT", "note": ""}
+{"input": "我的订单到哪了", "expected": "ORDER_QUERY", "note": ""}
+{"input": "看看我的物流", "expected": "ORDER_QUERY", "note": ""}
+{"input": "发货没有", "expected": "ORDER_QUERY", "note": ""}
+{"input": "快递到哪了", "expected": "ORDER_QUERY", "note": ""}
+{"input": "查询最新订单", "expected": "ORDER_QUERY", "note": ""}
+{"input": "我买的手机发货了吗", "expected": "ORDER_QUERY", "note": ""}
+{"input": "订单显示待支付", "expected": "ORDER_QUERY", "note": ""}
+{"input": "我的售后订单进展", "expected": "ORDER_QUERY", "note": ""}
+{"input": "帮我下单", "expected": "ORDER_CREATE", "note": ""}
+{"input": "我要买这款", "expected": "ORDER_CREATE", "note": ""}
+{"input": "买个 星耀 X5 Pro", "expected": "ORDER_CREATE", "note": ""}
+{"input": "下单一个", "expected": "ORDER_CREATE", "note": ""}
+{"input": "立刻购买", "expected": "ORDER_CREATE", "note": ""}
+{"input": "拍下这款", "expected": "ORDER_CREATE", "note": ""}
+{"input": "替我买了吧", "expected": "ORDER_CREATE", "note": ""}
+{"input": "支持退换货吗", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "保修多久", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "怎么退款", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "退换货的规则是什么", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "配送要多久", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "运费多少", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "七天无理由退货吗", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "商品保修政策", "expected": "AFTER_SALE_FAQ", "note": ""}
+{"input": "你好", "expected": "SMALL_TALK", "note": ""}
+{"input": "嗨", "expected": "SMALL_TALK", "note": ""}
+{"input": "早上好", "expected": "SMALL_TALK", "note": ""}
+{"input": "你能做什么", "expected": "SMALL_TALK", "note": ""}
+{"input": "介绍下你自己", "expected": "SMALL_TALK", "note": ""}
+{"input": "在的在的", "expected": "SMALL_TALK", "note": ""}
+{"input": "hello", "expected": "SMALL_TALK", "note": ""}
+{"input": "转人工客服", "expected": "HUMAN_REQUEST", "note": ""}
+{"input": "我要投诉", "expected": "HUMAN_REQUEST", "note": ""}
+{"input": "给我转人工", "expected": "HUMAN_REQUEST", "note": ""}
+{"input": "人工服务", "expected": "HUMAN_REQUEST", "note": ""}
+{"input": "帮我找真人客服", "expected": "HUMAN_REQUEST", "note": ""}
+{"input": "你们人工在哪", "expected": "HUMAN_REQUEST", "note": ""}

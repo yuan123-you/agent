@@ -1,0 +1,36 @@
+{"query": "PHONE 推荐", "must_hit": ["星耀 X5 Pro", "星耀 X5"], "expect_hit": true, "expected_category": "PHONE", "note": "PHONE 类目应有命中"}
+{"query": "LAPTOP 推荐", "must_hit": ["凌云 Book 14", "凌云 Book 16"], "expect_hit": true, "expected_category": "LAPTOP", "note": "LAPTOP 类目应有命中"}
+{"query": "APPLIANCE 推荐", "must_hit": ["洁灵滚筒洗衣机 10kg", "洁灵波轮洗衣机 8kg"], "expect_hit": true, "expected_category": "APPLIANCE", "note": "APPLIANCE 类目应有命中"}
+{"query": "CLOTHING 推荐", "must_hit": ["简约主义纯棉T恤", "简约主义牛津衬衫"], "expect_hit": true, "expected_category": "CLOTHING", "note": "CLOTHING 类目应有命中"}
+{"query": "BEAUTY 推荐", "must_hit": ["肌研保湿面霜 50g", "肌研精华液 30ml"], "expect_hit": true, "expected_category": "BEAUTY", "note": "BEAUTY 类目应有命中"}
+{"query": "FOOD 推荐", "must_hit": ["田野香东北大米 10kg", "田野香花生油 5L"], "expect_hit": true, "expected_category": "FOOD", "note": "FOOD 类目应有命中"}
+{"query": "MATERNAL 推荐", "must_hit": ["贝乐积木 1000粒", "贝乐遥控汽车"], "expect_hit": true, "expected_category": "MATERNAL", "note": "MATERNAL 类目应有命中"}
+{"query": "SPORTS 推荐", "must_hit": ["跃动缓震跑鞋", "跃动训练鞋"], "expect_hit": true, "expected_category": "SPORTS", "note": "SPORTS 类目应有命中"}
+{"query": "BOOK 推荐", "must_hit": ["三体全集（三部曲）", "活着"], "expect_hit": true, "expected_category": "BOOK", "note": "BOOK 类目应有命中"}
+{"query": "HOME 推荐", "must_hit": ["木语护眼台灯", "木语落地灯"], "expect_hit": true, "expected_category": "HOME", "note": "HOME 类目应有命中"}
+{"query": "JEWELRY 推荐", "must_hit": ["金足印记黄金项链 3g", "金足印记黄金手镯 10g"], "expect_hit": true, "expected_category": "JEWELRY", "note": "JEWELRY 类目应有命中"}
+{"query": "BAGS 推荐", "must_hit": ["途悦商务双肩包", "途悦行李箱20英寸"], "expect_hit": true, "expected_category": "BAGS", "note": "BAGS 类目应有命中"}
+{"query": "SHOES 推荐", "must_hit": ["云迹缓震跑步鞋", "云迹轻风跑鞋"], "expect_hit": true, "expected_category": "SHOES", "note": "SHOES 类目应有命中"}
+{"query": "PET 推荐", "must_hit": ["萌宠记冻干猫粮 5kg", "萌宠记牛肉狗粮 10kg"], "expect_hit": true, "expected_category": "PET", "note": "PET 类目应有命中"}
+{"query": "HEALTH 推荐", "must_hit": ["康维多种维生素 60片", "康维维生素C泡腾片"], "expect_hit": true, "expected_category": "HEALTH", "note": "HEALTH 类目应有命中"}
+{"query": "CAR 推荐", "must_hit": ["车安4K行车记录仪", "车安车载吸尘器"], "expect_hit": true, "expected_category": "CAR", "note": "CAR 类目应有命中"}
+{"query": "星耀 X5 Pro", "must_hit": ["星耀 X5 Pro"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "星耀 X5", "must_hit": ["星耀 X5"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "星耀 Note 12", "must_hit": ["星耀 Note 12"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "星耀 X6 Ultra", "must_hit": ["星耀 X6 Ultra"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "轻语 Note 14", "must_hit": ["轻语 Note 14"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "轻语 S3", "must_hit": ["轻语 S3"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "锋达 Edge 30", "must_hit": ["锋达 Edge 30"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "锋达 Edge 40 Pro", "must_hit": ["锋达 Edge 40 Pro"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "灵犀 Air", "must_hit": ["灵犀 Air"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "星耀 Pad 11", "must_hit": ["星耀 Pad 11"], "expect_hit": true, "expected_category": "PHONE", "note": "按商品名检索应召回自身"}
+{"query": "大屏办公 键", "must_hit": ["星耀 Pad Pro 13"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "两周续航 健", "must_hit": ["锋达 Watch GT"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "主动降噪 蓝", "must_hit": ["锋达 Buds Pro"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "真无线 通话", "must_hit": ["星耀 Buds"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "半入耳 高性", "must_hit": ["轻语耳机 Lite"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "氮化镓快充 ", "must_hit": ["灵犀充电器 65W"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "大容量 双向", "must_hit": ["星耀移动电源 20000mAh"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "WiFi6 ", "must_hit": ["锋达路由器 AX3000"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "蓝牙三设备 ", "must_hit": ["灵犀键盘 K380"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}
+{"query": "血氧监测 5", "must_hit": ["星耀手环 8"], "expect_hit": true, "expected_category": "PHONE", "note": "卖点词应召回该商品"}

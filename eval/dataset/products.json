@@ -1,0 +1,4098 @@
+[
+  {
+    "id": 1,
+    "name": "星耀 X5 Pro",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "2999.00",
+    "selling_points": "5000万像素旗舰影像 大电池 快充"
+  },
+  {
+    "id": 2,
+    "name": "星耀 X5",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1999.00",
+    "selling_points": "轻量化设计 长续航"
+  },
+  {
+    "id": 3,
+    "name": "星耀 Note 12",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1599.00",
+    "selling_points": "大屏护眼 双扬声器"
+  },
+  {
+    "id": 4,
+    "name": "星耀 X6 Ultra",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "4599.00",
+    "selling_points": "影像旗舰 2K屏幕 无线充电"
+  },
+  {
+    "id": 5,
+    "name": "轻语 Note 14",
+    "category": "PHONE",
+    "brand": "轻语",
+    "price": "2699.00",
+    "selling_points": "均衡性价比 拍照优秀"
+  },
+  {
+    "id": 6,
+    "name": "轻语 S3",
+    "category": "PHONE",
+    "brand": "轻语",
+    "price": "1299.00",
+    "selling_points": "入门高性价比 轻薄"
+  },
+  {
+    "id": 7,
+    "name": "锋达 Edge 30",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "2199.00",
+    "selling_points": "直屏电竞 高刷游戏"
+  },
+  {
+    "id": 8,
+    "name": "锋达 Edge 40 Pro",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "3499.00",
+    "selling_points": "性能铁三角 散热强"
+  },
+  {
+    "id": 9,
+    "name": "灵犀 Air",
+    "category": "PHONE",
+    "brand": "灵犀",
+    "price": "1899.00",
+    "selling_points": "轻薄手感 续航扎实"
+  },
+  {
+    "id": 10,
+    "name": "星耀 Pad 11",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1999.00",
+    "selling_points": "2K护眼屏 四扬声器"
+  },
+  {
+    "id": 11,
+    "name": "星耀 Pad Pro 13",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "3299.00",
+    "selling_points": "大屏办公 键盘套装"
+  },
+  {
+    "id": 12,
+    "name": "锋达 Watch GT",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "899.00",
+    "selling_points": "两周续航 健康监测"
+  },
+  {
+    "id": 13,
+    "name": "锋达 Buds Pro",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "499.00",
+    "selling_points": "主动降噪 蓝牙5.3"
+  },
+  {
+    "id": 14,
+    "name": "星耀 Buds",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "299.00",
+    "selling_points": "真无线 通话降噪"
+  },
+  {
+    "id": 15,
+    "name": "轻语耳机 Lite",
+    "category": "PHONE",
+    "brand": "轻语",
+    "price": "199.00",
+    "selling_points": "半入耳 高性价比"
+  },
+  {
+    "id": 16,
+    "name": "灵犀充电器 65W",
+    "category": "PHONE",
+    "brand": "灵犀",
+    "price": "129.00",
+    "selling_points": "氮化镓快充 双口"
+  },
+  {
+    "id": 17,
+    "name": "星耀移动电源 20000mAh",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "199.00",
+    "selling_points": "大容量 双向快充"
+  },
+  {
+    "id": 18,
+    "name": "锋达路由器 AX3000",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "249.00",
+    "selling_points": "WiFi6 千兆网口"
+  },
+  {
+    "id": 19,
+    "name": "灵犀键盘 K380",
+    "category": "PHONE",
+    "brand": "灵犀",
+    "price": "179.00",
+    "selling_points": "蓝牙三设备 超便携"
+  },
+  {
+    "id": 20,
+    "name": "星耀手环 8",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "249.00",
+    "selling_points": "血氧监测 50米防水"
+  },
+  {
+    "id": 21,
+    "name": "凌云 Book 14",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "4599.00",
+    "selling_points": "轻薄高性能 长续航"
+  },
+  {
+    "id": 22,
+    "name": "凌云 Book 16",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "5599.00",
+    "selling_points": "大屏创作 高色域"
+  },
+  {
+    "id": 23,
+    "name": "凌云 Pro 16",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "6999.00",
+    "selling_points": "独显直连 游戏创作"
+  },
+  {
+    "id": 24,
+    "name": "智远星 13 轻薄本",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "3999.00",
+    "selling_points": "1.2kg极致轻薄"
+  },
+  {
+    "id": 25,
+    "name": "智远星 15",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "4299.00",
+    "selling_points": "大屏商务 接口丰富"
+  },
+  {
+    "id": 26,
+    "name": "星耀 Book Air",
+    "category": "LAPTOP",
+    "brand": "星耀",
+    "price": "5199.00",
+    "selling_points": "高刷触控屏 轻薄本"
+  },
+  {
+    "id": 27,
+    "name": "凌云台式主机 i5",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "3499.00",
+    "selling_points": "16G内存 办公游戏"
+  },
+  {
+    "id": 28,
+    "name": "智远显示器 24英寸",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "899.00",
+    "selling_points": "IPS广视角 微边框"
+  },
+  {
+    "id": 29,
+    "name": "智远显示器 27英寸 2K",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "1399.00",
+    "selling_points": "2K高清 165Hz电竞"
+  },
+  {
+    "id": 30,
+    "name": "凌云显示器 34英寸带鱼屏",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "2199.00",
+    "selling_points": "21:9带鱼屏 144Hz"
+  },
+  {
+    "id": 31,
+    "name": "智远机械键盘 87键",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "299.00",
+    "selling_points": "红轴 热插拔 RGB"
+  },
+  {
+    "id": 32,
+    "name": "智远无线鼠标",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "99.00",
+    "selling_points": "静音 2.4G连接"
+  },
+  {
+    "id": 33,
+    "name": "凌云键鼠套装",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "159.00",
+    "selling_points": "办公套装 无线连接"
+  },
+  {
+    "id": 34,
+    "name": "智远喷墨打印机",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "799.00",
+    "selling_points": "家用打印 手机直连"
+  },
+  {
+    "id": 35,
+    "name": "凌云激光打印机",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "1299.00",
+    "selling_points": "黑白激光 自动双面"
+  },
+  {
+    "id": 36,
+    "name": "智远扫描仪",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "999.00",
+    "selling_points": "高清扫描 A4幅面"
+  },
+  {
+    "id": 37,
+    "name": "凌云U盘 128G",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "79.00",
+    "selling_points": "USB3.2 高速传输"
+  },
+  {
+    "id": 38,
+    "name": "智远移动硬盘 1T",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "449.00",
+    "selling_points": "Type-C 便携抗震"
+  },
+  {
+    "id": 39,
+    "name": "凌云扩展坞 6合1",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "199.00",
+    "selling_points": "HDMI+网口+读卡"
+  },
+  {
+    "id": 40,
+    "name": "智远摄像头 1080P",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "149.00",
+    "selling_points": "视频会议 自动对焦"
+  },
+  {
+    "id": 41,
+    "name": "洁灵滚筒洗衣机 10kg",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "2399.00",
+    "selling_points": "变频静音 除菌洗"
+  },
+  {
+    "id": 42,
+    "name": "洁灵波轮洗衣机 8kg",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1099.00",
+    "selling_points": "大容量 高性价比"
+  },
+  {
+    "id": 43,
+    "name": "鲜风冰箱 452L",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "3099.00",
+    "selling_points": "风冷无霜 双开门"
+  },
+  {
+    "id": 44,
+    "name": "鲜风对开门冰箱 536L",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "4199.00",
+    "selling_points": "大容量 干湿分储"
+  },
+  {
+    "id": 45,
+    "name": "暖阳空调 1.5匹",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "2699.00",
+    "selling_points": "新一级能效 变频冷暖"
+  },
+  {
+    "id": 46,
+    "name": "暖阳柜机 3匹",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "5999.00",
+    "selling_points": "客厅大风量 自清洁"
+  },
+  {
+    "id": 47,
+    "name": "洁灵电饭煲 4L",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "399.00",
+    "selling_points": "智能预约 柴火饭"
+  },
+  {
+    "id": 48,
+    "name": "洁灵破壁机",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "899.00",
+    "selling_points": "静音破壁 加热料理"
+  },
+  {
+    "id": 49,
+    "name": "鲜风微波炉 23L",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "599.00",
+    "selling_points": "平板加热 快速解冻"
+  },
+  {
+    "id": 50,
+    "name": "暖阳电热水器 60L",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "1499.00",
+    "selling_points": "速热 增容出水"
+  },
+  {
+    "id": 51,
+    "name": "洁灵扫地机器人",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1899.00",
+    "selling_points": "激光导航 自动集尘"
+  },
+  {
+    "id": 52,
+    "name": "洁灵无线吸尘器",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1299.00",
+    "selling_points": "大吸力 长续航"
+  },
+  {
+    "id": 53,
+    "name": "鲜风油烟机",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "2299.00",
+    "selling_points": "大吸力 自清洗"
+  },
+  {
+    "id": 54,
+    "name": "鲜风燃气灶",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "1099.00",
+    "selling_points": "大火力 防干烧"
+  },
+  {
+    "id": 55,
+    "name": "暖阳取暖器",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "349.00",
+    "selling_points": "石墨烯速热 倾倒断电"
+  },
+  {
+    "id": 56,
+    "name": "暖阳电风扇",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "199.00",
+    "selling_points": "直流变频 静音摇头"
+  },
+  {
+    "id": 57,
+    "name": "洁灵电水壶",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "129.00",
+    "selling_points": "304不锈钢 自动断电"
+  },
+  {
+    "id": 58,
+    "name": "鲜风洗碗机 13套",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "3999.00",
+    "selling_points": "嵌入式 烘干存储"
+  },
+  {
+    "id": 59,
+    "name": "洁灵空气净化器",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1599.00",
+    "selling_points": "除甲醛 数显"
+  },
+  {
+    "id": 60,
+    "name": "暖阳加湿器",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "179.00",
+    "selling_points": "静音大雾量 上加水"
+  },
+  {
+    "id": 61,
+    "name": "简约主义纯棉T恤",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "89.00",
+    "selling_points": "新疆棉 亲肤透气"
+  },
+  {
+    "id": 62,
+    "name": "简约主义牛津衬衫",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "199.00",
+    "selling_points": "免烫抗皱 商务休闲"
+  },
+  {
+    "id": 63,
+    "name": "棉致牛仔裤直筒",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "259.00",
+    "selling_points": "弹力面料 修身直筒"
+  },
+  {
+    "id": 64,
+    "name": "棉致休闲裤",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "229.00",
+    "selling_points": "四面弹 免烫"
+  },
+  {
+    "id": 65,
+    "name": "风尚连帽卫衣",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "179.00",
+    "selling_points": "加绒保暖 宽松版型"
+  },
+  {
+    "id": 66,
+    "name": "风尚羽绒服 90绒",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "699.00",
+    "selling_points": "90%白鸭绒 轻量保暖"
+  },
+  {
+    "id": 67,
+    "name": "简约主义西装套装",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "899.00",
+    "selling_points": "修身剪裁 免烫"
+  },
+  {
+    "id": 68,
+    "name": "棉致针织毛衣",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "299.00",
+    "selling_points": "羊毛混纺 保暖不扎"
+  },
+  {
+    "id": 69,
+    "name": "风尚风衣外套",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "459.00",
+    "selling_points": "防风中长款 通勤"
+  },
+  {
+    "id": 70,
+    "name": "简约主义连衣裙",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "329.00",
+    "selling_points": "显瘦A字 显白"
+  },
+  {
+    "id": 71,
+    "name": "棉致保暖内衣套装",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "159.00",
+    "selling_points": "德绒发热 无痕"
+  },
+  {
+    "id": 72,
+    "name": "风尚Polo衫",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "129.00",
+    "selling_points": "珠地面料 商务休闲"
+  },
+  {
+    "id": 73,
+    "name": "简约主义短裤",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "99.00",
+    "selling_points": "速干透气 运动"
+  },
+  {
+    "id": 74,
+    "name": "棉致工装裤",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "199.00",
+    "selling_points": "多口袋 宽松束脚"
+  },
+  {
+    "id": 75,
+    "name": "风尚夹克",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "379.00",
+    "selling_points": "防泼水 三合一"
+  },
+  {
+    "id": 76,
+    "name": "简约主义真丝衬衫",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "599.00",
+    "selling_points": "桑蚕丝 垂坠感"
+  },
+  {
+    "id": 77,
+    "name": "棉致家居服套装",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "139.00",
+    "selling_points": "珊瑚绒 加厚保暖"
+  },
+  {
+    "id": 78,
+    "name": "风尚运动套装",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "269.00",
+    "selling_points": "速干透气 两件套"
+  },
+  {
+    "id": 79,
+    "name": "简约主义羊绒大衣",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "1299.00",
+    "selling_points": "双面羊绒 中长款"
+  },
+  {
+    "id": 80,
+    "name": "棉致打底衫",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "79.00",
+    "selling_points": "高弹贴身 不起球"
+  },
+  {
+    "id": 81,
+    "name": "肌研保湿面霜 50g",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "159.00",
+    "selling_points": "神经酰胺 深层保湿"
+  },
+  {
+    "id": 82,
+    "name": "肌研精华液 30ml",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "299.00",
+    "selling_points": "烟酰胺 提亮肤色"
+  },
+  {
+    "id": 83,
+    "name": "水润洁面乳 100g",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "69.00",
+    "selling_points": "氨基酸 温和不刺激"
+  },
+  {
+    "id": 84,
+    "name": "水润爽肤水 200ml",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "99.00",
+    "selling_points": "补水收敛 湿敷"
+  },
+  {
+    "id": 85,
+    "name": "清雅丝绒口红",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "129.00",
+    "selling_points": "雾面哑光 显白"
+  },
+  {
+    "id": 86,
+    "name": "清雅粉底液 30ml",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "189.00",
+    "selling_points": "持妆遮瑕 养肤"
+  },
+  {
+    "id": 87,
+    "name": "肌研防晒霜 SPF50",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "119.00",
+    "selling_points": "高倍防晒 清爽"
+  },
+  {
+    "id": 88,
+    "name": "水润补水面膜 20片",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "99.00",
+    "selling_points": "玻尿酸 密集补水"
+  },
+  {
+    "id": 89,
+    "name": "清雅眼影盘 12色",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "159.00",
+    "selling_points": "哑光珠光 日常通勤"
+  },
+  {
+    "id": 90,
+    "name": "肌研洗发水 500ml",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "89.00",
+    "selling_points": "控油蓬松 氨基酸"
+  },
+  {
+    "id": 91,
+    "name": "水润护发素 500ml",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "79.00",
+    "selling_points": "顺滑修护 免洗"
+  },
+  {
+    "id": 92,
+    "name": "清雅香水 50ml",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "259.00",
+    "selling_points": "淡香持久 男女通用"
+  },
+  {
+    "id": 93,
+    "name": "肌研身体乳 300ml",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "89.00",
+    "selling_points": "烟酰胺 全身保湿"
+  },
+  {
+    "id": 94,
+    "name": "水润卸妆水 500ml",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "79.00",
+    "selling_points": "温和眼唇可卸"
+  },
+  {
+    "id": 95,
+    "name": "清雅眉笔",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "49.00",
+    "selling_points": "防水防汗 不晕染"
+  },
+  {
+    "id": 96,
+    "name": "肌研爽肤喷雾 200ml",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "69.00",
+    "selling_points": "随时补水 定妆"
+  },
+  {
+    "id": 97,
+    "name": "水润牙膏 4支装",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "59.00",
+    "selling_points": "亮白抗敏 家庭装"
+  },
+  {
+    "id": 98,
+    "name": "清雅电动牙刷",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "199.00",
+    "selling_points": "声波震动 5档模式"
+  },
+  {
+    "id": 99,
+    "name": "肌研男士洗面奶 100g",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "79.00",
+    "selling_points": "控油清洁 男士专用"
+  },
+  {
+    "id": 100,
+    "name": "水润洗手液 3瓶装",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "39.00",
+    "selling_points": "温和抑菌 家庭装"
+  },
+  {
+    "id": 101,
+    "name": "田野香东北大米 10kg",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "129.00",
+    "selling_points": "当季新米 软糯香甜"
+  },
+  {
+    "id": 102,
+    "name": "田野香花生油 5L",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "139.00",
+    "selling_points": "物理压榨 香味浓郁"
+  },
+  {
+    "id": 103,
+    "name": "山珍汇坚果礼盒 1.5kg",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "199.00",
+    "selling_points": "6种坚果 年货礼盒"
+  },
+  {
+    "id": 104,
+    "name": "山珍汇开心果 500g",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "89.00",
+    "selling_points": "无漂白 大颗粒"
+  },
+  {
+    "id": 105,
+    "name": "鲜果乐苹果 5kg",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "79.00",
+    "selling_points": "陕西洛川 脆甜多汁"
+  },
+  {
+    "id": 106,
+    "name": "鲜果乐脐橙 10斤",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "89.00",
+    "selling_points": "赣南脐橙 皮薄多汁"
+  },
+  {
+    "id": 107,
+    "name": "田野香有机纯牛奶 12盒",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "89.00",
+    "selling_points": "有机奶源 250ml×12"
+  },
+  {
+    "id": 108,
+    "name": "山珍汇香菇干货 250g",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "59.00",
+    "selling_points": "肉厚香浓 泡发率高"
+  },
+  {
+    "id": 109,
+    "name": "鲜果乐香蕉 5kg",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "59.00",
+    "selling_points": "海南香蕉 自然熟"
+  },
+  {
+    "id": 110,
+    "name": "田野香挂面 2.5kg",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "35.00",
+    "selling_points": "龙须面 爽滑筋道"
+  },
+  {
+    "id": 111,
+    "name": "山珍汇红枣 1kg",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "49.00",
+    "selling_points": "新疆若羌 肉厚核小"
+  },
+  {
+    "id": 112,
+    "name": "鲜果乐猕猴桃 12个",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "69.00",
+    "selling_points": "徐香猕猴桃 维C满满"
+  },
+  {
+    "id": 113,
+    "name": "田野香酱油 1.8L",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "39.00",
+    "selling_points": "酿造酱油 提鲜上色"
+  },
+  {
+    "id": 114,
+    "name": "山珍汇桂圆干 500g",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "45.00",
+    "selling_points": "莆田桂圆 甜香肉厚"
+  },
+  {
+    "id": 115,
+    "name": "鲜果乐草莓 3盒",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "59.00",
+    "selling_points": "丹东草莓 香甜饱满"
+  },
+  {
+    "id": 116,
+    "name": "田野香燕麦片 1kg",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "42.00",
+    "selling_points": "纯燕麦 高膳食纤维"
+  },
+  {
+    "id": 117,
+    "name": "山珍汇黑木耳 250g",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "39.00",
+    "selling_points": "东北秋木耳 泡发率高"
+  },
+  {
+    "id": 118,
+    "name": "鲜果乐车厘子 2kg",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "189.00",
+    "selling_points": "智利进口 JJ级"
+  },
+  {
+    "id": 119,
+    "name": "田野香小米 5kg",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "59.00",
+    "selling_points": "沁州黄小米 养胃"
+  },
+  {
+    "id": 120,
+    "name": "山珍汇蜂蜜 1kg",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "99.00",
+    "selling_points": "洋槐蜜 波美度42"
+  },
+  {
+    "id": 121,
+    "name": "贝乐积木 1000粒",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "199.00",
+    "selling_points": "兼容大颗粒 4岁+"
+  },
+  {
+    "id": 122,
+    "name": "贝乐遥控汽车",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "149.00",
+    "selling_points": "2.4G遥控 双电池"
+  },
+  {
+    "id": 123,
+    "name": "童趣屋毛绒熊 60cm",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "99.00",
+    "selling_points": "超柔短绒 可水洗"
+  },
+  {
+    "id": 124,
+    "name": "童趣屋拼图 1000片",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "69.00",
+    "selling_points": "成人儿童 益智减压"
+  },
+  {
+    "id": 125,
+    "name": "安贝婴儿连体衣",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "89.00",
+    "selling_points": "A类纯棉 0-1岁"
+  },
+  {
+    "id": 126,
+    "name": "安贝婴儿奶瓶 240ml",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "79.00",
+    "selling_points": "宽口径 防胀气"
+  },
+  {
+    "id": 127,
+    "name": "贝乐儿童滑板车",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "299.00",
+    "selling_points": "闪光轮 三档可调"
+  },
+  {
+    "id": 128,
+    "name": "童趣屋儿童绘本 20册",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "99.00",
+    "selling_points": "0-6岁 中英双语"
+  },
+  {
+    "id": 129,
+    "name": "安贝纸尿裤 L码 60片",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "129.00",
+    "selling_points": "超薄透气 全面防漏"
+  },
+  {
+    "id": 130,
+    "name": "贝乐儿童电话手表",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "199.00",
+    "selling_points": "4G定位 防水通话"
+  },
+  {
+    "id": 131,
+    "name": "童趣屋自动泡泡机",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "59.00",
+    "selling_points": "电动发光 无泡泡水"
+  },
+  {
+    "id": 132,
+    "name": "安贝婴儿湿巾 80抽",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "29.00",
+    "selling_points": "EDI纯水 加大加厚"
+  },
+  {
+    "id": 133,
+    "name": "贝乐竞技魔方",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "49.00",
+    "selling_points": "顺滑磁力 竞速级"
+  },
+  {
+    "id": 134,
+    "name": "童趣屋水彩笔 24色",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "35.00",
+    "selling_points": "可水洗 不脏手"
+  },
+  {
+    "id": 135,
+    "name": "安贝婴儿米粉 258g",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "69.00",
+    "selling_points": "高铁配方 原味"
+  },
+  {
+    "id": 136,
+    "name": "贝乐遥控飞机",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "299.00",
+    "selling_points": "双桨定高 一键返航"
+  },
+  {
+    "id": 137,
+    "name": "童趣屋积木桌",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "399.00",
+    "selling_points": "双面桌板 收纳方便"
+  },
+  {
+    "id": 138,
+    "name": "安贝儿童保温杯",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "59.00",
+    "selling_points": "316不锈钢 吸管杯"
+  },
+  {
+    "id": 139,
+    "name": "贝乐拼装积木 500粒",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "129.00",
+    "selling_points": "小颗粒 街景系列"
+  },
+  {
+    "id": 140,
+    "name": "童趣屋儿童帐篷",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "159.00",
+    "selling_points": "游戏屋 自动开账"
+  },
+  {
+    "id": 141,
+    "name": "跃动缓震跑鞋",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "399.00",
+    "selling_points": "回弹中底 透气网面"
+  },
+  {
+    "id": 142,
+    "name": "跃动训练鞋",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "299.00",
+    "selling_points": "全能训练 防侧翻"
+  },
+  {
+    "id": 143,
+    "name": "山野登山鞋防滑",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "459.00",
+    "selling_points": "防水防滑 高帮护踝"
+  },
+  {
+    "id": 144,
+    "name": "山野冲锋衣",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "599.00",
+    "selling_points": "三合一 防风防雨"
+  },
+  {
+    "id": 145,
+    "name": "风行瑜伽垫加厚",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "99.00",
+    "selling_points": "TPE环保 加宽加厚"
+  },
+  {
+    "id": 146,
+    "name": "风行瑜伽球 65cm",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "79.00",
+    "selling_points": "防爆材质 孕妇可用"
+  },
+  {
+    "id": 147,
+    "name": "跃动速干T恤",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "89.00",
+    "selling_points": "透气速干 反光logo"
+  },
+  {
+    "id": 148,
+    "name": "跃动运动短裤",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "79.00",
+    "selling_points": "轻量透气 内衬"
+  },
+  {
+    "id": 149,
+    "name": "山野帐篷 3-4人",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "499.00",
+    "selling_points": "全自动 防雨防晒"
+  },
+  {
+    "id": 150,
+    "name": "山野睡袋",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "299.00",
+    "selling_points": "压缩保暖 舒适温标5℃"
+  },
+  {
+    "id": 151,
+    "name": "风行羽毛球拍对拍",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "159.00",
+    "selling_points": "碳素全框 送球包"
+  },
+  {
+    "id": 152,
+    "name": "风行羽毛球 12只",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "49.00",
+    "selling_points": "耐打鹅毛 训练球"
+  },
+  {
+    "id": 153,
+    "name": "跃动计数跳绳",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "39.00",
+    "selling_points": "电子计数 轴承顺滑"
+  },
+  {
+    "id": 154,
+    "name": "山野登山杖",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "129.00",
+    "selling_points": "碳素超轻 三节可调"
+  },
+  {
+    "id": 155,
+    "name": "风行可调节哑铃 10kg",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "199.00",
+    "selling_points": "包胶静音 组合装"
+  },
+  {
+    "id": 156,
+    "name": "跃动运动水壶 750ml",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "59.00",
+    "selling_points": "Tritan材质 一键开盖"
+  },
+  {
+    "id": 157,
+    "name": "山野户外背包 40L",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "299.00",
+    "selling_points": "防泼水 减负背负"
+  },
+  {
+    "id": 158,
+    "name": "风行乒乓球拍",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "99.00",
+    "selling_points": "双拍套装 直拍横拍"
+  },
+  {
+    "id": 159,
+    "name": "跃动篮球 7号",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "129.00",
+    "selling_points": "室内外通用 吸湿防滑"
+  },
+  {
+    "id": 160,
+    "name": "山野便携炉具",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "199.00",
+    "selling_points": "防风一体 气罐兼容"
+  },
+  {
+    "id": 161,
+    "name": "三体全集（三部曲）",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "168.00",
+    "selling_points": "科幻经典 典藏版"
+  },
+  {
+    "id": 162,
+    "name": "活着",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "45.00",
+    "selling_points": "余华代表作 精装"
+  },
+  {
+    "id": 163,
+    "name": "平凡的世界（三部）",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "108.00",
+    "selling_points": "路遥 茅盾文学奖"
+  },
+  {
+    "id": 164,
+    "name": "Python编程从入门到实践",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "99.00",
+    "selling_points": "零基础 第三版"
+  },
+  {
+    "id": 165,
+    "name": "算法导论",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "128.00",
+    "selling_points": "计算机经典教材"
+  },
+  {
+    "id": 166,
+    "name": "百年孤独",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "59.00",
+    "selling_points": "马尔克斯 诺奖作品"
+  },
+  {
+    "id": 167,
+    "name": "围城",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "39.00",
+    "selling_points": "钱钟书 经典名著"
+  },
+  {
+    "id": 168,
+    "name": "SQL必知必会",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "79.00",
+    "selling_points": "数据库入门 第5版"
+  },
+  {
+    "id": 169,
+    "name": "人工智能简史",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "89.00",
+    "selling_points": "AI发展 科普读物"
+  },
+  {
+    "id": 170,
+    "name": "小王子",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "32.00",
+    "selling_points": "中英双语 插图版"
+  },
+  {
+    "id": 171,
+    "name": "红楼梦（上下册）",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "98.00",
+    "selling_points": "四大名著 校注版"
+  },
+  {
+    "id": 172,
+    "name": "心理学与生活",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "88.00",
+    "selling_points": "心理学经典教材"
+  },
+  {
+    "id": 173,
+    "name": "解忧杂货店",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "45.00",
+    "selling_points": "东野圭吾 治愈系"
+  },
+  {
+    "id": 174,
+    "name": "经济学原理（曼昆）",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "79.00",
+    "selling_points": "经济学入门经典"
+  },
+  {
+    "id": 175,
+    "name": "白夜行",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "59.00",
+    "selling_points": "东野圭吾 悬疑代表作"
+  },
+  {
+    "id": 176,
+    "name": "中国历史大脉络",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "69.00",
+    "selling_points": "通史读物 通俗易懂"
+  },
+  {
+    "id": 177,
+    "name": "月亮与六便士",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "42.00",
+    "selling_points": "毛姆 经典小说"
+  },
+  {
+    "id": 178,
+    "name": "时间简史",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "55.00",
+    "selling_points": "霍金 科普经典"
+  },
+  {
+    "id": 179,
+    "name": "杀死一只知更鸟",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "49.00",
+    "selling_points": "普利策奖 成长经典"
+  },
+  {
+    "id": 180,
+    "name": "沟通的艺术",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "65.00",
+    "selling_points": "人际关系 入门必读"
+  },
+  {
+    "id": 181,
+    "name": "木语护眼台灯",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "129.00",
+    "selling_points": "国AA级照度 无频闪"
+  },
+  {
+    "id": 182,
+    "name": "木语落地灯",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "299.00",
+    "selling_points": "北欧风 客厅卧室"
+  },
+  {
+    "id": 183,
+    "name": "暖居纯棉四件套",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "199.00",
+    "selling_points": "60支长绒棉 亲肤"
+  },
+  {
+    "id": 184,
+    "name": "暖居记忆棉枕头",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "129.00",
+    "selling_points": "慢回弹 护颈椎"
+  },
+  {
+    "id": 185,
+    "name": "木语收纳箱 60L",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "49.00",
+    "selling_points": "加厚可折叠 带滑轮"
+  },
+  {
+    "id": 186,
+    "name": "暖居植绒衣架 20个",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "29.00",
+    "selling_points": "防滑无痕 承重强"
+  },
+  {
+    "id": 187,
+    "name": "木语书架 5层",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "199.00",
+    "selling_points": "实木框架 大容量"
+  },
+  {
+    "id": 188,
+    "name": "暖居地毯 160×230",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "299.00",
+    "selling_points": "奶油绒 客厅茶几"
+  },
+  {
+    "id": 189,
+    "name": "木语电脑桌 1.2米",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "349.00",
+    "selling_points": "加固桌面 家用办公"
+  },
+  {
+    "id": 190,
+    "name": "暖居沙发垫",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "129.00",
+    "selling_points": "四季通用 防滑"
+  },
+  {
+    "id": 191,
+    "name": "木语衣帽架",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "159.00",
+    "selling_points": "落地实木 多挂钩"
+  },
+  {
+    "id": 192,
+    "name": "暖居纯棉浴巾 3条装",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "89.00",
+    "selling_points": "加厚吸水 大尺寸"
+  },
+  {
+    "id": 193,
+    "name": "木语餐边柜",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "699.00",
+    "selling_points": "多层收纳 岩板台面"
+  },
+  {
+    "id": 194,
+    "name": "暖居遮光窗帘",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "199.00",
+    "selling_points": "全遮光 免打孔"
+  },
+  {
+    "id": 195,
+    "name": "木语穿衣镜",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "149.00",
+    "selling_points": "全身镜 简约框架"
+  },
+  {
+    "id": 196,
+    "name": "暖居保温杯 500ml",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "79.00",
+    "selling_points": "316不锈钢 弹盖"
+  },
+  {
+    "id": 197,
+    "name": "木语鞋柜 3层",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "249.00",
+    "selling_points": "大容量 简约现代"
+  },
+  {
+    "id": 198,
+    "name": "暖居垃圾袋 100只",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "19.00",
+    "selling_points": "加厚背心式 点断式"
+  },
+  {
+    "id": 199,
+    "name": "木语花架",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "99.00",
+    "selling_points": "多层实木 绿植架"
+  },
+  {
+    "id": 200,
+    "name": "暖居香薰机",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "129.00",
+    "selling_points": "无雾香薰 静音"
+  },
+  {
+    "id": 201,
+    "name": "金足印记黄金项链 3g",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "1299.00",
+    "selling_points": "足金999 附证书"
+  },
+  {
+    "id": 202,
+    "name": "金足印记黄金手镯 10g",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "4599.00",
+    "selling_points": "古法工艺 足金重款"
+  },
+  {
+    "id": 203,
+    "name": "银语纯银手链",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "199.00",
+    "selling_points": "S925银 防过敏"
+  },
+  {
+    "id": 204,
+    "name": "银语纯银耳钉",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "99.00",
+    "selling_points": "S925银 小巧百搭"
+  },
+  {
+    "id": 205,
+    "name": "璃光珍珠项链",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "599.00",
+    "selling_points": "淡水珍珠 送礼佳品"
+  },
+  {
+    "id": 206,
+    "name": "璃光珍珠耳环",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "299.00",
+    "selling_points": "正圆强光 优雅"
+  },
+  {
+    "id": 207,
+    "name": "星辰钻石戒指 10分",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "1999.00",
+    "selling_points": "18K金 权威证书"
+  },
+  {
+    "id": 208,
+    "name": "星辰钻石吊坠",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "2599.00",
+    "selling_points": "闪耀火彩 锁骨链"
+  },
+  {
+    "id": 209,
+    "name": "沐光机械表男款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "899.00",
+    "selling_points": "进口机芯 蓝宝石镜面"
+  },
+  {
+    "id": 210,
+    "name": "沐光机械表女款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "799.00",
+    "selling_points": "超薄表盘 玫瑰金"
+  },
+  {
+    "id": 211,
+    "name": "沐光石英表情侣款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "599.00",
+    "selling_points": "一对装 同款对表"
+  },
+  {
+    "id": 212,
+    "name": "银语钛钢戒指",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "129.00",
+    "selling_points": "不褪色 刻字定制"
+  },
+  {
+    "id": 213,
+    "name": "璃光翡翠平安扣",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "899.00",
+    "selling_points": "天然A货 附证书"
+  },
+  {
+    "id": 214,
+    "name": "金足印记转运珠",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "699.00",
+    "selling_points": "足金 红绳可编"
+  },
+  {
+    "id": 215,
+    "name": "星辰锆石手链",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "159.00",
+    "selling_points": "闪耀锆石 多圈"
+  },
+  {
+    "id": 216,
+    "name": "沐光智能手表皮带",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "89.00",
+    "selling_points": "真皮透气 多尺寸"
+  },
+  {
+    "id": 217,
+    "name": "璃光琥珀吊坠",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "1099.00",
+    "selling_points": "天然蜜蜡 温润"
+  },
+  {
+    "id": 218,
+    "name": "银语儿童长命锁",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "399.00",
+    "selling_points": "S925 满月礼"
+  },
+  {
+    "id": 219,
+    "name": "星辰彩宝项链",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "1599.00",
+    "selling_points": "彩色宝石 18K金"
+  },
+  {
+    "id": 220,
+    "name": "金足印记金豆豆 1g",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "599.00",
+    "selling_points": "攒金神器 足金"
+  },
+  {
+    "id": 221,
+    "name": "途悦商务双肩包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "299.00",
+    "selling_points": "15.6英寸电脑仓 防泼水"
+  },
+  {
+    "id": 222,
+    "name": "途悦行李箱20英寸",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "399.00",
+    "selling_points": "万向静音轮 铝框"
+  },
+  {
+    "id": 223,
+    "name": "途悦行李箱24英寸",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "459.00",
+    "selling_points": "TSA海关锁 扩容"
+  },
+  {
+    "id": 224,
+    "name": "途悦行李箱28英寸",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "529.00",
+    "selling_points": "大容量 出国留学"
+  },
+  {
+    "id": 225,
+    "name": "悦裳单肩包女款",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "359.00",
+    "selling_points": "头层牛皮 大容量"
+  },
+  {
+    "id": 226,
+    "name": "悦裳斜挎小方包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "259.00",
+    "selling_points": "通勤百搭 轻奢"
+  },
+  {
+    "id": 227,
+    "name": "悦裳手提托特包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "429.00",
+    "selling_points": "职场通勤 能装"
+  },
+  {
+    "id": 228,
+    "name": "途悦登机包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "199.00",
+    "selling_points": "机舱随身 多袋"
+  },
+  {
+    "id": 229,
+    "name": "悦裳链条包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "299.00",
+    "selling_points": "法式优雅 单肩斜挎"
+  },
+  {
+    "id": 230,
+    "name": "途悦旅行折叠袋",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "59.00",
+    "selling_points": "可折叠 便携"
+  },
+  {
+    "id": 231,
+    "name": "悦裳帆布包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "89.00",
+    "selling_points": "文艺通勤 大容量"
+  },
+  {
+    "id": 232,
+    "name": "途悦运动腰包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "79.00",
+    "selling_points": "跑步健身 防水"
+  },
+  {
+    "id": 233,
+    "name": "悦裳水桶包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "269.00",
+    "selling_points": "抽绳束口 复古"
+  },
+  {
+    "id": 234,
+    "name": "途悦摄影包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "349.00",
+    "selling_points": "一机三镜 防雨罩"
+  },
+  {
+    "id": 235,
+    "name": "悦裳腋下包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "199.00",
+    "selling_points": "法式复古 小巧"
+  },
+  {
+    "id": 236,
+    "name": "途悦化妆包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "69.00",
+    "selling_points": "多分隔 防水"
+  },
+  {
+    "id": 237,
+    "name": "悦裳妈咪包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "189.00",
+    "selling_points": "多口袋 带尿垫"
+  },
+  {
+    "id": 238,
+    "name": "途悦健身包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "129.00",
+    "selling_points": "鞋仓分离 大容量"
+  },
+  {
+    "id": 239,
+    "name": "悦裳手机包",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "99.00",
+    "selling_points": "斜挎小巧 日常"
+  },
+  {
+    "id": 240,
+    "name": "途悦防水背包",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "259.00",
+    "selling_points": "漂流级防水 户外"
+  },
+  {
+    "id": 241,
+    "name": "云迹缓震跑步鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "399.00",
+    "selling_points": "爆米花中底 透气网面"
+  },
+  {
+    "id": 242,
+    "name": "云迹轻风跑鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "299.00",
+    "selling_points": "超轻回弹 日常慢跑"
+  },
+  {
+    "id": 243,
+    "name": "绅度商务皮鞋",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "459.00",
+    "selling_points": "头层牛皮 正装"
+  },
+  {
+    "id": 244,
+    "name": "绅度休闲板鞋",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "299.00",
+    "selling_points": "百搭小白鞋"
+  },
+  {
+    "id": 245,
+    "name": "城途马丁靴",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "399.00",
+    "selling_points": "耐磨大底 英伦风"
+  },
+  {
+    "id": 246,
+    "name": "城途工装靴",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "459.00",
+    "selling_points": "加厚鞋头 防滑"
+  },
+  {
+    "id": 247,
+    "name": "云迹实战篮球鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "499.00",
+    "selling_points": "碳板支撑 包裹强"
+  },
+  {
+    "id": 248,
+    "name": "云迹羽毛球鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "329.00",
+    "selling_points": "专业防滑 侧向支撑"
+  },
+  {
+    "id": 249,
+    "name": "绅度乐福鞋",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "359.00",
+    "selling_points": "一脚穿 柔软"
+  },
+  {
+    "id": 250,
+    "name": "城途雪地靴",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "349.00",
+    "selling_points": "加绒保暖 防泼水"
+  },
+  {
+    "id": 251,
+    "name": "云迹帆布鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "129.00",
+    "selling_points": "经典帆布 百搭"
+  },
+  {
+    "id": 252,
+    "name": "云迹居家拖鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "49.00",
+    "selling_points": "软底静音 防滑"
+  },
+  {
+    "id": 253,
+    "name": "绅度布洛克雕花鞋",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "559.00",
+    "selling_points": "手工雕花 绅士"
+  },
+  {
+    "id": 254,
+    "name": "城途溯溪鞋",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "259.00",
+    "selling_points": "速干排水 户外"
+  },
+  {
+    "id": 255,
+    "name": "云迹足球鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "289.00",
+    "selling_points": "碎钉TF 人工草"
+  },
+  {
+    "id": 256,
+    "name": "城途老爹鞋",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "329.00",
+    "selling_points": "增高显腿 复古"
+  },
+  {
+    "id": 257,
+    "name": "绅度德训鞋",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "369.00",
+    "selling_points": "德军训练 复古"
+  },
+  {
+    "id": 258,
+    "name": "云迹健走鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "199.00",
+    "selling_points": "中老年 宽楦防滑"
+  },
+  {
+    "id": 259,
+    "name": "城途雨靴",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "149.00",
+    "selling_points": "全防水 加厚"
+  },
+  {
+    "id": 260,
+    "name": "云迹发光童鞋",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "129.00",
+    "selling_points": "夜光轮 儿童喜爱"
+  },
+  {
+    "id": 261,
+    "name": "萌宠记冻干猫粮 5kg",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "129.00",
+    "selling_points": "冻干双拼 全价猫粮"
+  },
+  {
+    "id": 262,
+    "name": "萌宠记牛肉狗粮 10kg",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "99.00",
+    "selling_points": "大块牛肉 大型犬"
+  },
+  {
+    "id": 263,
+    "name": "萌宠记猫条 20支",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "29.00",
+    "selling_points": "零食奖励 增进感情"
+  },
+  {
+    "id": 264,
+    "name": "优宠洁齿骨",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "39.00",
+    "selling_points": "磨牙除口臭"
+  },
+  {
+    "id": 265,
+    "name": "萌宠记豆腐猫砂 10L",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "69.00",
+    "selling_points": "可冲厕 低尘结团"
+  },
+  {
+    "id": 266,
+    "name": "优宠航空箱中号",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "149.00",
+    "selling_points": "航空标准 透气"
+  },
+  {
+    "id": 267,
+    "name": "优宠猫爬架",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "299.00",
+    "selling_points": "剑麻柱 加粗稳固"
+  },
+  {
+    "id": 268,
+    "name": "萌宠记四季宠物窝",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "89.00",
+    "selling_points": "可拆洗 柔软"
+  },
+  {
+    "id": 269,
+    "name": "优宠自动喂食器",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "299.00",
+    "selling_points": "定时定量 APP远程"
+  },
+  {
+    "id": 270,
+    "name": "优宠宠物饮水机",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "199.00",
+    "selling_points": "无线泵 三重过滤"
+  },
+  {
+    "id": 271,
+    "name": "萌宠记狗狗玩具球",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "39.00",
+    "selling_points": "耐咬发声"
+  },
+  {
+    "id": 272,
+    "name": "优宠牵引绳",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "49.00",
+    "selling_points": "防挣脱 夜间反光"
+  },
+  {
+    "id": 273,
+    "name": "萌宠记猫抓板",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "29.00",
+    "selling_points": "瓦楞纸 磨爪"
+  },
+  {
+    "id": 274,
+    "name": "优宠洗澡香波",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "59.00",
+    "selling_points": "除螨抑菌 留香"
+  },
+  {
+    "id": 275,
+    "name": "萌宠记鱼粮缓释型",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "25.00",
+    "selling_points": "不浑水 增色"
+  },
+  {
+    "id": 276,
+    "name": "优宠猫隧道",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "69.00",
+    "selling_points": "多口可折叠 藏猫"
+  },
+  {
+    "id": 277,
+    "name": "萌宠记宠物针梳",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "35.00",
+    "selling_points": "开结梳毛"
+  },
+  {
+    "id": 278,
+    "name": "优宠智能猫砂盆",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "1299.00",
+    "selling_points": "自动清理 除臭"
+  },
+  {
+    "id": 279,
+    "name": "萌宠记仓鼠笼别墅",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "99.00",
+    "selling_points": "全套配件"
+  },
+  {
+    "id": 280,
+    "name": "优宠太空舱外出包",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "129.00",
+    "selling_points": "透气透明 遛猫"
+  },
+  {
+    "id": 281,
+    "name": "康维多种维生素 60片",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "129.00",
+    "selling_points": "成人每日一片"
+  },
+  {
+    "id": 282,
+    "name": "康维维生素C泡腾片",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "49.00",
+    "selling_points": "每日一粒 补充VC"
+  },
+  {
+    "id": 283,
+    "name": "康维深海鱼油软胶囊",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "159.00",
+    "selling_points": "EPA+DHA 护心"
+  },
+  {
+    "id": 284,
+    "name": "康维液体钙软胶囊",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "99.00",
+    "selling_points": "好吸收 中老年"
+  },
+  {
+    "id": 285,
+    "name": "安适臂式血压计",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "199.00",
+    "selling_points": "语音播报 双记忆"
+  },
+  {
+    "id": 286,
+    "name": "安适血糖仪套装",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "169.00",
+    "selling_points": "微量采血 试纸50"
+  },
+  {
+    "id": 287,
+    "name": "安适非接触额温枪",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "89.00",
+    "selling_points": "1秒测温 发烧提醒"
+  },
+  {
+    "id": 288,
+    "name": "康维褪黑素软糖",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "79.00",
+    "selling_points": "助眠 无依赖"
+  },
+  {
+    "id": 289,
+    "name": "康维益生菌粉 20袋",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "129.00",
+    "selling_points": "百亿活菌 调肠胃"
+  },
+  {
+    "id": 290,
+    "name": "安适家用雾化器",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "299.00",
+    "selling_points": "静音 儿童成人"
+  },
+  {
+    "id": 291,
+    "name": "康维乳清蛋白粉",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "199.00",
+    "selling_points": "健身增肌 香草味"
+  },
+  {
+    "id": 292,
+    "name": "康维胶原蛋白肽饮",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "169.00",
+    "selling_points": "小分子 熬夜党"
+  },
+  {
+    "id": 293,
+    "name": "安适家用制氧机",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "1599.00",
+    "selling_points": "1-5L可调 静音"
+  },
+  {
+    "id": 294,
+    "name": "康维护肝片",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "139.00",
+    "selling_points": "水飞蓟素 应酬族"
+  },
+  {
+    "id": 295,
+    "name": "安适按摩颈枕",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "199.00",
+    "selling_points": "加热揉捏 恒温"
+  },
+  {
+    "id": 296,
+    "name": "康维膳食纤维粉",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "89.00",
+    "selling_points": "轻盈顺畅 饱腹"
+  },
+  {
+    "id": 297,
+    "name": "安适体脂秤",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "99.00",
+    "selling_points": "多项数据 APP同步"
+  },
+  {
+    "id": 298,
+    "name": "康维叶酸片",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "59.00",
+    "selling_points": "备孕孕期 0.4mg"
+  },
+  {
+    "id": 299,
+    "name": "安适数字助听器",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "999.00",
+    "selling_points": "充电式 老人"
+  },
+  {
+    "id": 300,
+    "name": "康维黑芝麻丸",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "69.00",
+    "selling_points": "九蒸九晒 养发"
+  },
+  {
+    "id": 301,
+    "name": "车安4K行车记录仪",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "299.00",
+    "selling_points": "4K夜视 停车监控"
+  },
+  {
+    "id": 302,
+    "name": "车安车载吸尘器",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "199.00",
+    "selling_points": "强力吸尘 无线"
+  },
+  {
+    "id": 303,
+    "name": "车安全包围脚垫",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "259.00",
+    "selling_points": "TPE环保 专用车型"
+  },
+  {
+    "id": 304,
+    "name": "车安四季通用坐垫",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "189.00",
+    "selling_points": "透气 夏冬两用"
+  },
+  {
+    "id": 305,
+    "name": "驰美车载充电器65W",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "69.00",
+    "selling_points": "双口快充 数显"
+  },
+  {
+    "id": 306,
+    "name": "驰美磁吸手机支架",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "49.00",
+    "selling_points": "强磁免夹"
+  },
+  {
+    "id": 307,
+    "name": "车安高压洗车水枪",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "129.00",
+    "selling_points": "家用洗车 自吸"
+  },
+  {
+    "id": 308,
+    "name": "驰美蓝牙接收器",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "89.00",
+    "selling_points": "老车升级 蓝牙5.3"
+  },
+  {
+    "id": 309,
+    "name": "车安后备箱收纳箱",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "99.00",
+    "selling_points": "可折叠 大容量"
+  },
+  {
+    "id": 310,
+    "name": "车安车用水基灭火器",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "79.00",
+    "selling_points": "1kg 车载必备"
+  },
+  {
+    "id": 311,
+    "name": "驰美太阳能胎压监测",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "199.00",
+    "selling_points": "外置传感器 免接线"
+  },
+  {
+    "id": 312,
+    "name": "车安磁吸遮阳挡",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "59.00",
+    "selling_points": "前挡防晒 强磁"
+  },
+  {
+    "id": 313,
+    "name": "驰美车载香薰",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "39.00",
+    "selling_points": "出风口 固体香"
+  },
+  {
+    "id": 314,
+    "name": "车安数显充气泵",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "149.00",
+    "selling_points": "胎压预设 自停"
+  },
+  {
+    "id": 315,
+    "name": "车安全罩车衣",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "179.00",
+    "selling_points": "防晒防雨 加厚"
+  },
+  {
+    "id": 316,
+    "name": "驰美应急启动电源",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "399.00",
+    "selling_points": "亏电自救 充电宝"
+  },
+  {
+    "id": 317,
+    "name": "车安玻璃水 2L×6瓶",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "49.00",
+    "selling_points": "防冻 去虫胶"
+  },
+  {
+    "id": 318,
+    "name": "驰美压缩机车载冰箱",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "799.00",
+    "selling_points": "车家两用 10L"
+  },
+  {
+    "id": 319,
+    "name": "车安头枕腰靠套装",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "129.00",
+    "selling_points": "记忆棉 缓解疲劳"
+  },
+  {
+    "id": 320,
+    "name": "驰美无线车载吸尘器",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "159.00",
+    "selling_points": "小型强吸 车家"
+  },
+  {
+    "id": 321,
+    "name": "洁灵滚筒洗衣机 10kg 升级款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "2039.00",
+    "selling_points": "变频静音 除菌洗 热卖款"
+  },
+  {
+    "id": 322,
+    "name": "洁灵波轮洗衣机 8kg 经典款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1039.00",
+    "selling_points": "大容量 高性价比 热卖款"
+  },
+  {
+    "id": 323,
+    "name": "鲜风冰箱 452L 2025新款",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "3559.00",
+    "selling_points": "风冷无霜 双开门 热卖款"
+  },
+  {
+    "id": 324,
+    "name": "鲜风对开门冰箱 536L 限定款",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "5459.00",
+    "selling_points": "大容量 干湿分储 热卖款"
+  },
+  {
+    "id": 325,
+    "name": "暖阳空调 1.5匹 加强版",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "2289.00",
+    "selling_points": "新一级能效 变频冷暖 热卖款"
+  },
+  {
+    "id": 326,
+    "name": "暖阳柜机 3匹 便携款",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "5699.00",
+    "selling_points": "客厅大风量 自清洁 热卖款"
+  },
+  {
+    "id": 327,
+    "name": "洁灵电饭煲 4L 豪华款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "459.00",
+    "selling_points": "智能预约 柴火饭 热卖款"
+  },
+  {
+    "id": 328,
+    "name": "洁灵破壁机 基础款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1169.00",
+    "selling_points": "静音破壁 加热料理 热卖款"
+  },
+  {
+    "id": 329,
+    "name": "鲜风微波炉 23L 升级款",
+    "category": "APPLIANCE",
+    "brand": "鲜风",
+    "price": "509.00",
+    "selling_points": "平板加热 快速解冻 热卖款"
+  },
+  {
+    "id": 330,
+    "name": "暖阳电热水器 60L 经典款",
+    "category": "APPLIANCE",
+    "brand": "暖阳",
+    "price": "1419.00",
+    "selling_points": "速热 增容出水 热卖款"
+  },
+  {
+    "id": 331,
+    "name": "洁灵扫地机器人 2025新款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "2179.00",
+    "selling_points": "激光导航 自动集尘 热卖款"
+  },
+  {
+    "id": 332,
+    "name": "洁灵无线吸尘器 限定款",
+    "category": "APPLIANCE",
+    "brand": "洁灵",
+    "price": "1689.00",
+    "selling_points": "大吸力 长续航 热卖款"
+  },
+  {
+    "id": 333,
+    "name": "途悦商务双肩包 黑色",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "249.00",
+    "selling_points": "15.6英寸电脑仓 防泼水 多色可选"
+  },
+  {
+    "id": 334,
+    "name": "途悦行李箱20英寸 白色",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "379.00",
+    "selling_points": "万向静音轮 铝框 多色可选"
+  },
+  {
+    "id": 335,
+    "name": "途悦行李箱24英寸 藏青",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "529.00",
+    "selling_points": "TSA海关锁 扩容 多色可选"
+  },
+  {
+    "id": 336,
+    "name": "途悦行李箱28英寸 卡其",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "689.00",
+    "selling_points": "大容量 出国留学 多色可选"
+  },
+  {
+    "id": 337,
+    "name": "悦裳单肩包女款 粉色",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "309.00",
+    "selling_points": "头层牛皮 大容量 多色可选"
+  },
+  {
+    "id": 338,
+    "name": "悦裳斜挎小方包 灰色",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "249.00",
+    "selling_points": "通勤百搭 轻奢 多色可选"
+  },
+  {
+    "id": 339,
+    "name": "悦裳手提托特包 酒红",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "489.00",
+    "selling_points": "职场通勤 能装 多色可选"
+  },
+  {
+    "id": 340,
+    "name": "途悦登机包 墨绿",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "259.00",
+    "selling_points": "机舱随身 多袋 多色可选"
+  },
+  {
+    "id": 341,
+    "name": "悦裳链条包 黑色",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "249.00",
+    "selling_points": "法式优雅 单肩斜挎 多色可选"
+  },
+  {
+    "id": 342,
+    "name": "途悦旅行折叠袋 白色",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "59.00",
+    "selling_points": "可折叠 便携 多色可选"
+  },
+  {
+    "id": 343,
+    "name": "悦裳帆布包 藏青",
+    "category": "BAGS",
+    "brand": "悦裳",
+    "price": "99.00",
+    "selling_points": "文艺通勤 大容量 多色可选"
+  },
+  {
+    "id": 344,
+    "name": "途悦运动腰包 卡其",
+    "category": "BAGS",
+    "brand": "途悦",
+    "price": "99.00",
+    "selling_points": "跑步健身 防水 多色可选"
+  },
+  {
+    "id": 345,
+    "name": "肌研保湿面霜 50g 家庭装",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "139.00",
+    "selling_points": "神经酰胺 深层保湿 加量实惠"
+  },
+  {
+    "id": 346,
+    "name": "肌研精华液 30ml 囤货装",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "279.00",
+    "selling_points": "烟酰胺 提亮肤色 加量实惠"
+  },
+  {
+    "id": 347,
+    "name": "水润洁面乳 100g 新包装",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "79.00",
+    "selling_points": "氨基酸 温和不刺激 加量实惠"
+  },
+  {
+    "id": 348,
+    "name": "水润爽肤水 200ml 升级配方",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "129.00",
+    "selling_points": "补水收敛 湿敷 加量实惠"
+  },
+  {
+    "id": 349,
+    "name": "清雅丝绒口红 限定款",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "109.00",
+    "selling_points": "雾面哑光 显白 加量实惠"
+  },
+  {
+    "id": 350,
+    "name": "清雅粉底液 30ml 量贩装",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "179.00",
+    "selling_points": "持妆遮瑕 养肤 加量实惠"
+  },
+  {
+    "id": 351,
+    "name": "肌研防晒霜 SPF50 礼盒装",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "139.00",
+    "selling_points": "高倍防晒 清爽 加量实惠"
+  },
+  {
+    "id": 352,
+    "name": "水润补水面膜 20片 经典款",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "129.00",
+    "selling_points": "玻尿酸 密集补水 加量实惠"
+  },
+  {
+    "id": 353,
+    "name": "清雅眼影盘 12色 家庭装",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "139.00",
+    "selling_points": "哑光珠光 日常通勤 加量实惠"
+  },
+  {
+    "id": 354,
+    "name": "肌研洗发水 500ml 囤货装",
+    "category": "BEAUTY",
+    "brand": "肌研",
+    "price": "79.00",
+    "selling_points": "控油蓬松 氨基酸 加量实惠"
+  },
+  {
+    "id": 355,
+    "name": "水润护发素 500ml 新包装",
+    "category": "BEAUTY",
+    "brand": "水润",
+    "price": "89.00",
+    "selling_points": "顺滑修护 免洗 加量实惠"
+  },
+  {
+    "id": 356,
+    "name": "清雅香水 50ml 升级配方",
+    "category": "BEAUTY",
+    "brand": "清雅",
+    "price": "339.00",
+    "selling_points": "淡香持久 男女通用 加量实惠"
+  },
+  {
+    "id": 357,
+    "name": "三体全集（三部曲） 升级款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "139.00",
+    "selling_points": "科幻经典 典藏版 热卖款"
+  },
+  {
+    "id": 358,
+    "name": "活着 经典款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "39.00",
+    "selling_points": "余华代表作 精装 热卖款"
+  },
+  {
+    "id": 359,
+    "name": "平凡的世界（三部） 2025新款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "119.00",
+    "selling_points": "路遥 茅盾文学奖 热卖款"
+  },
+  {
+    "id": 360,
+    "name": "Python编程从入门到实践 限定款",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "129.00",
+    "selling_points": "零基础 第三版 热卖款"
+  },
+  {
+    "id": 361,
+    "name": "算法导论 加强版",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "109.00",
+    "selling_points": "计算机经典教材 热卖款"
+  },
+  {
+    "id": 362,
+    "name": "百年孤独 便携款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "59.00",
+    "selling_points": "马尔克斯 诺奖作品 热卖款"
+  },
+  {
+    "id": 363,
+    "name": "围城 豪华款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "39.00",
+    "selling_points": "钱钟书 经典名著 热卖款"
+  },
+  {
+    "id": 364,
+    "name": "SQL必知必会 基础款",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "99.00",
+    "selling_points": "数据库入门 第5版 热卖款"
+  },
+  {
+    "id": 365,
+    "name": "人工智能简史 升级款",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "79.00",
+    "selling_points": "AI发展 科普读物 热卖款"
+  },
+  {
+    "id": 366,
+    "name": "小王子 经典款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "29.00",
+    "selling_points": "中英双语 插图版 热卖款"
+  },
+  {
+    "id": 367,
+    "name": "红楼梦（上下册） 2025新款",
+    "category": "BOOK",
+    "brand": "文墨",
+    "price": "109.00",
+    "selling_points": "四大名著 校注版 热卖款"
+  },
+  {
+    "id": 368,
+    "name": "心理学与生活 限定款",
+    "category": "BOOK",
+    "brand": "知远",
+    "price": "109.00",
+    "selling_points": "心理学经典教材 热卖款"
+  },
+  {
+    "id": 369,
+    "name": "车安4K行车记录仪 升级款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "249.00",
+    "selling_points": "4K夜视 停车监控 热卖款"
+  },
+  {
+    "id": 370,
+    "name": "车安车载吸尘器 经典款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "189.00",
+    "selling_points": "强力吸尘 无线 热卖款"
+  },
+  {
+    "id": 371,
+    "name": "车安全包围脚垫 2025新款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "299.00",
+    "selling_points": "TPE环保 专用车型 热卖款"
+  },
+  {
+    "id": 372,
+    "name": "车安四季通用坐垫 限定款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "249.00",
+    "selling_points": "透气 夏冬两用 热卖款"
+  },
+  {
+    "id": 373,
+    "name": "驰美车载充电器65W 加强版",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "59.00",
+    "selling_points": "双口快充 数显 热卖款"
+  },
+  {
+    "id": 374,
+    "name": "驰美磁吸手机支架 便携款",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "49.00",
+    "selling_points": "强磁免夹 热卖款"
+  },
+  {
+    "id": 375,
+    "name": "车安高压洗车水枪 豪华款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "149.00",
+    "selling_points": "家用洗车 自吸 热卖款"
+  },
+  {
+    "id": 376,
+    "name": "驰美蓝牙接收器 基础款",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "119.00",
+    "selling_points": "老车升级 蓝牙5.3 热卖款"
+  },
+  {
+    "id": 377,
+    "name": "车安后备箱收纳箱 升级款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "79.00",
+    "selling_points": "可折叠 大容量 热卖款"
+  },
+  {
+    "id": 378,
+    "name": "车安车用水基灭火器 经典款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "79.00",
+    "selling_points": "1kg 车载必备 热卖款"
+  },
+  {
+    "id": 379,
+    "name": "驰美太阳能胎压监测 2025新款",
+    "category": "CAR",
+    "brand": "驰美",
+    "price": "229.00",
+    "selling_points": "外置传感器 免接线 热卖款"
+  },
+  {
+    "id": 380,
+    "name": "车安磁吸遮阳挡 限定款",
+    "category": "CAR",
+    "brand": "车安",
+    "price": "79.00",
+    "selling_points": "前挡防晒 强磁 热卖款"
+  },
+  {
+    "id": 381,
+    "name": "简约主义纯棉T恤 黑色",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "79.00",
+    "selling_points": "新疆棉 亲肤透气 多色可选"
+  },
+  {
+    "id": 382,
+    "name": "简约主义牛津衬衫 白色",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "189.00",
+    "selling_points": "免烫抗皱 商务休闲 多色可选"
+  },
+  {
+    "id": 383,
+    "name": "棉致牛仔裤直筒 藏青",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "299.00",
+    "selling_points": "弹力面料 修身直筒 多色可选"
+  },
+  {
+    "id": 384,
+    "name": "棉致休闲裤 卡其",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "299.00",
+    "selling_points": "四面弹 免烫 多色可选"
+  },
+  {
+    "id": 385,
+    "name": "风尚连帽卫衣 粉色",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "149.00",
+    "selling_points": "加绒保暖 宽松版型 多色可选"
+  },
+  {
+    "id": 386,
+    "name": "风尚羽绒服 90绒 灰色",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "659.00",
+    "selling_points": "90%白鸭绒 轻量保暖 多色可选"
+  },
+  {
+    "id": 387,
+    "name": "简约主义西装套装 酒红",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "1029.00",
+    "selling_points": "修身剪裁 免烫 多色可选"
+  },
+  {
+    "id": 388,
+    "name": "棉致针织毛衣 墨绿",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "389.00",
+    "selling_points": "羊毛混纺 保暖不扎 多色可选"
+  },
+  {
+    "id": 389,
+    "name": "风尚风衣外套 黑色",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "389.00",
+    "selling_points": "防风中长款 通勤 多色可选"
+  },
+  {
+    "id": 390,
+    "name": "简约主义连衣裙 白色",
+    "category": "CLOTHING",
+    "brand": "简约主义",
+    "price": "309.00",
+    "selling_points": "显瘦A字 显白 多色可选"
+  },
+  {
+    "id": 391,
+    "name": "棉致保暖内衣套装 藏青",
+    "category": "CLOTHING",
+    "brand": "棉致",
+    "price": "179.00",
+    "selling_points": "德绒发热 无痕 多色可选"
+  },
+  {
+    "id": 392,
+    "name": "风尚Polo衫 卡其",
+    "category": "CLOTHING",
+    "brand": "风尚",
+    "price": "169.00",
+    "selling_points": "珠地面料 商务休闲 多色可选"
+  },
+  {
+    "id": 393,
+    "name": "田野香东北大米 10kg 家庭装",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "109.00",
+    "selling_points": "当季新米 软糯香甜 加量实惠"
+  },
+  {
+    "id": 394,
+    "name": "田野香花生油 5L 囤货装",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "129.00",
+    "selling_points": "物理压榨 香味浓郁 加量实惠"
+  },
+  {
+    "id": 395,
+    "name": "山珍汇坚果礼盒 1.5kg 新包装",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "229.00",
+    "selling_points": "6种坚果 年货礼盒 加量实惠"
+  },
+  {
+    "id": 396,
+    "name": "山珍汇开心果 500g 升级配方",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "119.00",
+    "selling_points": "无漂白 大颗粒 加量实惠"
+  },
+  {
+    "id": 397,
+    "name": "鲜果乐苹果 5kg 限定款",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "69.00",
+    "selling_points": "陕西洛川 脆甜多汁 加量实惠"
+  },
+  {
+    "id": 398,
+    "name": "鲜果乐脐橙 10斤 量贩装",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "79.00",
+    "selling_points": "赣南脐橙 皮薄多汁 加量实惠"
+  },
+  {
+    "id": 399,
+    "name": "田野香有机纯牛奶 12盒 礼盒装",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "99.00",
+    "selling_points": "有机奶源 250ml×12 加量实惠"
+  },
+  {
+    "id": 400,
+    "name": "山珍汇香菇干货 250g 经典款",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "79.00",
+    "selling_points": "肉厚香浓 泡发率高 加量实惠"
+  },
+  {
+    "id": 401,
+    "name": "鲜果乐香蕉 5kg 家庭装",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "49.00",
+    "selling_points": "海南香蕉 自然熟 加量实惠"
+  },
+  {
+    "id": 402,
+    "name": "田野香挂面 2.5kg 囤货装",
+    "category": "FOOD",
+    "brand": "田野香",
+    "price": "29.00",
+    "selling_points": "龙须面 爽滑筋道 加量实惠"
+  },
+  {
+    "id": 403,
+    "name": "山珍汇红枣 1kg 新包装",
+    "category": "FOOD",
+    "brand": "山珍汇",
+    "price": "59.00",
+    "selling_points": "新疆若羌 肉厚核小 加量实惠"
+  },
+  {
+    "id": 404,
+    "name": "鲜果乐猕猴桃 12个 升级配方",
+    "category": "FOOD",
+    "brand": "鲜果乐",
+    "price": "89.00",
+    "selling_points": "徐香猕猴桃 维C满满 加量实惠"
+  },
+  {
+    "id": 405,
+    "name": "康维多种维生素 60片 家庭装",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "109.00",
+    "selling_points": "成人每日一片 加量实惠"
+  },
+  {
+    "id": 406,
+    "name": "康维维生素C泡腾片 囤货装",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "49.00",
+    "selling_points": "每日一粒 补充VC 加量实惠"
+  },
+  {
+    "id": 407,
+    "name": "康维深海鱼油软胶囊 新包装",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "179.00",
+    "selling_points": "EPA+DHA 护心 加量实惠"
+  },
+  {
+    "id": 408,
+    "name": "康维液体钙软胶囊 升级配方",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "129.00",
+    "selling_points": "好吸收 中老年 加量实惠"
+  },
+  {
+    "id": 409,
+    "name": "安适臂式血压计 限定款",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "169.00",
+    "selling_points": "语音播报 双记忆 加量实惠"
+  },
+  {
+    "id": 410,
+    "name": "安适血糖仪套装 量贩装",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "159.00",
+    "selling_points": "微量采血 试纸50 加量实惠"
+  },
+  {
+    "id": 411,
+    "name": "安适非接触额温枪 礼盒装",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "99.00",
+    "selling_points": "1秒测温 发烧提醒 加量实惠"
+  },
+  {
+    "id": 412,
+    "name": "康维褪黑素软糖 经典款",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "99.00",
+    "selling_points": "助眠 无依赖 加量实惠"
+  },
+  {
+    "id": 413,
+    "name": "康维益生菌粉 20袋 家庭装",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "109.00",
+    "selling_points": "百亿活菌 调肠胃 加量实惠"
+  },
+  {
+    "id": 414,
+    "name": "安适家用雾化器 囤货装",
+    "category": "HEALTH",
+    "brand": "安适",
+    "price": "279.00",
+    "selling_points": "静音 儿童成人 加量实惠"
+  },
+  {
+    "id": 415,
+    "name": "康维乳清蛋白粉 新包装",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "229.00",
+    "selling_points": "健身增肌 香草味 加量实惠"
+  },
+  {
+    "id": 416,
+    "name": "康维胶原蛋白肽饮 升级配方",
+    "category": "HEALTH",
+    "brand": "康维",
+    "price": "219.00",
+    "selling_points": "小分子 熬夜党 加量实惠"
+  },
+  {
+    "id": 417,
+    "name": "木语护眼台灯 升级款",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "109.00",
+    "selling_points": "国AA级照度 无频闪 热卖款"
+  },
+  {
+    "id": 418,
+    "name": "木语落地灯 经典款",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "279.00",
+    "selling_points": "北欧风 客厅卧室 热卖款"
+  },
+  {
+    "id": 419,
+    "name": "暖居纯棉四件套 2025新款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "229.00",
+    "selling_points": "60支长绒棉 亲肤 热卖款"
+  },
+  {
+    "id": 420,
+    "name": "暖居记忆棉枕头 限定款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "169.00",
+    "selling_points": "慢回弹 护颈椎 热卖款"
+  },
+  {
+    "id": 421,
+    "name": "木语收纳箱 60L 加强版",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "39.00",
+    "selling_points": "加厚可折叠 带滑轮 热卖款"
+  },
+  {
+    "id": 422,
+    "name": "暖居植绒衣架 20个 便携款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "29.00",
+    "selling_points": "防滑无痕 承重强 热卖款"
+  },
+  {
+    "id": 423,
+    "name": "木语书架 5层 豪华款",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "229.00",
+    "selling_points": "实木框架 大容量 热卖款"
+  },
+  {
+    "id": 424,
+    "name": "暖居地毯 160×230 基础款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "389.00",
+    "selling_points": "奶油绒 客厅茶几 热卖款"
+  },
+  {
+    "id": 425,
+    "name": "木语电脑桌 1.2米 升级款",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "299.00",
+    "selling_points": "加固桌面 家用办公 热卖款"
+  },
+  {
+    "id": 426,
+    "name": "暖居沙发垫 经典款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "119.00",
+    "selling_points": "四季通用 防滑 热卖款"
+  },
+  {
+    "id": 427,
+    "name": "木语衣帽架 2025新款",
+    "category": "HOME",
+    "brand": "木语",
+    "price": "179.00",
+    "selling_points": "落地实木 多挂钩 热卖款"
+  },
+  {
+    "id": 428,
+    "name": "暖居纯棉浴巾 3条装 限定款",
+    "category": "HOME",
+    "brand": "暖居",
+    "price": "119.00",
+    "selling_points": "加厚吸水 大尺寸 热卖款"
+  },
+  {
+    "id": 429,
+    "name": "金足印记黄金项链 3g 升级款",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "1099.00",
+    "selling_points": "足金999 附证书 热卖款"
+  },
+  {
+    "id": 430,
+    "name": "金足印记黄金手镯 10g 经典款",
+    "category": "JEWELRY",
+    "brand": "金足印记",
+    "price": "4369.00",
+    "selling_points": "古法工艺 足金重款 热卖款"
+  },
+  {
+    "id": 431,
+    "name": "银语纯银手链 2025新款",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "229.00",
+    "selling_points": "S925银 防过敏 热卖款"
+  },
+  {
+    "id": 432,
+    "name": "银语纯银耳钉 限定款",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "129.00",
+    "selling_points": "S925银 小巧百搭 热卖款"
+  },
+  {
+    "id": 433,
+    "name": "璃光珍珠项链 加强版",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "509.00",
+    "selling_points": "淡水珍珠 送礼佳品 热卖款"
+  },
+  {
+    "id": 434,
+    "name": "璃光珍珠耳环 便携款",
+    "category": "JEWELRY",
+    "brand": "璃光",
+    "price": "279.00",
+    "selling_points": "正圆强光 优雅 热卖款"
+  },
+  {
+    "id": 435,
+    "name": "星辰钻石戒指 10分 豪华款",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "2299.00",
+    "selling_points": "18K金 权威证书 热卖款"
+  },
+  {
+    "id": 436,
+    "name": "星辰钻石吊坠 基础款",
+    "category": "JEWELRY",
+    "brand": "星辰",
+    "price": "3379.00",
+    "selling_points": "闪耀火彩 锁骨链 热卖款"
+  },
+  {
+    "id": 437,
+    "name": "沐光机械表男款 升级款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "759.00",
+    "selling_points": "进口机芯 蓝宝石镜面 热卖款"
+  },
+  {
+    "id": 438,
+    "name": "沐光机械表女款 经典款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "759.00",
+    "selling_points": "超薄表盘 玫瑰金 热卖款"
+  },
+  {
+    "id": 439,
+    "name": "沐光石英表情侣款 2025新款",
+    "category": "JEWELRY",
+    "brand": "沐光",
+    "price": "689.00",
+    "selling_points": "一对装 同款对表 热卖款"
+  },
+  {
+    "id": 440,
+    "name": "银语钛钢戒指 限定款",
+    "category": "JEWELRY",
+    "brand": "银语",
+    "price": "169.00",
+    "selling_points": "不褪色 刻字定制 热卖款"
+  },
+  {
+    "id": 441,
+    "name": "凌云 Book 14 2025款",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "3909.00",
+    "selling_points": "轻薄高性能 长续航 新款升级"
+  },
+  {
+    "id": 442,
+    "name": "凌云 Book 16 Max",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "5319.00",
+    "selling_points": "大屏创作 高色域 新款升级"
+  },
+  {
+    "id": 443,
+    "name": "凌云 Pro 16 Plus",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "8049.00",
+    "selling_points": "独显直连 游戏创作 新款升级"
+  },
+  {
+    "id": 444,
+    "name": "智远星 13 轻薄本 Pro",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "5199.00",
+    "selling_points": "1.2kg极致轻薄 新款升级"
+  },
+  {
+    "id": 445,
+    "name": "智远星 15 青春版",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "3649.00",
+    "selling_points": "大屏商务 接口丰富 新款升级"
+  },
+  {
+    "id": 446,
+    "name": "星耀 Book Air 尊享版",
+    "category": "LAPTOP",
+    "brand": "星耀",
+    "price": "4939.00",
+    "selling_points": "高刷触控屏 轻薄本 新款升级"
+  },
+  {
+    "id": 447,
+    "name": "凌云台式主机 i5 SE",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "4019.00",
+    "selling_points": "16G内存 办公游戏 新款升级"
+  },
+  {
+    "id": 448,
+    "name": "智远显示器 24英寸 Ultra",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "1169.00",
+    "selling_points": "IPS广视角 微边框 新款升级"
+  },
+  {
+    "id": 449,
+    "name": "智远显示器 27英寸 2K 2025款",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "1189.00",
+    "selling_points": "2K高清 165Hz电竞 新款升级"
+  },
+  {
+    "id": 450,
+    "name": "凌云显示器 34英寸带鱼屏 Max",
+    "category": "LAPTOP",
+    "brand": "凌云",
+    "price": "2089.00",
+    "selling_points": "21:9带鱼屏 144Hz 新款升级"
+  },
+  {
+    "id": 451,
+    "name": "智远机械键盘 87键 Plus",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "339.00",
+    "selling_points": "红轴 热插拔 RGB 新款升级"
+  },
+  {
+    "id": 452,
+    "name": "智远无线鼠标 Pro",
+    "category": "LAPTOP",
+    "brand": "智远",
+    "price": "129.00",
+    "selling_points": "静音 2.4G连接 新款升级"
+  },
+  {
+    "id": 453,
+    "name": "贝乐积木 1000粒 家庭装",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "169.00",
+    "selling_points": "兼容大颗粒 4岁+ 加量实惠"
+  },
+  {
+    "id": 454,
+    "name": "贝乐遥控汽车 囤货装",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "139.00",
+    "selling_points": "2.4G遥控 双电池 加量实惠"
+  },
+  {
+    "id": 455,
+    "name": "童趣屋毛绒熊 60cm 新包装",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "109.00",
+    "selling_points": "超柔短绒 可水洗 加量实惠"
+  },
+  {
+    "id": 456,
+    "name": "童趣屋拼图 1000片 升级配方",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "89.00",
+    "selling_points": "成人儿童 益智减压 加量实惠"
+  },
+  {
+    "id": 457,
+    "name": "安贝婴儿连体衣 限定款",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "79.00",
+    "selling_points": "A类纯棉 0-1岁 加量实惠"
+  },
+  {
+    "id": 458,
+    "name": "安贝婴儿奶瓶 240ml 量贩装",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "79.00",
+    "selling_points": "宽口径 防胀气 加量实惠"
+  },
+  {
+    "id": 459,
+    "name": "贝乐儿童滑板车 礼盒装",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "339.00",
+    "selling_points": "闪光轮 三档可调 加量实惠"
+  },
+  {
+    "id": 460,
+    "name": "童趣屋儿童绘本 20册 经典款",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "129.00",
+    "selling_points": "0-6岁 中英双语 加量实惠"
+  },
+  {
+    "id": 461,
+    "name": "安贝纸尿裤 L码 60片 家庭装",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "109.00",
+    "selling_points": "超薄透气 全面防漏 加量实惠"
+  },
+  {
+    "id": 462,
+    "name": "贝乐儿童电话手表 囤货装",
+    "category": "MATERNAL",
+    "brand": "贝乐",
+    "price": "189.00",
+    "selling_points": "4G定位 防水通话 加量实惠"
+  },
+  {
+    "id": 463,
+    "name": "童趣屋自动泡泡机 新包装",
+    "category": "MATERNAL",
+    "brand": "童趣屋",
+    "price": "69.00",
+    "selling_points": "电动发光 无泡泡水 加量实惠"
+  },
+  {
+    "id": 464,
+    "name": "安贝婴儿湿巾 80抽 升级配方",
+    "category": "MATERNAL",
+    "brand": "安贝",
+    "price": "39.00",
+    "selling_points": "EDI纯水 加大加厚 加量实惠"
+  },
+  {
+    "id": 465,
+    "name": "萌宠记冻干猫粮 5kg 家庭装",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "109.00",
+    "selling_points": "冻干双拼 全价猫粮 加量实惠"
+  },
+  {
+    "id": 466,
+    "name": "萌宠记牛肉狗粮 10kg 囤货装",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "89.00",
+    "selling_points": "大块牛肉 大型犬 加量实惠"
+  },
+  {
+    "id": 467,
+    "name": "萌宠记猫条 20支 新包装",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "29.00",
+    "selling_points": "零食奖励 增进感情 加量实惠"
+  },
+  {
+    "id": 468,
+    "name": "优宠洁齿骨 升级配方",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "49.00",
+    "selling_points": "磨牙除口臭 加量实惠"
+  },
+  {
+    "id": 469,
+    "name": "萌宠记豆腐猫砂 10L 限定款",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "59.00",
+    "selling_points": "可冲厕 低尘结团 加量实惠"
+  },
+  {
+    "id": 470,
+    "name": "优宠航空箱中号 量贩装",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "139.00",
+    "selling_points": "航空标准 透气 加量实惠"
+  },
+  {
+    "id": 471,
+    "name": "优宠猫爬架 礼盒装",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "339.00",
+    "selling_points": "剑麻柱 加粗稳固 加量实惠"
+  },
+  {
+    "id": 472,
+    "name": "萌宠记四季宠物窝 经典款",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "119.00",
+    "selling_points": "可拆洗 柔软 加量实惠"
+  },
+  {
+    "id": 473,
+    "name": "优宠自动喂食器 家庭装",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "249.00",
+    "selling_points": "定时定量 APP远程 加量实惠"
+  },
+  {
+    "id": 474,
+    "name": "优宠宠物饮水机 囤货装",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "189.00",
+    "selling_points": "无线泵 三重过滤 加量实惠"
+  },
+  {
+    "id": 475,
+    "name": "萌宠记狗狗玩具球 新包装",
+    "category": "PET",
+    "brand": "萌宠记",
+    "price": "39.00",
+    "selling_points": "耐咬发声 加量实惠"
+  },
+  {
+    "id": 476,
+    "name": "优宠牵引绳 升级配方",
+    "category": "PET",
+    "brand": "优宠",
+    "price": "59.00",
+    "selling_points": "防挣脱 夜间反光 加量实惠"
+  },
+  {
+    "id": 477,
+    "name": "星耀 X5 Pro 2025款",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "2549.00",
+    "selling_points": "5000万像素旗舰影像 大电池 快充 新款升级"
+  },
+  {
+    "id": 478,
+    "name": "星耀 X5 Max",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1899.00",
+    "selling_points": "轻量化设计 长续航 新款升级"
+  },
+  {
+    "id": 479,
+    "name": "星耀 Note 12 Plus",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1839.00",
+    "selling_points": "大屏护眼 双扬声器 新款升级"
+  },
+  {
+    "id": 480,
+    "name": "星耀 X6 Ultra Pro",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "5979.00",
+    "selling_points": "影像旗舰 2K屏幕 无线充电 新款升级"
+  },
+  {
+    "id": 481,
+    "name": "轻语 Note 14 青春版",
+    "category": "PHONE",
+    "brand": "轻语",
+    "price": "2289.00",
+    "selling_points": "均衡性价比 拍照优秀 新款升级"
+  },
+  {
+    "id": 482,
+    "name": "轻语 S3 尊享版",
+    "category": "PHONE",
+    "brand": "轻语",
+    "price": "1229.00",
+    "selling_points": "入门高性价比 轻薄 新款升级"
+  },
+  {
+    "id": 483,
+    "name": "锋达 Edge 30 SE",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "2529.00",
+    "selling_points": "直屏电竞 高刷游戏 新款升级"
+  },
+  {
+    "id": 484,
+    "name": "锋达 Edge 40 Pro Ultra",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "4549.00",
+    "selling_points": "性能铁三角 散热强 新款升级"
+  },
+  {
+    "id": 485,
+    "name": "灵犀 Air 2025款",
+    "category": "PHONE",
+    "brand": "灵犀",
+    "price": "1609.00",
+    "selling_points": "轻薄手感 续航扎实 新款升级"
+  },
+  {
+    "id": 486,
+    "name": "星耀 Pad 11 Max",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "1899.00",
+    "selling_points": "2K护眼屏 四扬声器 新款升级"
+  },
+  {
+    "id": 487,
+    "name": "星耀 Pad Pro 13 Plus",
+    "category": "PHONE",
+    "brand": "星耀",
+    "price": "3789.00",
+    "selling_points": "大屏办公 键盘套装 新款升级"
+  },
+  {
+    "id": 488,
+    "name": "锋达 Watch GT Pro",
+    "category": "PHONE",
+    "brand": "锋达",
+    "price": "1169.00",
+    "selling_points": "两周续航 健康监测 新款升级"
+  },
+  {
+    "id": 489,
+    "name": "云迹缓震跑步鞋 黑色",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "339.00",
+    "selling_points": "爆米花中底 透气网面 多色可选"
+  },
+  {
+    "id": 490,
+    "name": "云迹轻风跑鞋 白色",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "279.00",
+    "selling_points": "超轻回弹 日常慢跑 多色可选"
+  },
+  {
+    "id": 491,
+    "name": "绅度商务皮鞋 藏青",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "529.00",
+    "selling_points": "头层牛皮 正装 多色可选"
+  },
+  {
+    "id": 492,
+    "name": "绅度休闲板鞋 卡其",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "389.00",
+    "selling_points": "百搭小白鞋 多色可选"
+  },
+  {
+    "id": 493,
+    "name": "城途马丁靴 粉色",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "339.00",
+    "selling_points": "耐磨大底 英伦风 多色可选"
+  },
+  {
+    "id": 494,
+    "name": "城途工装靴 灰色",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "439.00",
+    "selling_points": "加厚鞋头 防滑 多色可选"
+  },
+  {
+    "id": 495,
+    "name": "云迹实战篮球鞋 酒红",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "569.00",
+    "selling_points": "碳板支撑 包裹强 多色可选"
+  },
+  {
+    "id": 496,
+    "name": "云迹羽毛球鞋 墨绿",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "429.00",
+    "selling_points": "专业防滑 侧向支撑 多色可选"
+  },
+  {
+    "id": 497,
+    "name": "绅度乐福鞋 黑色",
+    "category": "SHOES",
+    "brand": "绅度",
+    "price": "309.00",
+    "selling_points": "一脚穿 柔软 多色可选"
+  },
+  {
+    "id": 498,
+    "name": "城途雪地靴 白色",
+    "category": "SHOES",
+    "brand": "城途",
+    "price": "329.00",
+    "selling_points": "加绒保暖 防泼水 多色可选"
+  },
+  {
+    "id": 499,
+    "name": "云迹帆布鞋 藏青",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "149.00",
+    "selling_points": "经典帆布 百搭 多色可选"
+  },
+  {
+    "id": 500,
+    "name": "云迹居家拖鞋 卡其",
+    "category": "SHOES",
+    "brand": "云迹",
+    "price": "59.00",
+    "selling_points": "软底静音 防滑 多色可选"
+  },
+  {
+    "id": 501,
+    "name": "跃动缓震跑鞋 升级款",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "339.00",
+    "selling_points": "回弹中底 透气网面 热卖款"
+  },
+  {
+    "id": 502,
+    "name": "跃动训练鞋 经典款",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "279.00",
+    "selling_points": "全能训练 防侧翻 热卖款"
+  },
+  {
+    "id": 503,
+    "name": "山野登山鞋防滑 2025新款",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "529.00",
+    "selling_points": "防水防滑 高帮护踝 热卖款"
+  },
+  {
+    "id": 504,
+    "name": "山野冲锋衣 限定款",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "779.00",
+    "selling_points": "三合一 防风防雨 热卖款"
+  },
+  {
+    "id": 505,
+    "name": "风行瑜伽垫加厚 加强版",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "79.00",
+    "selling_points": "TPE环保 加宽加厚 热卖款"
+  },
+  {
+    "id": 506,
+    "name": "风行瑜伽球 65cm 便携款",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "79.00",
+    "selling_points": "防爆材质 孕妇可用 热卖款"
+  },
+  {
+    "id": 507,
+    "name": "跃动速干T恤 豪华款",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "99.00",
+    "selling_points": "透气速干 反光logo 热卖款"
+  },
+  {
+    "id": 508,
+    "name": "跃动运动短裤 基础款",
+    "category": "SPORTS",
+    "brand": "跃动",
+    "price": "99.00",
+    "selling_points": "轻量透气 内衬 热卖款"
+  },
+  {
+    "id": 509,
+    "name": "山野帐篷 3-4人 升级款",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "419.00",
+    "selling_points": "全自动 防雨防晒 热卖款"
+  },
+  {
+    "id": 510,
+    "name": "山野睡袋 经典款",
+    "category": "SPORTS",
+    "brand": "山野",
+    "price": "279.00",
+    "selling_points": "压缩保暖 舒适温标5℃ 热卖款"
+  },
+  {
+    "id": 511,
+    "name": "风行羽毛球拍对拍 2025新款",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "179.00",
+    "selling_points": "碳素全框 送球包 热卖款"
+  },
+  {
+    "id": 512,
+    "name": "风行羽毛球 12只 限定款",
+    "category": "SPORTS",
+    "brand": "风行",
+    "price": "59.00",
+    "selling_points": "耐打鹅毛 训练球 热卖款"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-23T00:00:00+08:00",
+  "seed": 1,
+  "documents": [
+    {"key":"test-001","title":"测试 FAQ","docType":"FAQ","fileFormat":"MD","resource":"kbseed/test/test-001.md","topic":"测试主题","evalTags":["direct"],"charCount":20,"estimatedChunkCount":1}
+  ]
+}

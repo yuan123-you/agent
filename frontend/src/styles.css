@@ -1,0 +1,92 @@
+/* 全局样式（简洁正常风格） */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  background: #f5f7fa;
+  color: #303133;
+}
+
+/* ⭐ AI 高亮链接 */
+.ai-link {
+  color: var(--el-color-primary, #409eff);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0 1px;
+}
+
+.ai-link:hover {
+  opacity: 0.8;
+}
+
+.ai-link-plain {
+  color: inherit;
+}
+
+/* Markdown 内容 */
+.md-content {
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.md-content p {
+  margin: 0 0 8px;
+}
+
+.md-content p:last-child {
+  margin-bottom: 0;
+}
+
+.md-content ol,
+.md-content ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.md-content code {
+  background: #f0f2f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+/* 流式打字光标 */
+.typing-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--el-color-primary, #409eff);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: blink 0.8s infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 页面容器 */
+.page {
+  padding: 16px;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}

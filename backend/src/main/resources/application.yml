@@ -1,0 +1,79 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ai-mall-backend
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:ai_mall}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 旧库已通过原 V1/V2 脚本建成，首次接管时记为版本 2；新空库仍会执行 V1。
+    baseline-on-migrate: true
+    baseline-version: 2
+    validate-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef0123456789abcdef}
+    access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:120}
+    refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+  ai:
+    base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+    internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:aimall-files}
+  chat:
+    rate-limit: ${CHAT_RATE_LIMIT:20}
+  seed:
+    password: ${SEED_PASSWORD:123456}
+    knowledge-base:
+      enabled: ${KB_BULK_SEED_ENABLED:true}
+      manifest: ${KB_BULK_SEED_MANIFEST:kbseed/generated/manifest.json}
+      batch-size: ${KB_INGEST_BATCH_SIZE:2}
+      max-concurrent: ${KB_INGEST_MAX_CONCURRENT:4}
+      stuck-timeout-seconds: ${KB_INGEST_STUCK_TIMEOUT_SECONDS:900}
+
+logging:
+  level:
+    com.aimall.backend: INFO
+
+
+
+

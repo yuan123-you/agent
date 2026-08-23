@@ -1,0 +1,21 @@
+# ===== 运行时依赖：全部精确锁版，保证全新环境可复现（pip install -r requirements.txt）=====
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.4
+pydantic-settings==2.14.2
+httpx==0.28.1
+langchain==1.3.16
+langchain-core==1.6.0
+langchain-openai==1.6.0
+langchain-text-splitters==1.1.2
+langgraph==1.2.11
+# Milvus server = v2.4.9 → 配套 pymilvus 2.4.x（官方建议 2.4.15），不得使用 2.5+/2.6（与 2.4 服务端不匹配）
+pymilvus==2.4.15
+# pymilvus 2.4.15 依赖 pkg_resources（setuptools 81+ 已移除该模块），固定到仍含 pkg_resources 的版本
+setuptools<81
+pypdf==6.16.1
+python-multipart==0.0.32
+duckduckgo-search==8.1.1
+rank_bm25==0.2.2
+# 可观测性：全链路 tracing（不开启时不依赖其连库）；配套自托管 langfuse v2 服务
+langfuse==2.56.1
