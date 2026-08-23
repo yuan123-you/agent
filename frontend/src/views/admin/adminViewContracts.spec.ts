@@ -5,12 +5,16 @@ import loginSource from '../LoginView.vue?raw'
 import merchantLayoutSource from '../../layouts/MerchantLayout.vue?raw'
 import productDetailSource from '../ProductDetailView.vue?raw'
 import dashboardSource from './DashboardView.vue?raw'
+import apiSource from '../../api/index.ts?raw'
 
 describe('admin view source contracts', () => {
   it('removes admin product editing', () => {
     expect(productManageSource).not.toContain('openEdit')
     expect(productManageSource).not.toContain('apiAdminProductUpdate')
     expect(productManageSource).not.toContain('编辑商品')
+    expect(apiSource).not.toContain('apiAdminProductUpdate')
+    expect(apiSource).toContain('apiMerchantUpdate')
+    expect(apiSource).toContain('/merchant/products/${id}')
   })
 
   it('uses seller for visible merchant roles', () => {

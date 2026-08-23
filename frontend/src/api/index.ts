@@ -81,8 +81,6 @@ export const apiAdminProducts = (params: Record<string, unknown>) =>
   get<PageResult<ProductVO>>('/admin/products', { params })
 export const apiAdminProductCreate = (data: Partial<ProductVO>) =>
   post<number>('/admin/products', data)
-export const apiAdminProductUpdate = (id: number, data: Partial<ProductVO>) =>
-  put<void>(`/admin/products/${id}`, data)
 export const apiAdminProductStatus = (id: number, status: string) =>
   post<void>(`/admin/products/${id}/status`, { status })
 
