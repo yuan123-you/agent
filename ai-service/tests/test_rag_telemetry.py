@@ -72,3 +72,37 @@ async def test_hybrid_retrieval_span_contains_safe_decision_metadata_only():
     assert "SECRET_SOURCE_TEXT" not in serialized
     assert "Authorization" not in serialized
     assert "SECRET_KEY" not in serialized
+
+
+def test_span_context_sanitizes_escaping_exception_output():
+    trace = FakeTrace()
+    token = telemetry._trace_ctx.set({"trace": trace, "client": None})
+    sentinel = "SENTINEL_API_KEY_DO_NOT_RECORD"
+
+    try:
+        with pytest.raises(RuntimeError, match=sentinel):
+            with telemetry.span_ctx("rag::failing"):
+                raise RuntimeError(f"request headers and URL contained {sentinel}")
+    finally:
+        telemetry._trace_ctx.reset(token)
+
+    assert trace.spans[0].output == {"error": "span_failed"}
+    serialized = json.dumps(trace.spans[0].output)
+    assert "request headers" not in serialized
+    assert sentinel not in serialized
+
+
+def test_tool_span_sanitizes_escaping_exception_output():
+    trace = FakeTrace()
+    token = telemetry._trace_ctx.set({"trace": trace, "client": None})
+    sentinel = "SENTINEL_TOOL_SECRET_DO_NOT_RECORD"
+
+    try:
+        with pytest.raises(RuntimeError, match=sentinel):
+            with telemetry.tool_span("failing"):
+                raise RuntimeError(f"tool response contained {sentinel}")
+    finally:
+        telemetry._trace_ctx.reset(token)
+
+    assert trace.spans[0].output == {"error": "span_failed"}
+    assert sentinel not in json.dumps(trace.spans[0].output)

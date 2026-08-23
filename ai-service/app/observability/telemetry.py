@@ -132,7 +132,7 @@ class _ToolSpan:
     def __exit__(self, exc_type, exc, tb):
         if self.span is not None:
             try:
-                self.span.end(output={"error": str(exc)} if exc else self.output)
+                self.span.end(output={"error": "span_failed"} if exc else self.output)
             except Exception:
                 pass
         return False
@@ -196,7 +196,7 @@ def span_ctx(name: str, **kw):
         def __exit__(self, exc_type, exc, tb):
             if self.span is not None:
                 try:
-                    self.span.end(output={"error": str(exc)} if exc else self.output)
+                    self.span.end(output={"error": "span_failed"} if exc else self.output)
                 except Exception:
                     pass
             return False
