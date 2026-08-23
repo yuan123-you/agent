@@ -129,5 +129,8 @@ def test_shop_prompt_requires_source_ids_without_title_citations():
 
     assert '只能依据 <source id="Sx">...</source> 中的内容回答' in SHOP_SYSTEM_PROMPT
     assert '每个知识库事实句末必须引用对应的 [Sx]' in SHOP_SYSTEM_PROMPT
-    assert 'answerable=false 时必须说明当前证据不足' in SHOP_SYSTEM_PROMPT
+    assert 'reason=insufficient_evidence 时，说明当前知识库证据不足' in SHOP_SYSTEM_PROMPT
+    assert 'reason=retrieval_unavailable 时，说明知识库检索暂时不可用并建议稍后重试' in SHOP_SYSTEM_PROMPT
+    assert '不得声称知识库中不存在相关资料' in SHOP_SYSTEM_PROMPT
+    assert '检索为空时明确说明"知识库暂无相关资料"' not in SHOP_SYSTEM_PROMPT
     assert '（来源：《退换货条款》）' not in SHOP_SYSTEM_PROMPT
