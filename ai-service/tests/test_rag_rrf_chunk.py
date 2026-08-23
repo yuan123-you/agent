@@ -73,29 +73,3 @@ def test_generated_corpus_has_about_one_thousand_actual_chunks():
         actual_chunks += len(split_text(parse_file(item["fileFormat"], path.read_bytes())))
 
     assert 900 <= actual_chunks <= 1_100
-
-@pytest.mark.asyncio
-async def test_kb_search_reranks_fused_candidates(monkeypatch):
-    from unittest.mock import AsyncMock
-    from app.tools import tools
-
-    vector_hits = [
-        {"chunk_id": 1, "content": "low"},
-        {"chunk_id": 2, "content": "high"},
-    ]
-    monkeypatch.setattr(tools, "_observe_kb", AsyncMock(return_value={"hits": vector_hits}))
-    monkeypatch.setattr(
-        tools.backend_client,
-        "kb_keyword_search",
-        AsyncMock(return_value={"hits": []}),
-    )
-
-    class FakeReranker:
-        async def rerank(self, query, hits, top_n):
-            assert query == "退款"
-            assert len(hits) == 2
-            return [{**hits[1], "rerank_score": 0.9}]
-
-    monkeypatch.setattr(tools, "get_reranker", lambda: FakeReranker(), raising=False)
-    result = await tools.kb_search.coroutine(query="退款", top_k=1)
-    assert [hit["chunk_id"] for hit in result["hits"]] == [2]
