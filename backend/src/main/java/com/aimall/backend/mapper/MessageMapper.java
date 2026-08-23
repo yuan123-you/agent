@@ -63,7 +63,7 @@ public interface MessageMapper extends BaseMapper<Message> {
     List<Map<String, Object>> topQuestionsBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     @Select("SELECT tool_calls FROM message WHERE role = 'AI' AND tool_calls IS NOT NULL " +
-            "AND created_at >= #{start} AND created_at < #{end} LIMIT 500")
+            "AND created_at >= #{start} AND created_at < #{end}")
     List<String> selectToolCallsBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     @Select("SELECT COUNT(*) FROM message WHERE role = 'AI' AND tool_calls IS NOT NULL " +
@@ -79,6 +79,6 @@ public interface MessageMapper extends BaseMapper<Message> {
     Long avgAiLatencyBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     @Select("SELECT token_usage FROM message WHERE role = 'AI' AND token_usage IS NOT NULL " +
-            "AND created_at >= #{start} AND created_at < #{end} LIMIT 2000")
+            "AND created_at >= #{start} AND created_at < #{end}")
     List<String> selectTokenUsageBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

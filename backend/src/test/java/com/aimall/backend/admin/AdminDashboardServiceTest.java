@@ -100,4 +100,21 @@ class AdminDashboardServiceTest {
         assertThat(result.topQuestions()).isEmpty();
         assertThat(result.toolCalls()).isEmpty();
     }
+    @Test
+    void aggregatesMoreRowsThanTheFormerMapperLimits() {
+        List<String> tokenRows = java.util.stream.IntStream.range(0, 2001)
+                .mapToObj(i -> "{\"prompt_tokens\":1,\"completion_tokens\":1}")
+                .toList();
+        List<String> toolRows = java.util.stream.IntStream.range(0, 501)
+                .mapToObj(i -> "[{\"callId\":\"call-" + i + "\",\"tool\":\"order_query\"}]")
+                .toList();
+        when(messageMapper.selectTokenUsageBetween(any(), any())).thenReturn(tokenRows);
+        when(messageMapper.selectToolCallsBetween(any(), any())).thenReturn(toolRows);
+
+        AdminDashboardService.DashboardVO result = service.dashboard();
+
+        assertThat(result.aiQuality().totalTokens()).isEqualTo(4002L);
+        assertThat(result.toolCalls()).containsExactly(
+                new AdminDashboardService.RankItem("order_query", 501L));
+    }
 }
