@@ -72,19 +72,71 @@ def _short(obj, limit: int = 500) -> str:
 
 
 def _tool_result_preview(out) -> dict:
-    """工具结果脱敏摘要（前端过程可视化用）"""
+    """将 ToolMessage 解包成面向买家的简短结果，绝不暴露协议元数据。"""
     if out is None:
         return {}
-    if isinstance(out, dict):
-        r = dict(out)
-        if isinstance(r.get("products"), list):
-            r["products"] = [p.get("name") for p in r["products"]][:5]
-        if isinstance(r.get("orders"), list):
-            r["orders"] = [o.get("orderNo") for o in r["orders"]][:5]
-        if isinstance(r.get("hits"), list):
-            r["hits"] = [h.get("source") for h in r["hits"]][:5]
-        return {"preview": _short(r)}
-    return {"preview": _short(out)}
+
+    tool_name = getattr(out, "name", "") or ""
+    value = getattr(out, "content", out)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return {"preview": _short(value)}
+    if not isinstance(value, dict):
+        return {"preview": "工具执行完成"}
+    if value.get("error"):
+        return {"preview": f"执行失败：{_short(value['error'], 200)}"}
+
+    if tool_name == "product_search":
+        products = value.get("products") or []
+        if not products:
+            return {"preview": "未找到符合条件的商品"}
+        items = [
+            f"{p.get('name', '未命名商品')}（¥{p['price']}）" if p.get("price") is not None else
+            str(p.get("name", "未命名商品"))
+            for p in products[:5]
+        ]
+        return {"preview": f"找到 {len(products)} 件商品：{'、'.join(items)}"}
+
+    if tool_name == "product_detail":
+        parts = [str(value.get("name") or "商品详情")]
+        if value.get("price") is not None:
+            parts.append(f"¥{value['price']}")
+        if value.get("stock") is not None:
+            parts.append(f"库存 {value['stock']} 件")
+        preview = " · ".join(parts)
+        if value.get("sellingPoints"):
+            preview += f"\n卖点：{_short(value['sellingPoints'], 160)}"
+        return {"preview": preview}
+
+    if tool_name == "order_query":
+        orders = value.get("orders") or []
+        if not orders:
+            return {"preview": "暂无符合条件的订单"}
+        items = [
+            " · ".join(str(v) for v in (o.get("orderNo"), o.get("statusText")) if v)
+            for o in orders[:5]
+        ]
+        return {"preview": f"找到 {len(orders)} 个订单：{'、'.join(items)}"}
+
+    if tool_name == "order_create":
+        return {"preview": "已生成待确认订单，请在下方确认卡片中核对信息"}
+
+    if tool_name == "kb_search":
+        hits = value.get("hits") or []
+        sources = list(dict.fromkeys(str(h.get("source")) for h in hits if h.get("source")))
+        return {"preview": f"找到 {len(hits)} 条相关资料" + (f"：{'、'.join(sources[:5])}" if sources else "")}
+
+    if tool_name == "web_search":
+        results = value.get("results") or []
+        titles = [str(item.get("title")) for item in results[:5] if item.get("title")]
+        return {"preview": f"找到 {len(results)} 条网络结果" + (f"：{'、'.join(titles)}" if titles else "")}
+
+    if tool_name == "escalate_to_human":
+        return {"preview": "已提交人工客服转接请求"}
+
+    return {"preview": "工具执行完成"}
 
 
 @router.post("/chat/stream")

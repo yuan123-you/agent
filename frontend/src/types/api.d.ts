@@ -153,6 +153,10 @@ export interface AddressVO {
   receiverName: string
   receiverPhone: string
   receiverAddress: string
+  province?: string
+  city?: string
+  district?: string
+  detailAddress?: string
   isDefault: boolean
 }
 

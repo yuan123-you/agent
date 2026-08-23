@@ -17,6 +17,14 @@ class KbSeedCatalogTest {
     }
 
     @Test
+    void load_acceptsCommittedFormalKnowledgeManifest() {
+        KbSeedCatalog catalog = KbSeedCatalog.load(new ClassPathResource("kbseed/generated/manifest.json"));
+        assertEquals(15, catalog.documents().size());
+        assertTrue(catalog.documents().stream().allMatch(doc -> doc.title().startsWith("AI Mall ")));
+        assertTrue(catalog.documents().stream().noneMatch(doc -> doc.title().contains("合成测试")));
+    }
+
+    @Test
     void load_rejectsMissingManifest() {
         assertThrows(IllegalStateException.class,
                 () -> KbSeedCatalog.load(new ClassPathResource("kbseed/test/missing.json")));

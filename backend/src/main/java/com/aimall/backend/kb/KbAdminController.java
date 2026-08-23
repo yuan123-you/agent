@@ -4,10 +4,15 @@ import com.aimall.backend.common.ApiResponse;
 import com.aimall.backend.common.PageResult;
 import com.aimall.backend.entity.KbDoc;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,6 +37,26 @@ public class KbAdminController {
     @GetMapping("/docs/{id}")
     public ApiResponse<Map<String, Object>> detail(@PathVariable Long id) {
         return ApiResponse.ok(toVo(kbService.requireDoc(id)));
+    }
+
+    /** 返回源文档供管理员在线查看。 */
+    @GetMapping("/docs/{id}/content")
+    public ResponseEntity<byte[]> content(@PathVariable Long id) {
+        KbService.DocumentContent content = kbService.content(id);
+        String extension = content.format().toLowerCase();
+        MediaType mediaType = switch (content.format()) {
+            case "PDF" -> MediaType.APPLICATION_PDF;
+            case "MD" -> MediaType.parseMediaType("text/markdown;charset=UTF-8");
+            default -> MediaType.parseMediaType("text/plain;charset=UTF-8");
+        };
+        String disposition = ContentDisposition.inline()
+                .filename(content.title() + "." + extension, StandardCharsets.UTF_8)
+                .build().toString();
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(content.bytes().length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .body(content.bytes());
     }
 
     /** 上传知识文档：multipart(file + productId + title + docType) → 异步摄取 */

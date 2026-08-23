@@ -92,6 +92,22 @@ class VectorStore:
                 hit["source"] = titles.get(hit.get("doc_id"), f"知识库文档#{hit.get('doc_id')}")
         return {"hits": hits, "total": len(hits)}
 
+    async def existing_ids(self, ids: list[int]) -> set[int]:
+        """Return IDs already vectorized in the current collection."""
+        if not ids or not self.client.has_collection(settings.milvus_collection):
+            return set()
+        found: set[int] = set()
+        for start in range(0, len(ids), 500):
+            batch = ids[start:start + 500]
+            rows = await asyncio.to_thread(
+                self.client.query,
+                collection_name=settings.milvus_collection,
+                filter=f"id in [{','.join(str(value) for value in batch)}]",
+                output_fields=["id"],
+                limit=len(batch),
+            )
+            found.update(int(row["id"]) for row in rows)
+        return found
     async def insert(self, rows: list[dict]) -> None:
         await asyncio.to_thread(
             self.client.insert, collection_name=settings.milvus_collection, data=rows,

@@ -3,10 +3,13 @@ package com.aimall.backend.kb;
 import com.aimall.backend.config.AppProperties;
 import com.aimall.backend.config.ObjectStorage;
 import com.aimall.backend.entity.KbDoc;
+import com.aimall.backend.mapper.KbChunkMapper;
 import com.aimall.backend.mapper.KbDocMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.ClassPathResource;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,10 +18,11 @@ import static org.mockito.Mockito.*;
 
 class KbBulkSeedServiceTest {
     private final KbDocMapper mapper = mock(KbDocMapper.class);
+    private final KbChunkMapper chunkMapper = mock(KbChunkMapper.class);
     private final ObjectStorage storage = mock(ObjectStorage.class);
     private final AppProperties props = new AppProperties();
     private final KbSeedCatalog catalog = KbSeedCatalog.load(new ClassPathResource("kbseed/test/manifest.json"));
-    private final KbBulkSeedService service = new KbBulkSeedService(mapper, storage, props, catalog);
+    private final KbBulkSeedService service = new KbBulkSeedService(mapper, chunkMapper, storage, props, catalog);
 
     @Test
     void ensureSeeds_registersAndStoresMissingDocumentWithoutTriggeringIngest() throws Exception {
@@ -47,11 +51,29 @@ class KbBulkSeedServiceTest {
     }
 
     @Test
+    void ensureSeeds_prunesGeneratedDocumentsMissingFromManifest() {
+        KbDoc existing = new KbDoc();
+        existing.setId(7L);
+        when(mapper.selectOne(any())).thenReturn(existing);
+
+        KbDoc stale = new KbDoc();
+        stale.setId(88L);
+        stale.setFileUrl("seed-synthetic-kb-999.md");
+        when(mapper.selectList(any())).thenReturn(List.of(stale));
+
+        KbBulkSeedService.SeedResult result = service.ensureSeeds();
+
+        assertEquals(1, result.pruned());
+        verify(chunkMapper).delete(any());
+        verify(mapper).delete(any());
+    }
+
+    @Test
     void ensureSeeds_doesNothingWhenDisabled() {
         props.getSeed().getKnowledgeBase().setEnabled(false);
         KbBulkSeedService.SeedResult result = service.ensureSeeds();
         assertEquals(0, result.created());
-        verifyNoInteractions(mapper, storage);
+        verifyNoInteractions(mapper, chunkMapper, storage);
     }
 }
 

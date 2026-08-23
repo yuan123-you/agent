@@ -20,8 +20,9 @@ import argparse
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # eval/ 入 path
 from eval_core import BM25, proxy_intent, proxy_reply_score, tokenize  # noqa: E402
@@ -79,7 +80,7 @@ def evaluate_offline() -> dict:
 
     return {
         "mode": "offline_proxy",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
         "counts": {k: len(_load_lines(k)) for k in ("intent", "tool", "rag", "reply")},
         "intentAccuracy": intent_accuracy,
         "toolCorrectness": tool_correctness,

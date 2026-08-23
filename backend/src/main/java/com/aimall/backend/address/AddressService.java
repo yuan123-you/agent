@@ -38,6 +38,10 @@ public class AddressService {
         return address;
     }
 
+    public Address forOrder(Long userId, Long id) {
+        return requireOwned(userId, id);
+    }
+
     @Transactional
     public Address add(Long userId, AddressDtos.AddressRequest req) {
         boolean first = count(userId) == 0;

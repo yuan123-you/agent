@@ -1,6 +1,8 @@
 package com.aimall.backend.order;
 
+import com.aimall.backend.address.AddressService;
 import com.aimall.backend.common.BizException;
+import com.aimall.backend.entity.Address;
 import com.aimall.backend.entity.Product;
 import com.aimall.backend.mapper.OrderInfoMapper;
 import com.aimall.backend.mapper.OrderItemMapper;
@@ -12,20 +14,17 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
-/**
- * 库存乐观锁单测：并发冲突（影响行数 0）时绝不放行超卖。
- * 仅验证不可超卖的失败路径（针对 repo 最关键的 money 逻辑）。
- */
+/** 订单创建的库存与收货地址回归测试。 */
 class OrderServiceTest {
 
     private final ProductMapper productMapper = mock(ProductMapper.class);
+    private final AddressService addressService = mock(AddressService.class);
     private final OrderService service = new OrderService(
-            mock(OrderInfoMapper.class), mock(OrderItemMapper.class), productMapper, mock(OrderSseNotifier.class));
+            mock(OrderInfoMapper.class), mock(OrderItemMapper.class), productMapper,
+            mock(OrderSseNotifier.class), addressService);
 
     private static Product product(int stock, int version) {
         Product p = new Product();
@@ -48,7 +47,61 @@ class OrderServiceTest {
         return r;
     }
 
-    /** 持久冲突：5×updateById 均返回 0（他人并发已改版本）→ 必须抛异常，杜绝超卖 */
+    private static Address savedAddress(long id) {
+        Address address = new Address();
+        address.setId(id);
+        address.setUserId(7L);
+        address.setReceiverName("李四");
+        address.setReceiverPhone("13900000000");
+        address.setReceiverAddress("浙江省杭州市西湖区文三路90号");
+        return address;
+    }
+
+    @Test
+    void createUsesSelectedOwnedSavedAddress() {
+        OrderDtos.CreateOrderRequest request = req(1);
+        request.setAddressId(9L);
+        request.setReceiverName(null);
+        request.setReceiverPhone(null);
+        request.setReceiverAddress(null);
+        when(addressService.forOrder(7L, 9L)).thenReturn(savedAddress(9L));
+        when(productMapper.selectById(1L)).thenReturn(product(10, 1));
+        when(productMapper.updateById(any(Product.class))).thenReturn(1);
+
+        var order = service.create(7L, request, "USER", null);
+
+        assertEquals("李四", order.getReceiverName());
+        assertEquals("13900000000", order.getReceiverPhone());
+        assertEquals("浙江省杭州市西湖区文三路90号", order.getReceiverAddress());
+    }
+
+    @Test
+    void createFallsBackToDefaultAddressWhenDeliveryFieldsAreMissing() {
+        OrderDtos.CreateOrderRequest request = req(1);
+        request.setReceiverName(null);
+        request.setReceiverPhone(null);
+        request.setReceiverAddress(null);
+        when(addressService.defaultFor(7L)).thenReturn(savedAddress(12L));
+        when(productMapper.selectById(1L)).thenReturn(product(10, 1));
+        when(productMapper.updateById(any(Product.class))).thenReturn(1);
+
+        var order = service.create(7L, request, "USER", null);
+
+        assertEquals("李四", order.getReceiverName());
+        verify(addressService).defaultFor(7L);
+    }
+
+    @Test
+    void createResolvesDeliveryBeforeChangingStock() {
+        OrderDtos.CreateOrderRequest request = req(1);
+        request.setAddressId(99L);
+        when(addressService.forOrder(7L, 99L)).thenThrow(new BizException(2002, "地址不存在"));
+
+        assertThrows(BizException.class, () -> service.create(7L, request, "USER", null));
+
+        verifyNoInteractions(productMapper);
+    }
+
     @Test
     void create_throwsWhenOptimisticConflictPersists() {
         when(productMapper.selectById(1L)).thenReturn(product(10, 5));
@@ -59,7 +112,6 @@ class OrderServiceTest {
         assertEquals(2006, ex.getCode());
     }
 
-    /** 库存不足：stock < qty 直接失败 */
     @Test
     void create_failsWhenStockInsufficient() {
         when(productMapper.selectById(1L)).thenReturn(product(3, 1));
@@ -69,14 +121,15 @@ class OrderServiceTest {
         assertEquals(2006, ex.getCode());
     }
 
-    /** 首次即扣减成功 */
     @Test
-    void create_succeedsOnFirstAttempt() {
+    void create_succeedsOnFirstAttemptWithLegacyDeliveryFields() {
         when(productMapper.selectById(1L)).thenReturn(product(10, 5));
         when(productMapper.updateById(any(Product.class))).thenReturn(1);
 
         var order = service.create(1L, req(5), "USER", null);
         assertNotNull(order);
         assertEquals("PENDING_PAYMENT", order.getStatus());
+        assertEquals("张三", order.getReceiverName());
+        verifyNoInteractions(addressService);
     }
 }

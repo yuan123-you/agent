@@ -1,9 +1,28 @@
 import hashlib
 import json
-from collections import Counter
 from pathlib import Path
 
 from backend.scripts.kb_dataset import build_dataset, write_dataset
+
+
+EXPECTED_TOPICS = {
+    "平台与账户",
+    "订单管理",
+    "支付与退款",
+    "发票服务",
+    "会员与优惠",
+    "普通物流",
+    "特殊物流",
+    "跨境与偏远配送",
+    "无理由退货",
+    "质量问题与换货",
+    "质保与维修",
+    "投诉与平台介入",
+    "账户安全与隐私",
+    "数码家电与个护",
+    "食品母婴与家居",
+}
+FORBIDDEN_MARKERS = ("合成测试", "KB-", "｜场景", "精确编号")
 
 
 def _digest_tree(root: Path) -> str:
@@ -14,15 +33,20 @@ def _digest_tree(root: Path) -> str:
     return digest.hexdigest()
 
 
-def test_build_dataset_has_required_scale_and_distribution():
+def test_build_dataset_contains_formal_service_documents():
     docs = build_dataset()
-    assert len(docs) == 300
-    assert Counter(d.doc_type for d in docs) == {"FAQ": 120, "INTRO": 100, "POLICY": 80}
-    assert Counter(d.file_format for d in docs) == {"MD": 240, "TXT": 50, "PDF": 10}
-    assert len({d.key for d in docs}) == 300
-    assert len({d.title for d in docs}) == 300
-    estimated = sum(d.estimated_chunks for d in docs)
-    assert 10_000 <= estimated <= 20_000
+
+    assert len(docs) == 15
+    assert {doc.topic for doc in docs} == EXPECTED_TOPICS
+    assert {doc.file_format for doc in docs} == {"MD"}
+    assert len({doc.key for doc in docs}) == len(docs)
+    assert len({doc.title for doc in docs}) == len(docs)
+    assert all(doc.resource.endswith(f"{doc.key}.md") for doc in docs)
+    assert all(doc.title.startswith("AI Mall ") for doc in docs)
+    assert all(len(doc.content) >= 900 for doc in docs)
+    assert all("## 核心规则" in doc.content for doc in docs)
+    assert all("## 常见问题" in doc.content for doc in docs)
+    assert all(not any(marker in doc.title + doc.content for marker in FORBIDDEN_MARKERS) for doc in docs)
 
 
 def test_write_dataset_is_deterministic_and_manifest_references_real_files(tmp_path):
@@ -34,22 +58,43 @@ def test_write_dataset_is_deterministic_and_manifest_references_real_files(tmp_p
 
     manifest = json.loads((first / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == 1
-    assert len(manifest["documents"]) == 300
+    assert len(manifest["documents"]) == 15
     for item in manifest["documents"]:
         path = first / item["resource"].removeprefix("kbseed/generated/")
         assert path.is_file()
-        assert path.stat().st_size > 100
-        assert item["charCount"] > 0
+        assert path.stat().st_size > 900
+        assert item["charCount"] > 900
         assert item["estimatedChunkCount"] > 0
+        assert item["fileFormat"] == "MD"
 
 
-def test_eval_rows_cover_all_difficulties(tmp_path):
+def test_write_dataset_removes_stale_generated_documents(tmp_path):
+    output = tmp_path / "corpus"
+    stale = output / "docs" / "synthetic-kb-999.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("stale", encoding="utf-8")
+
+    write_dataset(output, tmp_path / "eval.jsonl")
+
+    assert not stale.exists()
+    assert len(list((output / "docs").iterdir())) == 15
+
+
+def test_eval_rows_are_natural_questions_grounded_in_document_content(tmp_path):
     output = tmp_path / "corpus"
     eval_path = tmp_path / "eval.jsonl"
     write_dataset(output, eval_path)
+    docs_by_key = {doc.key: doc for doc in build_dataset()}
     rows = [json.loads(line) for line in eval_path.read_text(encoding="utf-8").splitlines()]
-    assert len(rows) >= 300
+
+    assert len(rows) == 15
     assert {row["difficulty"] for row in rows} == {
-        "direct", "paraphrase", "conditional", "multi_hop", "temporal_region", "hard_negative"
+        "direct", "paraphrase", "conditional", "multi_hop", "temporal", "hard_negative"
     }
+    assert all(row["query"].endswith(("？", "?")) for row in rows)
+    assert all(not any(marker in row["query"] for marker in FORBIDDEN_MARKERS) for row in rows)
     assert all(row["expected_doc_key"] and row["must_hit"] for row in rows)
+    assert all(
+        all(expected in docs_by_key[row["expected_doc_key"]].content for expected in row["must_hit"])
+        for row in rows
+    )

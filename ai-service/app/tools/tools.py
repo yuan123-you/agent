@@ -6,6 +6,8 @@ from langchain_core.tools import tool
 
 from app import rag as _rag
 from app.clients.backend_client import backend_client
+from app.config import settings
+from app.rag.reranker import get_reranker
 from app.observability.telemetry import observe_retrieval
 from app.rag.product_index import hybrid_product_search
 from app.tools.web_search import web_search
@@ -121,8 +123,10 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
 
     # 双路 RRF 融合：任一路命中即返回（含仅向量命中），避免关键词零命中误判为空
     if vector_hits or kw_hits:
-        merged = _rrf_content([vector_hits, kw_hits], top_k)
-        return {"hits": merged, "total": len(merged)}
+        candidate_k = max(top_k, settings.reranker_candidates)
+        merged = _rrf_content([vector_hits, kw_hits], candidate_k)
+        ranked = await get_reranker().rerank(query, merged, top_n=top_k)
+        return {"hits": ranked, "total": len(ranked)}
     return {"hits": [], "total": 0, "empty": True}
 
 
@@ -156,6 +160,3 @@ async def escalate_to_human(reason: str = "") -> dict:
 
 
 ALL_TOOLS = [product_search, product_detail, order_query, order_create, kb_search, escalate_to_human, web_search]
-
-
-

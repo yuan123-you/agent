@@ -226,6 +226,18 @@ public class KbService {
         doc.setStatus("PROCESSING");
     }
 
+    public record DocumentContent(String title, String format, byte[] bytes) { }
+
+    public DocumentContent content(Long id) {
+        KbDoc doc = requireDoc(id);
+        try {
+            return new DocumentContent(doc.getTitle(), doc.getFileFormat(), storage.get(doc.getFileUrl()));
+        } catch (Exception e) {
+            log.warn("read document content failed doc={}: {}", id, e.getMessage());
+            throw new BizException(3001, "文件读取失败");
+        }
+    }
+
     public KbDoc requireDoc(Long id) {
         KbDoc doc = kbDocMapper.selectById(id);
         if (doc == null) {
@@ -258,4 +270,3 @@ public class KbService {
         return idx < 0 ? "" : filename.substring(idx + 1).toUpperCase(Locale.ROOT);
     }
 }
-

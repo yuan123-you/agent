@@ -1,24 +1,14 @@
-"""Deterministic synthetic ecommerce knowledge corpus builder."""
+"""Build the curated AI Mall service knowledge corpus."""
 from __future__ import annotations
 
 import json
 import math
-import random
-import textwrap
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 SEED = 20260823
-DOMAINS = [
-    "平台基础规则", "订单取消与修改", "支付失败与退款", "电子发票", "会员等级", "优惠券与价保",
-    "普通快递", "同城即时配送", "跨境物流", "生鲜冷链", "大件预约配送", "偏远地区配送",
-    "七天无理由", "质量问题换货", "质保维修", "投诉与平台介入", "账户安全", "隐私与风控",
-    "手机数码", "电脑办公", "家用电器", "服饰内衣", "美妆个护", "食品生鲜", "母婴玩具",
-    "运动户外", "图书文娱", "家具家居", "珠宝饰品", "汽车用品",
-]
-REGIONS = ["全国", "华东", "华南", "华北", "西南", "东北"]
-CHANNELS = ["平台自营", "品牌旗舰店", "第三方商家", "跨境专营", "同城门店"]
-DIFFICULTIES = ["direct", "paraphrase", "conditional", "multi_hop", "temporal_region", "hard_negative"]
+DIFFICULTIES = ("direct", "paraphrase", "conditional", "multi_hop", "temporal", "hard_negative")
+FORBIDDEN_MARKERS = ("合成测试", "KB-", "｜场景", "精确编号")
 
 
 @dataclass(frozen=True)
@@ -32,137 +22,261 @@ class DocumentSpec:
     eval_tags: tuple[str, ...]
     content: str
     estimated_chunks: int
+    query: str
+    must_hit: tuple[str, ...]
 
     @property
     def char_count(self) -> int:
         return len(self.content)
 
 
-def _doc_type(index: int) -> str:
-    return "FAQ" if index < 120 else "INTRO" if index < 220 else "POLICY"
+@dataclass(frozen=True)
+class CorpusEntry:
+    key: str
+    title: str
+    topic: str
+    doc_type: str
+    scope: str
+    rules: tuple[str, ...]
+    process: tuple[str, ...]
+    timing: tuple[str, ...]
+    exceptions: tuple[str, ...]
+    evidence: tuple[str, ...]
+    faq: tuple[tuple[str, str], ...]
+    query: str
+    must_hit: tuple[str, ...]
 
 
-def _file_format(index: int) -> str:
-    return "MD" if index < 240 else "TXT" if index < 290 else "PDF"
+def _entry(key: str, title: str, topic: str, doc_type: str, scope: str, *, rules: list[str],
+           process: list[str], timing: list[str], exceptions: list[str], evidence: list[str],
+           faq: list[tuple[str, str]], query: str, must_hit: tuple[str, ...]) -> CorpusEntry:
+    return CorpusEntry(key, title, topic, doc_type, scope, tuple(rules), tuple(process), tuple(timing),
+                       tuple(exceptions), tuple(evidence), tuple(faq), query, must_hit)
 
 
-def _section(topic: str, variant: int, section: int, rng: random.Random, markdown: bool) -> str:
-    region = REGIONS[(variant + section) % len(REGIONS)]
-    channel = CHANNELS[(variant * 2 + section) % len(CHANNELS)]
-    days = 1 + (variant * 3 + section * 2) % 30
-    amount = 50 + ((variant + 1) * (section + 3) * 17) % 1950
-    code = f"KB-{DOMAINS.index(topic)+1:02d}-{variant+1:02d}-{section+1:02d}"
-    heading = f"## {section + 1}. {topic}场景 {code}" if markdown else f"[{section + 1}] {topic}场景 {code}"
-    exception = ["定制商品", "激活后的数字内容", "已拆封卫生用品", "超过举证时限", "地址信息不完整"][section % 5]
-    proof = ["订单截图", "物流面单", "开箱视频", "检测报告", "支付流水"][variant % 5]
-    paragraphs = [
-        f"适用范围：本条适用于{region}区域的{channel}订单。用户提问可能使用“怎么办”“能不能退”“多久到账”等口语表达；检索时应以编号 {code}、区域、渠道和订单状态共同判断，不能只凭单一关键词作答。",
-        f"核心事实：满足页面已标记服务、订单金额不少于{amount}元且在事件发生后{days}个自然日内申请时，可进入标准处理流程。先核验账号与订单，再核验商品状态，最后确认责任方；三个条件缺一不可。",
-        f"操作步骤：第一步在订单详情提交申请；第二步上传{proof}并选择原因；第三步等待商家在{1 + section % 5}个工作日内响应；逾期未响应时平台自动提醒，仍无结果可申请平台介入。处理编号为 {code}。",
-        f"例外与边界：{exception}默认不适用本条，但若页面另有明确承诺或经检测确认属于非人为质量问题，则按承诺或质量保障规则处理。促销降价、主观不喜欢和质量缺陷是不同原因，不得混为一谈。",
-        f"相似规则辨析：{region}与{REGIONS[(variant + section + 1) % len(REGIONS)]}的时效不同，{channel}与{CHANNELS[(variant * 2 + section + 1) % len(CHANNELS)]}的责任主体也不同。出现冲突时，优先采用与订单渠道、地区、有效期完全匹配且版本更新的条款。",
-        f"客服答复要点：先复述用户条件，再说明是否满足{days}日期限和{amount}元门槛，列出所需{proof}，最后给出下一步。禁止承诺即时到账或跳过审核；信息不足时应追问地区、渠道、签收日期和商品状态。",
-    ]
-    return heading + "\n\n" + "\n\n".join(paragraphs)
+CORPUS = (
+    _entry("platform-account-service", "AI Mall 平台服务与账户使用规则", "平台与账户", "POLICY",
+        "适用于在 AI Mall 注册、浏览、下单以及使用智能客服或人工客服的用户，也用于说明平台、商家、物流服务商之间的职责边界。",
+        rules=["AI Mall 提供商品展示、交易、客服和争议协调服务；商品销售及履约责任以订单页面标明的经营主体为准。", "注册并下单表示用户同意下单时有效的服务规则。商品详情、活动规则与本规则不一致时，优先适用更具体且已向用户展示的条款。", "账号仅限本人使用，不得转让、出租或出售。用户应保管密码和验证码，发现异常登录应立即修改密码并联系人工客服。", "AI 助手全天提供咨询；退款、投诉、账号冻结等需要人工判断的事项可通过对话发送“转人工”进入人工服务。"],
+        process=["注册时使用唯一用户名并设置高强度密码。", "下单前核对商品经营主体、价格、库存、配送范围和售后说明。", "遇到规则问题先向 AI 助手咨询；涉及凭证审核或争议时转人工并保留受理记录。", "账号疑似被盗时先修改密码；无法登录时联系人工客服申请身份核验和临时冻结。"],
+        timing=["AI 助手提供全天咨询，人工客服服务时间以平台页面公告为准。", "规则更新自公布的生效日期起适用于新交易；已成立订单原则上按下单时展示的规则处理。"],
+        exceptions=["演示环境中的支付、物流或库存状态可能为模拟数据，应以当前订单页实际展示为准。", "法律法规另有强制规定，或者商品详情向用户提供更有利承诺的，按法律规定或更有利承诺执行。"],
+        evidence=["账号用户名、订单编号和问题发生时间。", "异常登录提示、页面截图、与商家或客服的聊天记录。", "不得向任何客服提供完整密码、支付密码或短信验证码。"],
+        faq=[("AI 助手不能解决怎么办？", "在对话中发送“转人工”，说明订单编号、诉求和已有凭证，人工客服将继续处理。"), ("规则修改会影响已下单订单吗？", "已成立订单原则上适用下单时展示的规则；法律强制规定或对用户更有利的承诺除外。")],
+        query="AI Mall 的账号可以借给别人使用吗？", must_hit=("账号仅限本人使用", "不得转让")),
+    _entry("order-change-cancel", "AI Mall 下单、订单修改与取消指南", "订单管理", "FAQ",
+        "适用于待支付、已支付、已发货、已送达和已取消订单的状态确认，以及收货信息填写、订单取消和商品规格变更。",
+        rules=["系统生成以 SO 开头的订单编号后才视为下单成功；购物车记录或支付页面截图不能代替正式订单。", "待支付订单可以直接取消；已支付但尚未发货的订单可以申请取消并退款。", "订单提交后暂不支持自助修改收货地址、商品型号、颜色或数量。需要变更时，应尽快联系客服；无法拦截的，可取消后重新下单。", "订单已经发货后不能直接取消，用户可在派送时拒收，或签收后按退货规则申请售后。"],
+        process=["在订单详情确认当前状态和订单编号。", "待支付订单点击取消；已支付未发货订单联系 AI 助手或人工客服提交取消申请。", "客服确认商家尚未发货后关闭订单，退款按原支付路径退回。", "若包裹已经交接物流，选择拒收或签收验货后发起退货，并关注退回物流。"],
+        timing=["待支付订单超过页面显示的支付期限会自动关闭。", "商家通常在支付成功后四十八小时内发货，定制或预售商品以详情页承诺为准。", "取消后的退款到账时间取决于支付渠道，处理进度可在订单退款记录查看。"],
+        exceptions=["秒杀、定制、预售等订单能否取消，以活动或商品详情页特别说明为准。", "仅修改联系电话等不影响配送路径的信息，可咨询承运物流是否支持，但平台不保证修改成功。"],
+        evidence=["SO 开头的订单编号。", "订单状态、支付记录和期望取消或变更的内容。", "如因地址错误需要处理，提供正确地址仅用于客服判断能否拦截，不代表一定修改成功。"],
+        faq=[("地址填错了能直接修改吗？", "订单暂不支持自助改址；未发货时尽快联系客服，无法修改则取消后重拍。"), ("已发货订单还能取消吗？", "不能直接取消，可以联系物流尝试拒收，或签收后按适用规则申请退货。")],
+        query="订单已经发货了，我还能直接取消吗？", must_hit=("订单已经发货后不能直接取消", "拒收")),
+    _entry("payment-refund", "AI Mall 支付、退款与到账规则", "支付与退款", "FAQ",
+        "适用于订单付款状态确认、重复支付、支付失败、订单取消退款和售后退款到账查询。",
+        rules=["订单是否支付成功以订单详情状态和平台支付记录为准；仅有银行扣款通知但订单仍待支付时，不要连续重复付款。", "演示环境使用模拟支付，点击去支付后订单状态实时更新；真实支付渠道以收银台展示为准。", "订单取消或售后退款原则上按原支付路径退回，不要求用户通过陌生二维码或私人账户收款。", "退款金额以实际支付金额和售后责任为基础；已使用优惠的订单不会按商品原价退款，具体计算在退款详情展示。"],
+        process=["支付失败时刷新订单详情，确认订单是否仍为待支付。", "出现扣款但订单未更新，保存扣款记录并联系人工客服，避免再次支付。", "退款提交后在订单的退款记录查看金额、原路退回渠道和处理状态。", "到账超出页面预计时间时，携带退款单号联系支付机构或平台客服核查。"],
+        timing=["平台审核和发起退款的时限以售后页面展示为准。", "支付机构入账速度不同，银行卡、钱包等渠道的实际到账时间可能存在差异。", "商家责任导致的全额退款退还用户实付金额；个人原因退货产生的寄回运费由用户承担。"],
+        exceptions=["组合支付、优惠券或积分抵扣订单的各支付部分，按原使用方式退回或恢复，具体以退款详情为准。", "支付渠道关闭或原账户异常时，不自行提供其他收款账户，应由人工客服按安全流程处理。"],
+        evidence=["订单编号、付款时间、金额和支付渠道。", "银行或钱包扣款记录、平台支付状态截图。", "退款单号及支付机构提供的查询结果。"],
+        faq=[("退款会退到哪里？", "原则上按原支付路径退回，可在退款详情查看渠道和金额。"), ("扣款了但订单仍待支付怎么办？", "不要重复付款，保留扣款记录并联系人工客服核查支付结果。")],
+        query="退款会退到别人的账户吗？", must_hit=("按原支付路径退回", "退款详情")),
+    _entry("invoice-service", "AI Mall 发票开具与售后指南", "发票服务", "FAQ",
+        "适用于订单发票申请、抬头与税号核对、发票下载、退货后的发票处理以及开票信息错误反馈。",
+        rules=["是否支持发票、发票类型及开票主体以商品详情和订单开票页面展示为准。", "申请企业抬头发票时应准确填写单位名称和纳税人识别号；个人发票按页面要求填写抬头。", "发票内容应与实际交易商品和金额一致，平台或商家不能按用户要求虚开与交易无关的项目。", "订单发生整单退款时，已开具发票需要按开票方要求红冲或作废；部分退款按实际保留商品金额处理。"],
+        process=["进入订单详情查找发票入口，确认开票主体和可选类型。", "填写抬头、税号、接收邮箱等信息并再次核对。", "提交后在订单发票记录查看状态，电子发票开具后通过平台入口下载。", "抬头错误、未收到发票或退货后需要处理发票时，凭订单编号联系开票主体或人工客服。"],
+        timing=["开票申请和完成时间以订单发票页面提示为准，特殊商品或商家订单可能需要人工处理。", "退款后的红冲、重开与税务系统同步存在处理时间，状态以发票记录为准。"],
+        exceptions=["订单未完成、已全额退款或交易信息不完整时，开票入口可能暂不可用。", "纸质发票、增值税专用发票和跨境商品发票的支持范围，以商品或商家说明为准。"],
+        evidence=["订单编号和交易金额。", "正确的发票抬头、税号及开票错误截图。", "已开具发票号码或电子发票文件，提交时应遮挡与处理无关的敏感信息。"],
+        faq=[("发票金额为什么不是商品原价？", "发票按实际交易金额开具，优惠抵扣部分不计入用户实际支付金额。"), ("退货后发票怎么办？", "整单退款需按开票方要求红冲或作废，部分退款按保留商品金额处理。")],
+        query="订单全额退款后，已经开的发票怎么处理？", must_hit=("红冲或作废", "整单退款")),
+    _entry("membership-promotions", "AI Mall 会员、优惠券与价格保护说明", "会员与优惠", "FAQ",
+        "适用于会员权益、积分、优惠券使用、活动叠加和下单后价格变化的处理，不替代具体活动页规则。",
+        rules=["会员等级、积分获取和有效期以会员中心实时展示为准，账号之间的会员权益通常不能转让或合并。", "优惠券必须满足适用商品、门槛、有效期和渠道条件；下单时未选择或不满足条件的优惠不能在付款后补用。", "商品价格以下单时页面显示为准，下单后普通价格变化默认不补差价。", "活动明确提供价格保护的，按活动页规定的商品范围、申请期限和比较口径办理。"],
+        process=["下单前在结算页查看系统已选优惠和不可用原因。", "确认实付金额后再付款，并保存活动页或价保承诺。", "需要价保时从订单详情或活动指定入口申请，系统按同一商品、规格和活动口径比较。", "权益未到账或优惠异常时，提供账号、订单和活动信息联系人工客服。"],
+        timing=["优惠券和积分过期时间以会员中心标注为准，过期后一般不补发。", "取消订单后优惠是否退回、何时退回，以优惠券规则和退款详情为准。", "价保申请必须在活动公布的期限内提交，超过期限不再受理。"],
+        exceptions=["秒杀、赠品、套装、限地区、限支付方式等活动可能不与其他优惠叠加。", "不同规格、不同经营主体、无货状态或附带赠品不同的商品通常不作为同一价保对象。"],
+        evidence=["订单编号、优惠券名称和结算页截图。", "活动页面、价保承诺及对比商品链接。", "会员中心的等级、积分流水或权益状态。"],
+        faq=[("下单后降价能补差吗？", "普通价格变化默认不补差；活动明确提供价保时，可在规定期限和口径内申请。"), ("忘记使用优惠券能补用吗？", "付款完成后通常不能补用，可在未支付时取消订单并确认优惠仍有效后重新下单。")],
+        query="商品刚买就降价，平台一定会补差价吗？", must_hit=("默认不补差价", "价格保护")),
+    _entry("standard-delivery", "AI Mall 普通快递、签收与物流异常处理", "普通物流", "POLICY",
+        "适用于普通现货商品的发货、物流查询、签收验货、包裹破损、物流停滞和显示签收但未收到等问题。",
+        rules=["普通现货商品通常在支付成功后四十八小时内发货；预售、定制商品以详情页标注时间为准。", "商家发货后，订单详情展示物流单号，预计送达时间仅供参考，以承运方实际配送为准。", "收件时建议当面检查外包装、商品、数量和配件；外包装严重破损可先拍照并拒收。", "物流显示签收但本人未收到时，应先核对家人、门卫、驿站和配送电话，再联系承运方及平台客服。"],
+        process=["在订单详情复制物流单号并查看最近轨迹。", "物流长时间不更新时先联系承运方查询，仍无结果再向商家或人工客服反馈。", "破损、少件或错件应保留包装和面单，拍摄连续开箱证据。", "需要拒收时告知配送员并关注退回轨迹，确认商家收到后再进入退款处理。"],
+        timing=["发货承诺以商品详情为准；普通现货通常不超过支付后四十八小时。", "物流异常处理时间取决于承运方核查，客服受理后可在订单售后记录查看进度。", "发现破损或少件应尽快反馈，避免因包装丢失导致责任难以核实。"],
+        exceptions=["自然灾害、交通管制、重大活动和偏远地区可能造成延迟，平台应根据可获得的信息同步进展。", "用户自行指定非订单地址、允许无接触放置或由他人代收后产生的争议，需要结合配送凭证判断。"],
+        evidence=["订单编号、物流单号和异常轨迹截图。", "快递面单、外包装六面照片、开箱视频及商品照片。", "与配送员、承运方和商家的沟通记录。"],
+        faq=[("物流显示签收但没收到怎么办？", "先核对代收点和配送电话，再联系承运方；仍未找到时携物流信息联系平台客服。"), ("外包装破损必须签收吗？", "可以先拍照验货，严重破损或无法确认商品完好时可拒收。")],
+        query="物流显示已经签收，但我没有拿到包裹怎么办？", must_hit=("显示签收但本人未收到", "核对家人")),
+    _entry("special-delivery", "AI Mall 同城、生鲜冷链与大件配送指南", "特殊物流", "POLICY",
+        "适用于同城即时配送、生鲜冷链、需要预约上门的大件商品，以及这些商品的联系、验收和异常处理。",
+        rules=["同城配送的备货和送达时间以订单页实时展示为准；用户应保持电话畅通并提供可进入的收货地址。", "生鲜冷链商品应在收货时立即检查温度状态、包装密封、腐败变质和数量，异常应第一时间拍照或录像。", "大件商品通常需要预约配送；楼层、入户、安装和旧机回收是否收费，以商品详情及预约确认内容为准。", "配送和安装不是同一服务时，不应在商品尚未验收前确认安装完成；外观破损应在安装前记录。"],
+        process=["下单前确认配送范围、预约时间、门禁、电梯和入户尺寸。", "接到配送联系后确认时间、服务项目和可能费用，不向非订单渠道支付未公示费用。", "收货时按商品类型完成温度、外观、数量、配件或通电前检查。", "异常时暂停签收或安装，保留现场证据并联系商家和人工客服。"],
+        timing=["同城和冷链时效以订单页为准，天气和交通可能影响预计送达。", "大件预约变更应在承运方开始配送前提出；临时无人收货产生的再次配送安排以页面规则为准。", "生鲜异常应在收货后尽快提交，证据需能反映开箱时状态。"],
+        exceptions=["定制家具、已完成安装且无质量问题的大件商品，可能不支持无理由退货。", "生鲜商品因易腐属性通常不支持无理由退货，但腐败、变质、破损或错发不影响依法申请售后。"],
+        evidence=["订单预约记录、配送人员联系方式和服务项目确认。", "生鲜外包装、温度或融化状态、生产日期及连续开箱视频。", "大件商品外观、包装、配件、安装前现场和收费凭证。"],
+        faq=[("生鲜收到后变质怎么办？", "立即停止食用，保留商品和包装，拍摄能反映收货时状态的照片或视频后申请售后。"), ("大件送到后发现门进不去怎么办？", "下单前应核对入户尺寸；现场异常先暂停配送或安装，再与商家协商处理及费用责任。")],
+        query="生鲜冷链商品收到时已经变质，该怎么取证？", must_hit=("立即检查温度状态", "连续开箱视频")),
+    _entry("crossborder-remote-delivery", "AI Mall 跨境订单与偏远地区配送说明", "跨境与偏远配送", "POLICY",
+        "适用于跨境专营商品、需要清关的订单，以及订单页标注为偏远或受配送能力限制地区的订单。",
+        rules=["跨境商品的经营主体、发货地、税费、预计清关时间和售后条件以商品详情及结算页为准。", "用户应按页面要求提供真实、准确且必要的收件与清关信息；信息错误可能导致清关失败或退运。", "偏远地区是否可配送、是否需要中转和预计时效，应以下单时地址校验结果为准，不按相邻地区推定。", "清关、边境运输和偏远中转可能导致轨迹更新间隔较长；预计时间不等于保证到达时间。"],
+        process=["下单前阅读跨境或偏远配送标识，确认税费、退货地址和不可退情形。", "提交平台明确要求的清关资料，并通过订单入口更新，不向陌生联系人发送证件。", "轨迹停滞时先按物流单号查询承运方或清关状态，再联系人工客服。", "发生拒收、退运或商品问题时保留通知、包裹和费用凭证，由客服判断责任。"],
+        timing=["清关和偏远配送没有统一固定时长，以订单页预计范围和实际监管、运输进度为准。", "补充资料通知应在页面给出的期限内处理；逾期可能导致退运。", "跨境退款需等待退运或责任确认时，进度以售后记录为准。"],
+        exceptions=["依法限制进口、个人信息不完整或监管抽检的订单可能无法继续履约。", "因用户提供错误信息、无正当理由拒收产生的退运费用，按订单规则和责任认定处理；商品质量问题不适用该限制。"],
+        evidence=["商品详情和结算页的跨境、税费或配送提示。", "物流轨迹、清关补件通知和平台提交记录。", "拒收、退运原因及实际发生的费用凭证。"],
+        faq=[("偏远地区时效和隔壁城市一样吗？", "不能据相邻地区推定，应以下单地址校验和订单页预计时效为准。"), ("清关资料能发给配送员吗？", "只通过平台或明确的官方渠道提交必要资料，不向陌生联系人发送证件。")],
+        query="偏远地区的配送时间能按相邻城市来判断吗？", must_hit=("不按相邻地区推定", "地址校验结果")),
+    _entry("seven-day-return", "AI Mall 七天无理由退货规则", "无理由退货", "POLICY",
+        "适用于签收后希望在没有质量问题的情况下退货的普通商品；质量问题应优先按质量售后规则处理。",
+        rules=["用户自物流签收之日起七个自然日内提交申请，商品完好且不影响二次销售的，可以申请无理由退货。", "第一个自然日为签收当日，第七日二十三时五十九分五十九秒前提交有效，周末和法定节假日不顺延。", "商品完好通常包括本体、配件、赠品、说明书和包装齐全，无人为损坏、明显使用痕迹或激活绑定。", "无理由退货的寄回运费由用户承担；商家发错、质量问题或描述不符等商家责任场景由商家承担合理运费。"],
+        process=["在有效期内联系 AI 助手或人工客服，选择退货退款并说明原因。", "审核通过后按售后页面提供的地址寄回，不要自行寄往商品包装上的其他地址。", "妥善包装并登记可查询的退货物流单号，保留面单和寄件凭证。", "商家收货验货后发起退款；如对完好程度有争议，可申请平台介入。"],
+        timing=["七日从物流签收当日开始按自然日计算，不因周末或节假日顺延。", "退货寄出期限、商家验货和退款进度以售后页面节点为准。", "用户应在审核通过后及时寄回，避免申请因长期无物流而关闭。"],
+        exceptions=["定制商品、鲜活易腐商品、拆封后的贴身用品或美妆、已激活数码设备、已拆封音像软件和图书等可能不支持无理由退货。", "例外商品存在非人为质量问题时，仍可按质量问题、换货或质保规则申请售后。"],
+        evidence=["订单编号、签收时间和售后申请记录。", "寄出前的商品、配件、赠品和包装照片。", "退货物流单号、快递面单与运费支付凭证。"],
+        faq=[("七天从哪一天开始算？", "从物流签收当日开始计算，签收日是第一天，周末和节假日也计入。"), ("拆封后一定不能退吗？", "普通商品拆封不当然失去资格，关键是商品完好；特殊商品拆封后的限制以详情页和规则为准。")],
+        query="七天无理由是从签收后的第二天开始算吗？", must_hit=("签收当日", "自然日")),
+    _entry("quality-exchange", "AI Mall 质量问题、错发漏发与换货规则", "质量问题与换货", "POLICY",
+        "适用于签收后发现非人为质量故障、商品与订单不符、数量缺少、运输破损或希望更换同款规格的售后申请。",
+        rules=["签收之日起十五个自然日内出现非人为质量问题，用户可以申请免费换货；超过十五日但仍在质保期内的，按维修或质保规则处理。", "错发、漏发、运输破损和商品描述明显不符属于需要核实的商家或履约责任场景，不按个人原因退货处理。", "质量换货原则上更换同型号同规格商品；需要改型号或规格时，可能转为退货后重新购买。", "商家责任成立时，退换产生的合理运费由商家承担，用户垫付的应保留快递面单和支付凭证。"],
+        process=["停止继续使用可能扩大损坏的商品，保留完整包装和配件。", "在售后入口选择质量、错发、漏发或破损原因，上传能够说明问题的凭证。", "审核通过后按指定地址寄回或配合上门检测，并登记物流单号。", "商家收货检测后安排换货；缺货无法更换时可协商退款。"],
+        timing=["十五日质量换货期从物流签收当日开始按自然日计算。", "审核、检测和换货发出时间以售后记录为准；需要第三方检测时可能延长。", "明显的错发、少件或运输破损应在开箱后尽快反馈。"],
+        exceptions=["人为摔落、进液、私自拆修、错误使用或正常磨损不属于非人为质量问题。", "无法复现故障时，平台可结合检测结果、使用记录和双方证据判断，不以单方口头描述直接定责。"],
+        evidence=["故障照片或视频、连续开箱视频和商品序列号。", "订单商品信息、实收商品、数量、包装和快递面单。", "检测报告、沟通记录、寄回物流及运费凭证。"],
+        faq=[("质量问题换货运费谁承担？", "确认属于非人为质量问题或其他商家责任时，合理运费由商家承担。"), ("换货能改成别的型号吗？", "质量换货原则上换同型号同规格；改型号通常需要退货后重新下单。")],
+        query="商品签收十天后出现非人为故障，可以免费换货吗？", must_hit=("十五个自然日内", "免费换货")),
+    _entry("warranty-repair", "AI Mall 商品质保、维修与售后凭证指南", "质保与维修", "INTRO",
+        "适用于超过换货期但仍在质保范围内的商品故障、维修渠道确认、寄修资料准备和维修结果争议。",
+        rules=["质保期限以商品详情标注或国家三包规定为准，二者不一致时按对消费者更有利且依法有效的标准执行。", "家电、手机、电脑等商品的整机和主要部件可能有不同期限，应结合具体品类、品牌保修卡和商品详情判断。", "质保期内非人为故障提供免费维修；无法修复时，根据检测结果和适用规则安排换货、退款或其他处理。", "人为损坏、非授权拆修、进液、错误使用和正常损耗通常不在免费质保范围，但可以询问付费维修。"],
+        process=["先备份设备数据并退出个人账号，移除与维修无关的隐私内容。", "从订单详情、品牌官方渠道或人工客服确认授权维修点和寄修方式。", "提交订单、序列号、故障表现和必要的照片视频，寄修前记录设备外观。", "收到检测或报价后确认维修范围；取回时核对故障、外观、更换部件和维修记录。"],
+        timing=["质保起算和期限以订单、商品详情、发票及品牌政策综合判断。", "维修周期取决于检测、备件和物流，受理后以维修单进度为准。", "维修更换部件的后续保障期限，按品牌政策或法律规定执行。"],
+        exceptions=["自行前往未经确认的维修点可能影响免费质保，送修前应核实授权资质。", "维修可能涉及数据清除，平台和维修方不替代用户承担未备份数据的恢复责任，但处理个人信息仍应遵守隐私规则。"],
+        evidence=["订单编号、发票或其他购买凭证。", "商品型号、序列号、保修卡和故障视频。", "寄修面单、维修受理单、检测报告、报价和维修完成记录。"],
+        faq=[("超过十五天就不能售后了吗？", "不是。超过质量换货期但仍在质保期内，可按质保规则申请维修。"), ("维修前为什么要备份数据？", "检测或更换部件可能清除设备数据，应先备份并退出个人账号。")],
+        query="商品超过十五天才坏，还能申请售后吗？", must_hit=("仍在质保期内", "申请维修")),
+    _entry("complaint-mediation", "AI Mall 投诉、举证与平台介入规则", "投诉与平台介入", "POLICY",
+        "适用于商家拒绝售后、超时未处理、双方对质量或责任有争议，以及用户对平台处理结果提出申诉。",
+        rules=["用户与商家协商失败、商家拒绝合理售后、处理超时或双方对事实责任争议较大时，可以申请平台介入。", "平台依据订单信息、商品详情、聊天记录、物流凭证、照片视频和检测报告综合判断，不承诺仅凭单一截图支持任一方。", "一般争议在材料齐全后一个至三个工作日给出结果；复杂检测或需要向物流方取证时可能延长至七个工作日。", "平台可根据责任要求退款、换货、承担运费或驳回申请；双方均有责任时可按责任程度处理。"],
+        process=["先通过售后记录与商家沟通，明确诉求并保留回复。", "在 AI 助手中发送“转人工”，提供订单编号、争议经过和希望平台解决的事项。", "按争议类型上传完整原始凭证，收到补件通知时在指定期限内补充。", "平台调查后在受理记录反馈结果；对处罚决定不服的用户或商家可在七日内提交申诉。"],
+        timing=["材料齐全的一般争议通常在一至三个工作日处理，复杂案件最长可能延至七个工作日。", "对违规处罚决定的申诉应在七日内提出，平台通常在三个工作日内复核。", "处理时限从必要材料齐全之时起计算，等待补件的时间不计入完整审理阶段。"],
+        exceptions=["涉嫌违法犯罪、人身安全或重大财产风险的事项，应同时向公安、市场监管等有权机关反映。", "伪造、剪辑或隐瞒关键凭证会影响判断，并可能按违规规则处理。"],
+        evidence=["订单、商品详情和完整聊天记录。", "开箱视频、故障照片、物流轨迹、面单和签收凭证。", "检测报告、维修记录、实际运费和支付凭证。"],
+        faq=[("商家一直不处理怎么办？", "保留售后申请和沟通记录，转人工申请平台介入。"), ("平台介入一定支持买家吗？", "不会预设结果，平台根据双方证据、订单规则和责任综合判断。")],
+        query="商家拒绝售后时，申请平台介入需要提供哪些材料？", must_hit=("完整聊天记录", "物流凭证")),
+    _entry("account-security-privacy", "AI Mall 账户安全、隐私与风险控制指南", "账户安全与隐私", "POLICY",
+        "适用于账号异常登录、密码或验证码保护、疑似诈骗、身份核验、订单风控以及客服处理个人信息的边界。",
+        rules=["密码、支付密码和短信验证码仅供本人使用，平台客服不会索取完整密码或要求通过私人账户转账。", "发现账号被盗、异常订单或联系方式被修改时，应立即修改密码并联系人工客服冻结风险操作。", "身份核验只收集处理当前问题所必要的信息，用户应通过平台提供的正式入口提交并遮挡无关内容。", "平台可对异常登录、批量下单、疑似漏洞套利等行为进行风险核验；限制措施应与风险相匹配，并提供申诉渠道。"],
+        process=["停止与可疑联系人沟通，不点击陌生链接，不共享屏幕或验证码。", "从可信设备修改密码，检查登录设备、收货地址和未完成订单。", "通过平台官方入口转人工，说明异常时间、设备和受影响订单，申请冻结或核查。", "如已发生资金损失，保存支付和沟通证据，并及时联系支付机构及公安机关。"],
+        timing=["安全事件应立即处理，不等待订单自动完成或对方承诺退款。", "账号限制复核和身份核验时间以客服受理记录为准；需要外部机构协查时可能延长。"],
+        exceptions=["客服为核实订单可询问订单编号、账号用户名等必要信息，但不会索取完整密码、支付密码或验证码。", "依法响应有权机关、履行交易或处理争议所需的信息使用，不等同于允许商家将用户信息用于无关营销。"],
+        evidence=["异常登录提醒、设备和时间信息。", "可疑链接、电话号码、聊天和转账记录。", "异常订单、地址修改记录以及平台安全受理编号。"],
+        faq=[("客服让我提供验证码正常吗？", "不正常。不要提供验证码、完整密码或支付密码，应立即结束沟通并通过官方入口核实。"), ("账号被限制怎么申诉？", "通过人工客服提交账号和受限场景说明，按要求完成必要身份核验并提供相关交易证据。")],
+        query="所谓平台客服向我要短信验证码，我应该给吗？", must_hit=("不会索取完整密码", "短信验证码")),
+    _entry("digital-home-beauty-aftercare", "AI Mall 数码、家电、服饰与美妆验收售后指引", "数码家电与个护", "INTRO",
+        "适用于手机电脑、家用电器、服饰内衣和美妆个护商品的收货检查、激活试用边界及分类售后注意事项。",
+        rules=["手机、电脑等数码商品应在激活前核对型号、颜色、容量、序列号、封签和配件；激活可能影响无理由退货资格。", "家电和大件在安装前检查外观、型号和配件，确认安装服务及收费；外观损伤应在安装前留证。", "服饰可在不影响二次销售的前提下合理试穿，但不得洗涤、修改、沾染气味或拆除影响销售的吊牌；贴身用品规则更严格。", "美妆个护应核对密封、批号和保质期，已拆封商品通常不支持无理由退货，但过期、破损或质量异常可申请售后。"],
+        process=["拍摄外包装和面单，按订单逐项核对商品。", "数码设备先查外观和序列号，家电先查外观配件，服饰美妆先查标签与密封。", "需要开机或试穿时控制在确认商品必要的合理范围，不进行账号绑定、洗涤或长期使用。", "发现错发、破损或质量问题时停止使用，保留全部附件并按对应售后原因申请。"],
+        timing=["七天无理由和十五天质量换货均从物流签收当日开始计算，分类例外以商品详情为准。", "数码或家电需要检测时，处理进度以检测和售后记录为准。", "外观、封签、少件等开箱可见问题应在收货后尽快反馈。"],
+        exceptions=["已激活或账号绑定的数码设备、拆封贴身用品和已开封美妆通常不支持无理由退货。", "上述限制不排除非人为质量问题、错发、过期或描述不符等依法应处理的售后。"],
+        evidence=["数码型号、序列号、激活状态和故障视频。", "家电外观、安装前现场、配件和服务收费凭证。", "服饰吊牌与商品状态，美妆密封、批号、保质期和异常照片。"],
+        faq=[("手机开机激活后还能无理由退吗？", "已激活数码设备通常属于无理由退货例外；存在质量问题时仍可按质量售后处理。"), ("美妆拆封后发现过期怎么办？", "过期不属于个人原因，应停止使用并保留批号、保质期和购买凭证申请售后。")],
+        query="手机已经激活但出现质量问题，还能申请售后吗？", must_hit=("激活可能影响无理由退货资格", "质量问题")),
+    _entry("food-family-home-aftercare", "AI Mall 食品、母婴、运动、家居与汽车用品售后指引", "食品母婴与家居", "INTRO",
+        "适用于食品生鲜、母婴玩具、运动户外、家具家居和汽车用品的验收、安全检查、适配确认及售后取证。",
+        rules=["食品和生鲜应检查包装密封、生产日期、保质期、储存状态和腐败变质；鲜活易腐商品通常不支持无理由退货。", "母婴用品和玩具应核对适用年龄、材质、安全警示和零件完整性；贴身或入口用品拆封后可能不支持无理由退货。", "运动防护用品使用前应确认尺码、承重和安全结构，实际高强度使用造成的磨损不属于仅为检查商品的合理试用。", "家具和汽车用品下单前应确认尺寸、安装条件及车型适配；定制、安装或影响二次销售后可能不支持无理由退货。"],
+        process=["下单前阅读尺寸、适龄、保质期、车型和安装说明，不确定时先向商家确认并保留记录。", "收货时检查包装、标签、数量和关键安全部件，食品生鲜还要检查温控或变质状态。", "安装或投入使用前再次核对适配性；发现明显不符时暂停安装和使用。", "质量、安全或错发问题按对应原因提交售后，保留商品以便核验，不自行丢弃关键证据。"],
+        timing=["无理由退货和质量换货期限按平台统一规则计算，但易腐、定制、贴身等分类例外优先适用。", "食品变质、零件缺失或运输破损应在开箱后尽快提交，确保凭证能反映收货状态。", "需要安装鉴定或适配核查时，处理时间以售后记录为准。"],
+        exceptions=["因用户量错尺寸、选错车型、超过承重或未按说明安装造成的不适配或损坏，通常不属于商品质量问题。", "商品本身标注错误、商家确认适配但实际不符、存在安全缺陷或运输损坏的，不按用户选购错误简单处理。"],
+        evidence=["食品批次、日期、密封和变质状态照片或视频。", "母婴玩具适龄标识、缺失零件和安全异常。", "尺寸测量、车型信息、商家适配承诺、安装前状态和破损部位。"],
+        faq=[("生鲜不支持无理由，是不是坏了也不能退？", "不是。腐败、变质、破损或错发属于质量或履约问题，可以凭收货证据申请售后。"), ("汽车用品尺寸不合适算质量问题吗？", "先核对商品标注和商家适配承诺；用户选错通常不是质量问题，标注错误或承诺不符则另行判断。")],
+        query="生鲜商品不支持七天无理由，收到时已经变质还能售后吗？", must_hit=("腐败变质", "可以凭收货证据申请售后")),
+)
 
 
-def _content(index: int, rng: random.Random) -> str:
-    topic = DOMAINS[index // 10]
-    variant = index % 10
-    markdown = _file_format(index) == "MD"
-    title = f"AI Mall 合成测试知识库 {index + 1:03d}｜{topic}｜场景{variant + 1}"
-    intro = (
-        f"# {title}\n\n> 仅用于 Agent + RAG 压力与召回测试，不代表真实平台承诺。"
-        if markdown else
-        f"{title}\n仅用于 Agent + RAG 压力与召回测试，不代表真实平台承诺。"
-    )
-    sections = [_section(topic, variant, section, rng, markdown) for section in range(36)]
-    return intro + "\n\n" + "\n\n".join(sections) + "\n"
+def _render(entry: CorpusEntry) -> str:
+    bullets = lambda values: "\n".join(f"- {value}" for value in values)
+    steps = "\n".join(f"{index}. {value}" for index, value in enumerate(entry.process, 1))
+    faq = "\n\n".join(f"### {question}\n{answer}" for question, answer in entry.faq)
+    return f"""# {entry.title}
+
+> 本文是 AI Mall 客服与用户共同使用的业务指引。具体商品另有明确说明时，以订单和商品详情页展示为准；法律法规提供更高保护的，从其规定。
+
+## 适用范围
+
+{entry.scope}
+
+## 核心规则
+
+{bullets(entry.rules)}
+
+## 办理流程
+
+{steps}
+
+## 时限与责任
+
+{bullets(entry.timing)}
+
+## 例外与注意事项
+
+{bullets(entry.exceptions)}
+
+## 所需凭证
+
+{bullets(entry.evidence)}
+
+提交材料时应保证内容真实、连续、能够对应具体订单，并遮挡与争议无关的身份证件号码、银行卡号等敏感信息。原始文件应保留至售后结束，以便需要时进一步核验。
+
+## 常见问题
+
+{faq}
+
+## 使用说明
+
+咨询时请优先提供订单编号和当前订单或售后状态。AI 助手可以解释规则和引导操作；需要判断商品状态、审核凭证、冻结账号或进行争议仲裁时，请在对话中发送“转人工”。客服结论应记录在订单或售后流程中，不要仅依据站外私聊、口头承诺或陌生链接操作。
+"""
+
+
+def _validate(docs: list[DocumentSpec]) -> None:
+    if len({doc.key for doc in docs}) != len(docs) or len({doc.title for doc in docs}) != len(docs):
+        raise ValueError("knowledge corpus contains duplicate keys or titles")
+    for doc in docs:
+        if not doc.content.strip() or any(marker in doc.title + doc.content for marker in FORBIDDEN_MARKERS):
+            raise ValueError(f"invalid formal knowledge document: {doc.key}")
+        if not all(fragment in doc.content for fragment in doc.must_hit):
+            raise ValueError(f"evaluation fragments are not grounded in document: {doc.key}")
 
 
 def build_dataset(seed: int = SEED) -> list[DocumentSpec]:
-    rng = random.Random(seed)
+    del seed  # Kept for compatibility; the curated corpus is intentionally deterministic.
     docs = []
-    for index in range(300):
-        topic = DOMAINS[index // 10]
-        variant = index % 10
-        key = f"synthetic-kb-{index + 1:03d}"
-        fmt = _file_format(index)
-        ext = fmt.lower()
-        title = f"AI Mall 合成测试知识库 {index + 1:03d}｜{topic}｜场景{variant + 1}"
-        content = _content(index, rng)
+    for index, entry in enumerate(CORPUS):
+        content = _render(entry)
         docs.append(DocumentSpec(
-            key=key,
-            title=title,
-            doc_type=_doc_type(index),
-            file_format=fmt,
-            resource=f"kbseed/generated/docs/{key}.{ext}",
-            topic=topic,
-            eval_tags=(REGIONS[variant % len(REGIONS)], CHANNELS[variant % len(CHANNELS)], DIFFICULTIES[index % 6]),
+            key=entry.key,
+            title=entry.title,
+            doc_type=entry.doc_type,
+            file_format="MD",
+            resource=f"kbseed/generated/docs/{entry.key}.md",
+            topic=entry.topic,
+            eval_tags=(entry.topic, entry.doc_type, DIFFICULTIES[index % len(DIFFICULTIES)]),
             content=content,
-            estimated_chunks=math.ceil(len(content) / (600 - 90)),
+            estimated_chunks=math.ceil(len(content) / 510),
+            query=entry.query,
+            must_hit=entry.must_hit,
         ))
+    _validate(docs)
     return docs
 
 
-def _pdf_bytes(text: str) -> bytes:
-    """Create a dependency-free, extractable ASCII PDF for parser coverage."""
-    ascii_text = text.encode("ascii", "replace").decode("ascii")
-    lines = []
-    for raw in ascii_text.splitlines():
-        lines.extend(textwrap.wrap(raw, width=88) or [""])
-    pages = [lines[i:i + 60] for i in range(0, len(lines), 60)]
-    objects: list[bytes] = []
-    page_ids = [4 + i * 2 for i in range(len(pages))]
-    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
-    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
-    objects.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode())
-    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>")
-    for page_index, page_lines in enumerate(pages):
-        page_id = page_ids[page_index]
-        content_id = page_id + 1
-        page = f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
-        commands = ["BT /F1 8 Tf 30 810 Td 10 TL"]
-        for line in page_lines:
-            escaped = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-            commands.append(f"({escaped}) Tj T*")
-        commands.append("ET")
-        stream = "\n".join(commands).encode()
-        objects.append(page.encode())
-        objects.append(f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream")
-    output = bytearray(b"%PDF-1.4\n%synthetic\n")
-    offsets = [0]
-    for object_id, obj in enumerate(objects, start=1):
-        offsets.append(len(output))
-        output.extend(f"{object_id} 0 obj\n".encode() + obj + b"\nendobj\n")
-    xref = len(output)
-    output.extend(f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n".encode())
-    for offset in offsets[1:]:
-        output.extend(f"{offset:010d} 00000 n \n".encode())
-    output.extend(f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
-    return bytes(output)
-
-
 def _eval_row(doc: DocumentSpec, index: int) -> dict:
-    difficulty = DIFFICULTIES[index % len(DIFFICULTIES)]
-    region, channel, _ = doc.eval_tags
-    code = f"KB-{DOMAINS.index(doc.topic)+1:02d}-{index % 10 + 1:02d}-{index % 36 + 1:02d}"
-    queries = {
-        "direct": f"{doc.topic}的处理编号 {code} 适用于什么范围？",
-        "paraphrase": f"我在{region}的{channel}订单出问题了，这种情况咋办？",
-        "conditional": f"{doc.topic}如果属于例外商品但检测为质量问题还能处理吗？",
-        "multi_hop": f"{doc.topic}需要什么凭证，商家逾期后下一步是什么？",
-        "temporal_region": f"{region}区域{doc.topic}的期限和相邻区域一样吗？",
-        "hard_negative": f"不要返回相似渠道，请查{channel}的{doc.topic}规则 {code}",
-    }
-    query = queries[difficulty] + (f" 精确编号 {code}" if doc.file_format == "PDF" else "")
     return {
-        "query": query,
+        "query": doc.query,
         "expected_doc_key": doc.key,
-        "must_hit": [code, doc.topic],
+        "must_hit": list(doc.must_hit),
         "doc_type": doc.doc_type,
-        "difficulty": difficulty,
-        "note": "合成大规模知识库召回用例",
+        "difficulty": DIFFICULTIES[index % len(DIFFICULTIES)],
+        "note": "AI Mall 正式服务知识库召回用例",
     }
 
 
@@ -170,19 +284,21 @@ def write_dataset(output_root: Path, eval_path: Path, seed: int = SEED) -> dict:
     docs = build_dataset(seed)
     docs_dir = output_root / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
+    for stale in docs_dir.iterdir():
+        if stale.is_file():
+            stale.unlink()
+
     manifest_docs = []
     for doc in docs:
         target = docs_dir / Path(doc.resource).name
-        if doc.file_format == "PDF":
-            target.write_bytes(_pdf_bytes(doc.content))
-        else:
-            target.write_text(doc.content, encoding="utf-8", newline="\n")
+        target.write_text(doc.content, encoding="utf-8", newline="\n")
         manifest_docs.append({
             "key": doc.key, "title": doc.title, "docType": doc.doc_type,
             "fileFormat": doc.file_format, "resource": doc.resource, "topic": doc.topic,
             "evalTags": list(doc.eval_tags), "charCount": doc.char_count,
             "estimatedChunkCount": doc.estimated_chunks,
         })
+
     manifest = {
         "version": 1,
         "generatedAt": "2026-08-23T00:00:00+08:00",
@@ -190,13 +306,17 @@ def write_dataset(output_root: Path, eval_path: Path, seed: int = SEED) -> dict:
         "documents": manifest_docs,
     }
     output_root.mkdir(parents=True, exist_ok=True)
-    (output_root / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output_root / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     eval_path.parent.mkdir(parents=True, exist_ok=True)
-    eval_path.write_text("".join(json.dumps(_eval_row(doc, i), ensure_ascii=False) + "\n" for i, doc in enumerate(docs)), encoding="utf-8")
+    eval_path.write_text(
+        "".join(json.dumps(_eval_row(doc, i), ensure_ascii=False) + "\n" for i, doc in enumerate(docs)),
+        encoding="utf-8",
+    )
     return {
         "documents": len(docs),
         "characters": sum(doc.char_count for doc in docs),
         "estimatedChunks": sum(doc.estimated_chunks for doc in docs),
     }
-
 

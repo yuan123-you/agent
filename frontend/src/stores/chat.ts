@@ -97,9 +97,9 @@ export const useChatStore = defineStore('chat', {
             const card = toolCards.find((c) => c.callId === evt.callId)
             if (card) {
               card.status = 'done'
-              card.result = evt.result
+              card.result = sanitizeToolResult(evt.result)
             } else {
-              toolCards.push({ callId: evt.callId, tool: evt.tool, result: evt.result, status: 'done' })
+              toolCards.push({ callId: evt.callId, tool: evt.tool, result: sanitizeToolResult(evt.result), status: 'done' })
             }
           },
           onAction: (action) => {
@@ -241,9 +241,9 @@ function parseToolCalls(msg: { toolCalls?: unknown }): ToolCard[] {
         // tool_result 事件
         if (exists) {
           exists.status = 'done'
-          exists.result = t.result
+          exists.result = sanitizeToolResult(t.result)
         } else {
-          cards.push({ callId, tool: String(t.tool || ''), result: t.result, status: 'done' })
+          cards.push({ callId, tool: String(t.tool || ''), result: sanitizeToolResult(t.result), status: 'done' })
         }
       } else {
         // tool_call 事件
@@ -257,6 +257,16 @@ function parseToolCalls(msg: { toolCalls?: unknown }): ToolCard[] {
 }
 
 
+/** 旧消息可能持久化了 LangChain ToolMessage 的字符串表示；此类协议内容不展示。 */
+function sanitizeToolResult(result: ToolCard['result']): ToolCard['result'] {
+  const preview = result?.preview
+  if (typeof preview === 'string'
+      && /^\s*["']?content=/.test(preview)
+      && /\btool_call_id=/.test(preview)) {
+    return {}
+  }
+  return result
+}
 
 function findOrderAction(messages: ChatMessage[], actionId: string): OrderAction | undefined {
   for (const message of messages) {

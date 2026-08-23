@@ -18,11 +18,11 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class KbSeedIngestScheduler {
-    static final String GENERATED_TITLE_PREFIX = "AI Mall 合成测试知识库";
 
     private final KbDocMapper kbDocMapper;
     private final KbService kbService;
     private final AppProperties props;
+    private final KbSeedCatalog catalog;
 
     @Scheduled(fixedDelayString = "${app.seed.knowledge-base.dispatch-delay-ms:10000}", initialDelayString = "${app.seed.knowledge-base.dispatch-initial-delay-ms:5000}")
     public void dispatchNextBatch() {
@@ -32,7 +32,7 @@ public class KbSeedIngestScheduler {
         }
         try {
             List<KbDoc> all = kbDocMapper.selectList(new LambdaQueryWrapper<KbDoc>()
-                    .likeRight(KbDoc::getTitle, GENERATED_TITLE_PREFIX)
+                    .in(KbDoc::getTitle, catalog.documents().stream().map(KbSeedDocument::title).toList())
                     .orderByAsc(KbDoc::getId));
             List<KbDoc> selected = plan(all, LocalDateTime.now(), config.getBatchSize(),
                     config.getMaxConcurrent(), config.getStuckTimeoutSeconds());

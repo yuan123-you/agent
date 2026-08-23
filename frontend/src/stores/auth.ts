@@ -3,6 +3,13 @@ import { defineStore } from 'pinia'
 import { apiLogin, apiLogout, apiMe, apiRegister, apiRegisterCustomer, apiRegisterMerchant } from '@/api'
 import type { CustomerRegistration, LoginResp, MerchantRegistration, UserInfo } from '@/types/api'
 
+export function homeRouteForRole(role: string): string {
+  if (role === 'ADMIN') return '/admin/dashboard'
+  if (role === 'AGENT') return '/workbench'
+  if (role === 'MERCHANT') return '/merchant/products'
+  return '/'
+}
+
 interface AuthState {
   token: string
   refreshToken: string
@@ -70,10 +77,7 @@ export const useAuthStore = defineStore('auth', {
     },
     /** 登录后按角色跳转默认页 */
     homeRoute(): string {
-      if (this.isAdmin) return '/admin/dashboard'
-      if (this.isAgent) return '/workbench'
-      if (this.role === 'MERCHANT') return '/merchant/products'
-      return '/'
+      return homeRouteForRole(this.role)
     },
   },
 })

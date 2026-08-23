@@ -3,16 +3,20 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from './chat'
 import type { ChatMessage, OrderAction } from '@/types/api'
 
-const api = vi.hoisted(() => ({ confirmOrderAction: vi.fn() }))
+const api = vi.hoisted(() => ({
+  confirmOrderAction: vi.fn(),
+  conversationDetail: vi.fn(),
+  messages: vi.fn(),
+}))
 
 vi.mock('@/api', () => ({
   apiCloseConversation: vi.fn(),
-  apiConversationDetail: vi.fn(),
+  apiConversationDetail: api.conversationDetail,
   apiConversationStatus: vi.fn(),
   apiConversations: vi.fn(),
   apiCreateConversation: vi.fn(),
   apiHumanMessage: vi.fn(),
-  apiMessages: vi.fn(),
+  apiMessages: api.messages,
   apiMessagesAfter: vi.fn(),
   apiSatisfaction: vi.fn(),
   apiConfirmOrderAction: api.confirmOrderAction,
@@ -50,6 +54,8 @@ describe('chat order action state', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     api.confirmOrderAction.mockReset()
+    api.conversationDetail.mockReset()
+    api.messages.mockReset()
   })
 
   it('updates a repeated action event instead of rendering a duplicate card', () => {
@@ -108,5 +114,56 @@ describe('chat order action state', () => {
     await expect(first).resolves.toMatchObject({ orderId: 88, orderNo: 'ORD-88' })
     await expect(second).resolves.toBeUndefined()
     expect(action).toMatchObject({ status: 'CONFIRMED', orderId: 88, orderNo: 'ORD-88', amount: 5998 })
+  })
+})
+
+
+describe('chat tool result history', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    api.conversationDetail.mockResolvedValue({ conversationId: 7, status: 'ACTIVE' })
+  })
+
+  it('hides legacy ToolMessage protocol text while loading history', async () => {
+    api.messages.mockResolvedValue({
+      records: [{
+        role: 'AI',
+        content: '为您找到以下商品',
+        toolCalls: JSON.stringify([
+          { callId: 'call_1', tool: 'product_search' },
+          {
+            callId: 'call_1',
+            tool: 'product_search',
+            result: {
+              preview: `content='{"products":[{"name":"星云手机"}]}' name='product_search' tool_call_id='call_1'`,
+            },
+          },
+        ]),
+      }],
+    })
+    const chat = useChatStore()
+
+    await chat.openConversation(7)
+
+    expect(chat.messages[0].toolCalls?.[0].result?.preview).toBeUndefined()
+  })
+
+  it('keeps already formatted tool previews while loading history', async () => {
+    api.messages.mockResolvedValue({
+      records: [{
+        role: 'AI',
+        content: '为您找到以下商品',
+        toolCalls: JSON.stringify([{
+          callId: 'call_1',
+          tool: 'product_search',
+          result: { preview: '找到 1 件商品：星云手机（¥2999）' },
+        }]),
+      }],
+    })
+    const chat = useChatStore()
+
+    await chat.openConversation(7)
+
+    expect(chat.messages[0].toolCalls?.[0].result?.preview).toBe('找到 1 件商品：星云手机（¥2999）')
   })
 })

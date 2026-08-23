@@ -1,4 +1,4 @@
-"""Generate committed large synthetic KB resources and retrieval cases."""
+"""Generate committed AI Mall service knowledge resources and retrieval cases."""
 from pathlib import Path
 import json
 

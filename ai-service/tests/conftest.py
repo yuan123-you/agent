@@ -26,6 +26,9 @@ class _FakeVectorStore:
     async def search(self, query, doc_type="ALL", product_id=None, top_k=4) -> dict:
         return {"hits": [], "total": 0}
 
+    async def existing_ids(self, ids) -> set[int]:
+        return set()
+
     async def insert(self, rows) -> None:
         return None
 

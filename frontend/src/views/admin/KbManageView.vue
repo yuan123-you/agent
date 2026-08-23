@@ -38,8 +38,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="上传时间" width="160" />
-      <el-table-column label="操作" width="230" fixed="right">
+      <el-table-column label="操作" width="290" fixed="right">
         <template #default="{ row }">
+          <el-button size="small" type="primary" plain @click="openPreview(row)">查看</el-button>
           <el-button v-if="row.status === 'ACTIVE'" size="small" type="warning" @click="toggle(row, 'DISABLED')">
             停用
           </el-button>
@@ -54,6 +55,19 @@
 
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && docs.length > 0" class="load-state">— 没有更多了 —</div>
+
+    <!-- 文档预览弹窗 -->
+    <el-dialog v-model="previewDialog" :title="previewTitle" width="80%" top="5vh" @closed="clearPreview">
+      <div v-loading="previewLoading" class="preview-body">
+        <iframe
+          v-if="preview?.kind === 'pdf'"
+          :src="preview.url"
+          class="preview-pdf"
+          title="知识库 PDF 文档预览"
+        />
+        <pre v-else-if="preview?.kind === 'text'" class="preview-text">{{ preview.content }}</pre>
+      </div>
+    </el-dialog>
 
     <!-- 上传弹窗 -->
     <el-dialog v-model="uploadDialog" title="上传知识文档" width="480px">
@@ -90,9 +104,11 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import {
-  apiAdminProducts, apiKbDelete, apiKbDocs, apiKbReindex, apiKbToggle, apiKbUpload,
+  apiAdminProducts, apiKbContent, apiKbDelete, apiKbDocs, apiKbReindex, apiKbToggle, apiKbUpload,
 } from '@/api'
 import type { KbDocVO, ProductVO } from '@/types/api'
+import { releaseKbPreview, toKbPreview } from './kbPreview'
+import type { KbPreview } from './kbPreview'
 
 const docs = ref<KbDocVO[]>([])
 const products = ref<ProductVO[]>([])
@@ -103,6 +119,10 @@ const page = ref(1)
 const total = ref(0)
 const uploadDialog = ref(false)
 const uploading = ref(false)
+const previewDialog = ref(false)
+const previewLoading = ref(false)
+const previewTitle = ref('文档预览')
+const preview = ref<KbPreview | null>(null)
 const file = ref<File | null>(null)
 
 const uploadForm = reactive({
@@ -194,6 +214,25 @@ async function submitUpload() {
   }
 }
 
+async function openPreview(row: KbDocVO) {
+  clearPreview()
+  previewTitle.value = `查看文档：${row.title}`
+  previewDialog.value = true
+  previewLoading.value = true
+  try {
+    preview.value = await toKbPreview(await apiKbContent(row.docId), row.fileFormat)
+  } catch {
+    previewDialog.value = false
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+function clearPreview() {
+  releaseKbPreview(preview.value)
+  preview.value = null
+}
+
 async function toggle(row: KbDocVO, target: string) {
   await apiKbToggle(row.docId, target)
   ElMessage.success('已停用（检索不再命中）')
@@ -226,6 +265,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (pollTimer) window.clearInterval(pollTimer)
+  clearPreview()
 })
 </script>
 
@@ -246,6 +286,26 @@ onUnmounted(() => {
 .page-title {
   margin: 0;
   flex: 1;
+}
+
+.preview-body {
+  min-height: 320px;
+}
+
+.preview-pdf {
+  width: 100%;
+  height: 75vh;
+  border: 0;
+}
+
+.preview-text {
+  min-height: 320px;
+  max-height: 75vh;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 14px/1.7 Consolas, Monaco, monospace;
 }
 
 .load-state {

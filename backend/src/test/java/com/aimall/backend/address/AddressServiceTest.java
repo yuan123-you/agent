@@ -50,6 +50,17 @@ class AddressServiceTest {
         assertTrue(error.getMessage().contains("默认收货地址"));
     }
 
+    @Test
+    void forOrderRejectsAnAddressOwnedByAnotherUser() {
+        Address foreign = new Address();
+        foreign.setId(20L);
+        foreign.setUserId(8L);
+        when(mapper.selectById(20L)).thenReturn(foreign);
+
+        BizException error = assertThrows(BizException.class, () -> service.forOrder(7L, 20L));
+
+        assertEquals(2002, error.getCode());
+    }
     private AddressDtos.AddressRequest structuredRequest() {
         var request = new AddressDtos.AddressRequest();
         request.setName("张三");

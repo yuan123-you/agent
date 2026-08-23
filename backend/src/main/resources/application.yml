@@ -9,6 +9,8 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:ai_mall}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:root}
+    hikari:
+      connection-init-sql: "SET time_zone = '+08:00'"
   flyway:
     enabled: true
     locations: classpath:db/migration

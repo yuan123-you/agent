@@ -47,6 +47,7 @@ public class CartController {
     @Data
     public static class CheckoutBody {
         private List<CheckoutItemBody> items;
+        private Long addressId;
         private String receiverName;
         private String receiverPhone;
         private String receiverAddress;
@@ -192,7 +193,7 @@ public class CartController {
                 items.add(new OrderService.CheckoutItem(ci.getProductId(), ci.getQuantity()));
             }
         }
-        var order = orderService.checkout(userId, items,
+        var order = orderService.checkout(userId, items, body.getAddressId(),
                 body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress());
         // 结算后清除对应购物车项
         for (OrderService.CheckoutItem ci : items) {

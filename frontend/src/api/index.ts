@@ -35,7 +35,13 @@ export const apiCartUpdate = (id: number, body: { quantity?: number; checked?: b
   put<void>(`/cart/items/${id}`, body)
 export const apiCartCheckAll = (checked: boolean) => put<void>('/cart/check-all', { checked })
 export const apiCartRemove = (id: number) => del<void>(`/cart/items/${id}`)
-export const apiCartCheckout = (body: { receiverName: string; receiverPhone: string; receiverAddress: string }) =>
+export interface CheckoutDeliveryPayload {
+  addressId?: number
+  receiverName?: string
+  receiverPhone?: string
+  receiverAddress?: string
+}
+export const apiCartCheckout = (body: CheckoutDeliveryPayload) =>
   post<{ orderId: number; orderNo: string; totalAmount: number }>('/cart/checkout', body)
 
 // ---------- 收藏 / 浏览历史 ----------
@@ -85,12 +91,9 @@ export const apiAdminProductStatus = (id: number, status: string) =>
   post<void>(`/admin/products/${id}/status`, { status })
 
 // ---------- 订单 ----------
-export interface CreateOrderPayload {
+export interface CreateOrderPayload extends CheckoutDeliveryPayload {
   productId: number
   quantity: number
-  receiverName: string
-  receiverPhone: string
-  receiverAddress: string
 }
 export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
 export const apiPayOrder = (id: number) => post<void>(`/orders/${id}/pay`)
@@ -192,6 +195,8 @@ export const apiHumanMessage = (id: number, content: string) =>
 export const apiKbDocs = (params: Record<string, unknown>) =>
   get<PageResult<KbDocVO>>('/admin/kb/docs', { params })
 export const apiKbDocDetail = (id: number) => get<KbDocVO>(`/admin/kb/docs/${id}`)
+export const apiKbContent = (id: number) =>
+  get<Blob>(`/admin/kb/docs/${id}/content`, { responseType: 'blob' })
 export const apiKbUpload = (formData: FormData) => upload<KbDocVO>('/admin/kb/docs', formData)
 export const apiKbToggle = (id: number, status: string) =>
   post<void>(`/admin/kb/docs/${id}/status`, { status })

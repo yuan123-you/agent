@@ -14,14 +14,25 @@ class Settings(BaseSettings):
     temperature: float = 0.3
 
     # Embedding（可独立配置：对话与向量模型可为不同供应商，如 DeepSeek 对话 + 千问 embedding）
-    embedding_api_base: str = ""   # 空 = 复用 llm_api_base
-    embedding_api_key: str = ""    # 空 = 复用 llm_api_key
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_keep_alive: str = "10m"
+    ollama_num_ctx: int = Field(default=2048, ge=512)
+    ollama_num_gpu: int = Field(default=10, ge=0)
+
+    # Optional Qwen3 second-stage reranker
+    reranker_enabled: bool = False
+    reranker_base_url: str = "http://localhost:11434"
+    reranker_model: str = "dengcao/Qwen3-Reranker-4B:Q4_K_M"
+    reranker_candidates: int = Field(default=8, ge=1, le=32)
+    reranker_timeout_s: float = Field(default=120.0, gt=0)
+
 
     # Milvus
     milvus_uri: str = "http://localhost:19530"
     milvus_collection: str = "kb_chunks"
+
     # 商品向量库（区别于政策/FAQ 知识库）：商品语料 + 混合检索
     milvus_product_collection: str = "product_index"
     product_sync_enabled: bool = True
@@ -61,4 +72,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

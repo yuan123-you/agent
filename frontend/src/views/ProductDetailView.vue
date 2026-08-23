@@ -107,43 +107,47 @@
 
     <!-- 收货信息 + 下单弹窗 -->
     <el-dialog v-model="showBuy" title="确认订单（模拟支付）" width="440px">
-      <el-form :model="form" label-width="80px">
+      <el-form label-width="80px">
         <el-form-item label="商品">
           <span>{{ product.name }} × {{ quantity }}</span>
         </el-form-item>
         <el-form-item label="合计">
           <span class="total">￥{{ totalAmount }}</span>
         </el-form-item>
-        <el-form-item label="收货人">
-          <el-input v-model="form.receiverName" placeholder="收货人姓名" />
-        </el-form-item>
-        <el-form-item label="电话">
-          <el-input v-model="form.receiverPhone" placeholder="手机号" />
-        </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="form.receiverAddress" type="textarea" :rows="2" placeholder="收货地址" />
+        <el-form-item label="收货地址">
+          <el-select v-if="addresses.length" v-model="selectedAddressId" placeholder="请选择收货地址" style="width: 100%">
+            <el-option v-for="address in addresses" :key="address.addressId"
+              :label="`${address.isDefault ? '[默认] ' : ''}${address.receiverName} ${address.receiverPhone} ${address.receiverAddress}`"
+              :value="address.addressId" />
+          </el-select>
+          <div v-else-if="addressLoading" class="address-state">正在加载地址簿...</div>
+          <div v-else class="address-empty">
+            <span>还没有可用的收货地址</span>
+            <el-button type="primary" link @click="router.push('/addresses')">去新增地址</el-button>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showBuy = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitOrder">提交订单</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="addressLoading || !selectedAddressId" @click="submitOrder">提交订单</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Star } from '@element-plus/icons-vue'
 import {
-  apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
+  apiAddresses, apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
   apiProductDetail, apiReviewCreate, apiReviews, type ReviewVO,
 } from '@/api'
+import { preferredAddress } from '@/components/address/checkoutAddress'
 import { renderMarkdown } from '@/components/mall/link'
 import { categoryName } from '@/constants/categories'
-import type { ProductVO } from '@/types/api'
+import type { AddressVO, ProductVO } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -153,9 +157,9 @@ const quantity = ref(1)
 const favorited = ref(false)
 const showBuy = ref(false)
 const submitting = ref(false)
-const form = reactive({
-  receiverName: '', receiverPhone: '', receiverAddress: '',
-})
+const addressLoading = ref(false)
+const addresses = ref<AddressVO[]>([])
+const selectedAddressId = ref<number>()
 
 // 评论
 const reviews = ref<ReviewVO[]>([])
@@ -223,13 +227,22 @@ async function toggleFavorite() {
   ElMessage.success(res.favorited ? '已收藏' : '已取消收藏')
 }
 
-function buyNow() {
+async function buyNow() {
   showBuy.value = true
+  addressLoading.value = true
+  addresses.value = []
+  selectedAddressId.value = undefined
+  try {
+    addresses.value = await apiAddresses()
+    selectedAddressId.value = preferredAddress(addresses.value)?.addressId
+  } finally {
+    addressLoading.value = false
+  }
 }
 
 async function submitOrder() {
-  if (!form.receiverName || !form.receiverPhone || !form.receiverAddress) {
-    ElMessage.warning('请完整填写收货信息')
+  if (!selectedAddressId.value) {
+    ElMessage.warning('请先选择或新增收货地址')
     return
   }
   submitting.value = true
@@ -237,9 +250,7 @@ async function submitOrder() {
     const order = await apiCreateOrder({
       productId: product.value!.id,
       quantity: quantity.value,
-      receiverName: form.receiverName,
-      receiverPhone: form.receiverPhone,
-      receiverAddress: form.receiverAddress,
+      addressId: selectedAddressId.value,
     })
     ElMessage.success(`下单成功：${order.orderNo}`)
     showBuy.value = false

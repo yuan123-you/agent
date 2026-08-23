@@ -1,6 +1,7 @@
 /** 路由 + 守卫（本地快速校验，真正鉴权在后端） */
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { homeRouteForRole } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -75,13 +76,16 @@ router.beforeEach((to) => {
 
   if (to.meta.public) {
     if (to.path === '/login' && token) {
-      return role === 'ADMIN' ? '/admin/dashboard' : role === 'AGENT' ? '/workbench'
-        : role === 'MERCHANT' ? '/merchant/products' : '/'
+      return homeRouteForRole(role)
     }
     return true
   }
   if (!token) {
     return `/login?redirect=${encodeURIComponent(to.fullPath)}`
+  }
+  const roleHome = homeRouteForRole(role)
+  if (to.path === '/' && roleHome !== '/') {
+    return roleHome
   }
   const roles = (to.meta.roles as string[]) || (to.matched.find((r) => r.meta.roles)?.meta.roles as string[])
   if (roles && !roles.includes(role)) {

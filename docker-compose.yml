@@ -81,12 +81,16 @@ services:
     env_file:
       - ./ai-service/.env
     environment:
+      TZ: Asia/Shanghai
       MILVUS_URI: http://milvus:19530
       BACKEND_BASE_URL: http://backend:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-600}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-90}
       LANGFUSE_HOST: http://langfuse:3000
+    # Docker 容器访问 Windows 主机上的 Ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # expose 不映射宿主端口：AI 服务永不直接对外（架构红线）
     expose:
       - "8000"
@@ -199,7 +203,4 @@ volumes:
   minio-data:
   milvus-data:
   langfuse-db:
-
-
-
 

@@ -170,14 +170,19 @@ async function locate() {
     const region = normalizeGeocode(await response.json())
     const labels = [region.province, region.city, region.district].filter(Boolean)
     const codes = codesForLabels(regionData as RegionOption[], labels)
-    if (codes.length === 3) {
+    if (region.detailAddress && !form.detailAddress.trim()) {
+      form.detailAddress = region.detailAddress
+    }
+    if (codes.length) {
       form.regionCodes = codes
       form.regionLabels = labelsForCodes(regionData as RegionOption[], codes)
-      locatedLabel.value = form.regionLabels.join('')
-      ElMessage.success('定位成功，请补充详细门牌地址')
+    }
+    if (codes.length === 3) {
+      locatedLabel.value = composeAddress(form.regionLabels, form.detailAddress)
+      ElMessage.success(region.detailAddress ? '定位内容已填入，请核对并补充门牌号' : '定位成功，请补充详细门牌地址')
     } else {
-      locatedLabel.value = labels.join('')
-      ElMessage.warning('已获取大致位置，请在菜单中确认省市区')
+      locatedLabel.value = composeAddress(labels, form.detailAddress)
+      ElMessage.warning('已填入可识别的位置，请在菜单中确认省市区')
     }
   } catch {
     ElMessage.warning('定位失败，请检查定位权限或手动填写')

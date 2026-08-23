@@ -1,6 +1,8 @@
 package com.aimall.backend.order;
 
+import com.aimall.backend.address.AddressService;
 import com.aimall.backend.common.BizException;
+import com.aimall.backend.entity.Address;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.entity.OrderItem;
 import com.aimall.backend.entity.Product;
@@ -31,12 +33,15 @@ public class OrderService {
     private final OrderItemMapper orderItemMapper;
     private final ProductMapper productMapper;
     private final OrderSseNotifier orderSseNotifier;
+    private final AddressService addressService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /** 下单（页面或 AI 工具统一入口）：事务 + 乐观锁防超卖 */
     @Transactional
     public OrderInfo create(Long userId, OrderDtos.CreateOrderRequest req, String source, Long conversationId) {
+        DeliveryInfo delivery = resolveDelivery(userId, req.getAddressId(),
+                req.getReceiverName(), req.getReceiverPhone(), req.getReceiverAddress());
         Product product = productMapper.selectById(req.getProductId());
         if (product == null || !"ON_SALE".equals(product.getStatus())) {
             throw new BizException(2005, "商品已下架");
@@ -50,9 +55,9 @@ public class OrderService {
         order.setUserId(userId);
         order.setTotalAmount(subtotal);
         order.setStatus("PENDING_PAYMENT");
-        order.setReceiverName(req.getReceiverName());
-        order.setReceiverPhone(req.getReceiverPhone());
-        order.setReceiverAddress(req.getReceiverAddress());
+        order.setReceiverName(delivery.name());
+        order.setReceiverPhone(delivery.phone());
+        order.setReceiverAddress(delivery.address());
         order.setSource(source);
         order.setConversationId(conversationId);
         orderInfoMapper.insert(order);
@@ -182,11 +187,12 @@ public class OrderService {
 
     /** 购物车批量结算：多商品单订单（行锁逐一扣减，任一失败整体回滚） */
     @Transactional
-    public OrderInfo checkout(Long userId, List<CheckoutItem> items,
+    public OrderInfo checkout(Long userId, List<CheckoutItem> items, Long addressId,
                               String receiverName, String receiverPhone, String receiverAddress) {
         if (items == null || items.isEmpty()) {
             throw new BizException(2001, "结算商品不能为空");
         }
+        DeliveryInfo delivery = resolveDelivery(userId, addressId, receiverName, receiverPhone, receiverAddress);
         BigDecimal total = BigDecimal.ZERO;
         List<OrderItem> pendingItems = new ArrayList<>();
         for (CheckoutItem ci : items) {
@@ -215,9 +221,9 @@ public class OrderService {
         order.setUserId(userId);
         order.setTotalAmount(total);
         order.setStatus("PENDING_PAYMENT");
-        order.setReceiverName(receiverName);
-        order.setReceiverPhone(receiverPhone);
-        order.setReceiverAddress(receiverAddress);
+        order.setReceiverName(delivery.name());
+        order.setReceiverPhone(delivery.phone());
+        order.setReceiverAddress(delivery.address());
         order.setSource("USER");
         orderInfoMapper.insert(order);
         for (OrderItem item : pendingItems) {
@@ -260,6 +266,35 @@ public class OrderService {
             }
         }
         throw new BizException(2006, "操作的人员过多，请重试");
+    }
+
+
+    private DeliveryInfo resolveDelivery(Long userId, Long addressId,
+                                         String receiverName, String receiverPhone, String receiverAddress) {
+        if (addressId != null) {
+            return deliveryOf(addressService.forOrder(userId, addressId));
+        }
+        boolean hasName = receiverName != null && !receiverName.isBlank();
+        boolean hasPhone = receiverPhone != null && !receiverPhone.isBlank();
+        boolean hasAddress = receiverAddress != null && !receiverAddress.isBlank();
+        if (!hasName && !hasPhone && !hasAddress) {
+            return deliveryOf(addressService.defaultFor(userId));
+        }
+        if (!hasName || !hasPhone || !hasAddress) {
+            throw new BizException(2001, "请完整填写收货信息");
+        }
+        String phone = receiverPhone.trim();
+        if (!phone.matches("^1\\d{10}$")) {
+            throw new BizException(2001, "请填写正确的手机号码");
+        }
+        return new DeliveryInfo(receiverName.trim(), phone, receiverAddress.trim());
+    }
+
+    private DeliveryInfo deliveryOf(Address address) {
+        return new DeliveryInfo(address.getReceiverName(), address.getReceiverPhone(), address.getReceiverAddress());
+    }
+
+    private record DeliveryInfo(String name, String phone, String address) {
     }
 
     private String genOrderNo() {
