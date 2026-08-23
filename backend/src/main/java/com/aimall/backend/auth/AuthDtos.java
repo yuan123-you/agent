@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 认证模块 DTO
@@ -11,7 +12,7 @@ import lombok.Data;
 public class AuthDtos {
 
     @Data
-    public static class RegisterRequest {
+    public static class CustomerRegisterRequest {
         @NotBlank
         @Pattern(regexp = "^\\w{4,32}$", message = "用户名须为4~32位字母数字下划线")
         private String username;
@@ -23,6 +24,20 @@ public class AuthDtos {
         private String nickname;
         @Pattern(regexp = "^$|1\\d{10}$", message = "手机号格式不正确")
         private String phone;
+    }
+
+    /** 兼容原有买家注册接口。 */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class RegisterRequest extends CustomerRegisterRequest {
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class MerchantRegisterRequest extends CustomerRegisterRequest {
+        @NotBlank
+        @Size(max = 64)
+        private String shopName;
     }
 
     @Data
