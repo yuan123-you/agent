@@ -66,7 +66,11 @@ AI 回答正文中以 Markdown 链接语法携带**站内跳转链接**，前端
 
 ### 1.1 认证模块 `/api/v1/auth`
 
-#### POST `/api/v1/auth/register` 注册
+#### POST `/api/v1/auth/register/customer` 买家注册
+
+买家注册的正式接口；请求字段与下表一致，成功响应中 `user.role` 为 `CUSTOMER`。保留 `POST /api/v1/auth/register` 作为兼容入口，语义同买家注册。
+
+#### POST `/api/v1/auth/register` 兼容买家注册
 
 | 参数 | 位置 | 类型 | 必填 | 校验 |
 |------|------|------|------|------|
@@ -75,7 +79,11 @@ AI 回答正文中以 Markdown 链接语法携带**站内跳转链接**，前端
 | nickname | body | string | 是 | 1~32 位 |
 | phone | body | string | 否 | 手机号格式 |
 
-响应 data：`{ "userId": 5, "username": "buyer02", "nickname": "新买家" }`（角色固定 CUSTOMER）
+响应 data：`{ "userId": 5, "username": "buyer02", "nickname": "新买家", "role": "CUSTOMER" }`。
+
+#### POST `/api/v1/auth/register/merchant` 卖家注册
+
+请求字段继承买家注册，并新增必填 `shopName`（string，最长 64）。成功响应中 `user.role` 为 `MERCHANT`。`MERCHANT` 为技术契约字面量，页面展示名称必须是“卖家”。
 
 #### POST `/api/v1/auth/login` 登录
 
@@ -274,7 +282,7 @@ data: {"code": 5002, "message": "AI 助手繁忙，请稍后重试或转人工"}
 | 接口 | 方法 | 路径 | 说明 |
 |------|------|------|------|
 | 商品列表 | GET | `/api/v1/admin/products` | 含下架商品，全状态筛选 |
-| 创建/更新商品 | POST/PUT | `/api/v1/admin/products` | 名称/类目/品牌/价格/库存/卖点/参数/图片 |
+| 创建商品 | POST | `/api/v1/admin/products` | 名称/类目/品牌/价格/库存/卖点/参数/图片；管理员前端不提供编辑 |
 | 上架/下架 | POST | `/api/v1/admin/products/{id}/status` | body `{ "status": "OFF_SHELF" }` |
 | 订单列表 | GET | `/api/v1/admin/orders` | 全状态筛选，含买家昵称 |
 | 发货 | POST | `/api/v1/admin/orders/{id}/ship` | body `{ "logisticsNo": "SF123" }`，仅 PAID 可发 |
@@ -285,9 +293,27 @@ data: {"code": 5002, "message": "AI 助手繁忙，请稍后重试或转人工"}
 | 启用/停用文档 | POST | `/api/v1/admin/kb/docs/{id}/status` | 停用后检索不命中 |
 | 重建索引 | POST | `/api/v1/admin/kb/docs/{id}/reindex` | version+1 重建向量 |
 | 删除文档 | DELETE | `/api/v1/admin/kb/docs/{id}` | 软删 + 清 Milvus 向量 |
-| 用户列表 | GET | `/api/v1/admin/users` | P1 |
-| 用户禁用/启用/改角色 | PUT | `/api/v1/admin/users/{id}` | P1，角色限 AGENT/CUSTOMER |
+| 用户列表 | GET | `/api/v1/admin/users` | 查询参数 `role` 仅使用 `CUSTOMER`、`MERCHANT`、`AGENT`；管理端标签不包含 ADMIN |
+| 创建客服 | POST | `/api/v1/admin/users/agents` | 管理员唯一可创建的账号类型；请求为用户名、密码、昵称及可选手机号 |
+| 用户状态更新 | PUT | `/api/v1/admin/users/{id}/status` | body `{ "status": "ACTIVE" | "DISABLED" }`；仅状态变更，不支持角色转换 |
+| 数据看板 | GET | `/api/v1/admin/dashboard` | 见下；“今日”及近 7 日时间窗按 `Asia/Shanghai` 计算 |
 | 使用统计 | GET | `/api/v1/admin/stats/overview` | P1，见下 |
+
+**数据看板响应 data**：
+
+```json
+{
+  "summary": { "userCount": 120, "merchantCount": 8, "onSaleProductCount": 90, "todayOrderCount": 12, "todayGmv": 2680.00, "todayConversationCount": 40 },
+  "orderTrend": [{ "date": "2026-08-23", "orderCount": 12, "gmv": 2680.00 }],
+  "orderStatusDistribution": [{ "status": "PAID", "count": 5 }],
+  "operations": { "waitingHumanConversationCount": 2 },
+  "aiQuality": { "replySuccessRate": 98.5, "toolCallRatio": 42.0, "avgLatencyMs": 760, "totalTokens": 12000 },
+  "topQuestions": [{ "name": "推荐手机", "count": 8 }],
+  "toolCalls": [{ "name": "product_search", "count": 6 }]
+}
+```
+
+指标包括平台用户、卖家、在售商品、今日订单/GMV/会话，近 7 日订单与 GMV、订单状态、待人工会话、AI 回复成功率/工具调用率/平均时延/Token、热门问题与工具调用排行。日期计算统一使用 `Asia/Shanghai`。
 
 **统计响应 data**（P1，极简）：
 
