@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import productManageSource from './ProductManageView.vue?raw'
 import profileSource from '../ProfileView.vue?raw'
 import loginSource from '../LoginView.vue?raw'
+import merchantLayoutSource from '../../layouts/MerchantLayout.vue?raw'
+import productDetailSource from '../ProductDetailView.vue?raw'
+import dashboardSource from './DashboardView.vue?raw'
 
 describe('admin view source contracts', () => {
   it('removes admin product editing', () => {
@@ -13,5 +16,19 @@ describe('admin view source contracts', () => {
   it('uses seller for visible merchant roles', () => {
     expect(profileSource).not.toMatch(/MERCHANT.*['\"]商家['\"]/)
     expect(loginSource).not.toContain('merchant01 商家')
+  })
+
+  it('calls the merchant workspace the seller center', () => {
+    expect(merchantLayoutSource).toContain('卖家中心')
+    expect(merchantLayoutSource).not.toContain('商家中心')
+  })
+
+  it('calls the dashboard merchant metric the seller count', () => {
+    expect(dashboardSource).toContain('卖家数量')
+    expect(dashboardSource).not.toContain('商家数量')
+  })
+
+  it('keeps merchant reply as an allowed business phrase', () => {
+    expect(productDetailSource).toContain('商家回复')
   })
 })

@@ -66,7 +66,7 @@ const loading = ref(false)
 const error = ref(false)
 
 const summaryCards = computed(() => [
-  { label: '平台用户', value: dashboard.value.summary.userCount }, { label: '商家数量', value: dashboard.value.summary.merchantCount },
+  { label: '平台用户', value: dashboard.value.summary.userCount }, { label: '卖家数量', value: dashboard.value.summary.merchantCount },
   { label: '在售商品', value: dashboard.value.summary.onSaleProductCount }, { label: '今日订单', value: dashboard.value.summary.todayOrderCount },
   { label: '今日 GMV', value: formatMoney(dashboard.value.summary.todayGmv) }, { label: '今日会话', value: dashboard.value.summary.todayConversationCount },
 ])
