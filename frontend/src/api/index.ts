@@ -203,8 +203,10 @@ export const apiKbDelete = (id: number) => del<void>(`/admin/kb/docs/${id}`)
 // ---------- 用户管理（ADMIN） ----------
 export const apiAdminUsers = (params: Record<string, unknown>) =>
   get<PageResult<UserInfo & { status: string }>>('/admin/users', { params })
-export const apiAdminUserUpdate = (id: number, data: { status?: string; role?: string }) =>
-  put<void>(`/admin/users/${id}`, data)
+export const apiAdminAgentCreate = (payload: CustomerRegistration) =>
+  post<number>('/admin/users/agents', payload)
+export const apiAdminUserStatus = (id: number, status: 'ACTIVE' | 'DISABLED') =>
+  put<void>(`/admin/users/${id}/status`, { status })
 
 // ---------- 统计（ADMIN） ----------
 export const apiStats = () => get<StatsVO>('/admin/stats/overview')
@@ -221,5 +223,3 @@ export const apiWorkbenchMessages = (id: number) =>
 export const apiWorkbenchStatus = (id: number) =>
   get<{ conversationId: number; status: string }>(`/workbench/conversations/${id}/status`, { silent: true } as never)
 export const apiWorkbenchSla = () => get<WorkbenchSla>('/workbench/sla')
-
-
