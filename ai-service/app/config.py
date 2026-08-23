@@ -17,11 +17,39 @@ class Settings(BaseSettings):
     embedding_api_base: str = ""   # 空 = 复用 llm_api_base
     embedding_api_key: str = ""    # 空 = 复用 llm_api_key
     embedding_model: str = "text-embedding-3-small"
+    embedding_fallback_models: str = "text-embedding-v1,text-embedding-v3,text-embedding-v2"
     embedding_dim: int = 1536
+    embedding_provider: str = "openai"  # openai | maas | ollama
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_keep_alive: str = "10m"
+    ollama_num_ctx: int = Field(default=2048, ge=512)
+    ollama_num_gpu: int = Field(default=10, ge=0)
+
+    # Optional Qwen3 second-stage reranker
+    reranker_enabled: bool = False
+    reranker_base_url: str = "http://localhost:11434"
+    reranker_model: str = "dengcao/Qwen3-Reranker-4B:Q4_K_M"
+    reranker_candidates: int = Field(default=8, ge=1, le=32)
+    reranker_timeout_s: float = Field(default=120.0, gt=0)
+
+    @property
+    def embedding_model_order(self) -> tuple[str, ...]:
+        """Primary model followed by unique, ordered CSV fallback models."""
+        models = [self.embedding_model, *self.embedding_fallback_models.split(",")]
+        return tuple(dict.fromkeys(model.strip() for model in models if model.strip()))
 
     # Milvus
     milvus_uri: str = "http://localhost:19530"
     milvus_collection: str = "kb_chunks"
+    # Existing collections are checked before ingest so paid/already-generated vectors are never regenerated.
+    milvus_legacy_collections: str = ""
+
+    @property
+    def milvus_legacy_collection_names(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(
+            name.strip() for name in self.milvus_legacy_collections.split(",")
+            if name.strip() and name.strip() != self.milvus_collection
+        ))
     # 商品向量库（区别于政策/FAQ 知识库）：商品语料 + 混合检索
     milvus_product_collection: str = "product_index"
     product_sync_enabled: bool = True
@@ -61,4 +89,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
 

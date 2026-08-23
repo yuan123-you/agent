@@ -14,15 +14,17 @@ def _digest_tree(root: Path) -> str:
     return digest.hexdigest()
 
 
-def test_build_dataset_has_required_scale_and_distribution():
+def test_build_dataset_targets_one_thousand_chunks_with_diverse_documents():
     docs = build_dataset()
-    assert len(docs) == 300
-    assert Counter(d.doc_type for d in docs) == {"FAQ": 120, "INTRO": 100, "POLICY": 80}
-    assert Counter(d.file_format for d in docs) == {"MD": 240, "TXT": 50, "PDF": 10}
-    assert len({d.key for d in docs}) == 300
-    assert len({d.title for d in docs}) == 300
+    assert len(docs) == 15
+    assert set(d.doc_type for d in docs) == {"FAQ", "INTRO", "POLICY"}
+    assert set(d.file_format for d in docs) == {"MD", "TXT", "PDF"}
+    assert len({d.topic for d in docs}) == 15
+    assert len({d.key for d in docs}) == 15
+    assert len({d.title for d in docs}) == 15
+    # The generator estimate is conservative; real split_text verification targets 900-1,100.
     estimated = sum(d.estimated_chunks for d in docs)
-    assert 10_000 <= estimated <= 20_000
+    assert 550 <= estimated <= 750
 
 
 def test_write_dataset_is_deterministic_and_manifest_references_real_files(tmp_path):
@@ -34,7 +36,7 @@ def test_write_dataset_is_deterministic_and_manifest_references_real_files(tmp_p
 
     manifest = json.loads((first / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == 1
-    assert len(manifest["documents"]) == 300
+    assert len(manifest["documents"]) == 15
     for item in manifest["documents"]:
         path = first / item["resource"].removeprefix("kbseed/generated/")
         assert path.is_file()
@@ -43,13 +45,18 @@ def test_write_dataset_is_deterministic_and_manifest_references_real_files(tmp_p
         assert item["estimatedChunkCount"] > 0
 
 
-def test_eval_rows_cover_all_difficulties(tmp_path):
+def test_eval_rows_cover_all_difficulties_and_reference_document_content(tmp_path):
     output = tmp_path / "corpus"
     eval_path = tmp_path / "eval.jsonl"
     write_dataset(output, eval_path)
+    docs_by_key = {doc.key: doc for doc in build_dataset()}
     rows = [json.loads(line) for line in eval_path.read_text(encoding="utf-8").splitlines()]
-    assert len(rows) >= 300
+    assert len(rows) == 15
     assert {row["difficulty"] for row in rows} == {
         "direct", "paraphrase", "conditional", "multi_hop", "temporal_region", "hard_negative"
     }
     assert all(row["expected_doc_key"] and row["must_hit"] for row in rows)
+    assert all(
+        all(expected in docs_by_key[row["expected_doc_key"]].content for expected in row["must_hit"])
+        for row in rows
+    )

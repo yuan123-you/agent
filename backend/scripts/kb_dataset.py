@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 SEED = 20260823
+DOCUMENT_COUNT = 15
+SOURCE_DOCUMENT_COUNT = 300
 DOMAINS = [
     "平台基础规则", "订单取消与修改", "支付失败与退款", "电子发票", "会员等级", "优惠券与价保",
     "普通快递", "同城即时配送", "跨境物流", "生鲜冷链", "大件预约配送", "偏远地区配送",
@@ -80,10 +82,17 @@ def _content(index: int, rng: random.Random) -> str:
     return intro + "\n\n" + "\n\n".join(sections) + "\n"
 
 
+def _selected_source_indexes(count: int = DOCUMENT_COUNT) -> list[int]:
+    """Evenly sample the full catalog so reduced corpora retain type/topic/format diversity."""
+    if count < 2 or count > SOURCE_DOCUMENT_COUNT:
+        raise ValueError(f"count must be between 2 and {SOURCE_DOCUMENT_COUNT}")
+    return [slot * (SOURCE_DOCUMENT_COUNT - 1) // (count - 1) for slot in range(count)]
+
+
 def build_dataset(seed: int = SEED) -> list[DocumentSpec]:
     rng = random.Random(seed)
     docs = []
-    for index in range(300):
+    for index in _selected_source_indexes():
         topic = DOMAINS[index // 10]
         variant = index % 10
         key = f"synthetic-kb-{index + 1:03d}"
@@ -146,7 +155,8 @@ def _pdf_bytes(text: str) -> bytes:
 def _eval_row(doc: DocumentSpec, index: int) -> dict:
     difficulty = DIFFICULTIES[index % len(DIFFICULTIES)]
     region, channel, _ = doc.eval_tags
-    code = f"KB-{DOMAINS.index(doc.topic)+1:02d}-{index % 10 + 1:02d}-{index % 36 + 1:02d}"
+    source_index = int(doc.key.rsplit("-", 1)[1]) - 1
+    code = f"KB-{DOMAINS.index(doc.topic)+1:02d}-{source_index % 10 + 1:02d}-{source_index % 36 + 1:02d}"
     queries = {
         "direct": f"{doc.topic}的处理编号 {code} 适用于什么范围？",
         "paraphrase": f"我在{region}的{channel}订单出问题了，这种情况咋办？",

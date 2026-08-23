@@ -92,6 +92,28 @@ class VectorStore:
                 hit["source"] = titles.get(hit.get("doc_id"), f"知识库文档#{hit.get('doc_id')}")
         return {"hits": hits, "total": len(hits)}
 
+    async def existing_ids(self, ids: list[int], include_legacy: bool = True) -> set[int]:
+        """Return IDs already vectorized in this or configured legacy collections."""
+        if not ids:
+            return set()
+        names = [settings.milvus_collection]
+        if include_legacy:
+            names.extend(settings.milvus_legacy_collection_names)
+        found: set[int] = set()
+        for name in names:
+            if not self.client.has_collection(name):
+                continue
+            for start in range(0, len(ids), 500):
+                batch = ids[start:start + 500]
+                rows = await asyncio.to_thread(
+                    self.client.query,
+                    collection_name=name,
+                    filter=f"id in [{','.join(str(value) for value in batch)}]",
+                    output_fields=["id"],
+                    limit=len(batch),
+                )
+                found.update(int(row["id"]) for row in rows)
+        return found
     async def insert(self, rows: list[dict]) -> None:
         await asyncio.to_thread(
             self.client.insert, collection_name=settings.milvus_collection, data=rows,
@@ -123,3 +145,4 @@ def _reset_vectorstore() -> None:
     """测试/重建用：清空缓存，下次 getter 调用时重新创建。"""
     global _store
     _store = None
+

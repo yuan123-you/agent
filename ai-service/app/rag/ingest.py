@@ -117,18 +117,26 @@ async def run_ingest(task: IngestTask) -> None:
 
         # ② 向量化并写入 Milvus（Embedding 不可用时跳过：检索自动降级关键词模式）
         try:
-            embeddings = get_embeddings()
-            vectors = await embeddings.aembed_documents(texts)
-            rows = [{
-                "id": ids[i],
-                "embedding": vectors[i],
-                "doc_id": task.doc_id,
-                "product_id": task.product_id if task.product_id else -1,
-                "doc_type": task.doc_type,
-                "doc_version": task.doc_version,
-                "content": t[:4000],
-            } for i, t in enumerate(texts)]
-            await get_vectorstore().insert(rows)
+            store = get_vectorstore()
+            existing = await store.existing_ids(ids, include_legacy=True)
+            pending = [(chunk_id, text) for chunk_id, text in zip(ids, texts) if chunk_id not in existing]
+            if pending:
+                embeddings = get_embeddings()
+                vectors = await embeddings.aembed_documents([text for _, text in pending])
+                rows = [{
+                    "id": chunk_id,
+                    "embedding": vectors[i],
+                    "doc_id": task.doc_id,
+                    "product_id": task.product_id if task.product_id else -1,
+                    "doc_type": task.doc_type,
+                    "doc_version": task.doc_version,
+                    "content": text[:4000],
+                } for i, (chunk_id, text) in enumerate(pending)]
+                await store.insert(rows)
+            logger.info(
+                "ingest vectors doc=%s embedded=%s skipped_existing=%s",
+                task.doc_id, len(pending), len(existing),
+            )
             # 重建索引场景：清理旧版本向量
             if task.doc_version > 1:
                 await get_vectorstore().delete_by_doc(task.doc_id, exclude_version=task.doc_version)
@@ -230,4 +238,5 @@ async def sync_products() -> dict:
         except Exception as e:
             logger.warning("product sync failed (search falls back to SQL): %s", e)
             return {"indexed": 0, "error": str(e)[:200]}
+
 

@@ -127,3 +127,11 @@
 - Backend package inspection: manifest plus exactly 300 generated documents present in the executable JAR.
 - `docker compose config -q`: passed.
 - Git commits omitted because the supplied workspace has no `.git` metadata.
+
+## Scope Revision (2026-08-23)
+
+- Keep `chunk_size=600` and `chunk_overlap=90` unchanged.
+- Reduce committed synthetic resources to 15 evenly sampled documents: FAQ 6 / INTRO 5 / POLICY 4; MD 12 / TXT 2 / PDF 1.
+- Actual parsing and splitting result: **970 chunks**, within the approved 900–1,100 range.
+- Add ordered embedding fallback: primary model, then `text-embedding-v1`, `text-embedding-v3`, `text-embedding-v2`.
+- Validate every returned vector against `EMBEDDING_DIM`; rebuild Milvus indexes after a runtime model change.

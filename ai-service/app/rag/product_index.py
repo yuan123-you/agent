@@ -18,6 +18,7 @@ from pymilvus import DataType, MilvusClient
 from app.clients.llm import get_embeddings
 from app.config import settings
 from app.rag.vectorstore import MilvusUnavailableError
+from app.rag.reranker import get_reranker
 
 logger = logging.getLogger("ai-service.product-index")
 
@@ -245,5 +246,21 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
         return (-score, float(p.get("price") or 0), -(int(p.get("sales") or 0)))
 
     merged = sorted(rrf.items(), key=_sort_key)
-    top = [pidx.corpus.products[pid] for pid, _ in merged[:top_k] if pid in pidx.corpus.products]
+    candidate_ids = [
+        pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]
+        if pid in pidx.corpus.products
+    ]
+    candidates = []
+    for pid in candidate_ids:
+        product = pidx.corpus.products[pid]
+        content = " ".join(str(product.get(key) or "") for key in (
+            "name", "brand", "category", "sellingPoints", "specs", "description"
+        ))
+        candidates.append({"product_id": pid, "content": content})
+    ranked = await get_reranker().rerank(kw, candidates, top_n=top_k)
+    top = [
+        pidx.corpus.products[item["product_id"]]
+        for item in ranked if item.get("product_id") in pidx.corpus.products
+    ]
     return {"products": [_to_vo(p) for p in top], "total": len(top)}
+

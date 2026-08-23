@@ -73,7 +73,7 @@ AI-ServiceDesk/
 cp ai-service/.env.example ai-service/.env
 # 编辑 ai-service/.env，必填：
 #   LLM_API_BASE / LLM_API_KEY / LLM_CHAT_MODEL / LLM_INTENT_MODEL
-#   EMBEDDING_MODEL / EMBEDDING_DIM（须与模型一致，如 text-embedding-v3 / 1024）
+#   EMBEDDING_PROVIDER / OLLAMA_BASE_URL / EMBEDDING_MODEL / EMBEDDING_DIM
 #   INTERNAL_TOKEN（与下方 compose 环境保持一致）
 
 # 2. 一键启动（可自定义 MYSQL_ROOT_PASSWORD / JWT_SECRET / INTERNAL_TOKEN / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD / MINIO_BUCKET）
@@ -133,17 +133,31 @@ npm run dev             # http://localhost:5173
 
 - **自动播种**：backend 启动时自动导入并摄取（清库重建后也自动恢复），管理员可在知识库管理页查看/停用/重建
 - **双路检索**：向量检索（Milvus）优先；Embedding 不可用（如 DeepSeek Key 无 embeddings 接口）时**自动降级关键词检索**（MySQL LIKE + 切词 + 命中排序），知识库始终可用
+- **本地 Embedding + Reranker**：默认可使用 Ollama 的 Qwen3 4B Q4_K_M 量化模型；Milvus 按模型/维度使用独立 collection，摄取前同时查询当前与 legacy collection 的 chunk ID，已生成的向量不会重复 Embedding
 - **自愈重试**：摄取异常（FAILED/卡住）每 90 秒自动重试，LLM 配置修复后自动恢复向量模式（也可手动"重建索引"）
 
+## Windows Ollama 本地 RAG 模型
+
+模型通过 `D:\Ollama\ollama.exe` 管理，实际模型目录由 `OLLAMA_MODELS` 决定。RTX 3050 4GB 环境使用 Q4_K_M，并把上下文限制为 2048、GPU offload 限制为 10 层，避免默认 40960 上下文启动时内存不足。
+
+```powershell
+D:\Ollama\ollama.exe pull qwen3-embedding:4b
+D:\Ollama\ollama.exe pull dengcao/Qwen3-Reranker-4B:Q4_K_M
+```
+
+- `qwen3-embedding:4b` 当前官方 4B 标签本身就是 **Q4_K_M**，原始输出 2560 维；项目通过 Ollama `dimensions` 参数使用 **1024 维**。
+- Windows Ollama 必须监听 `0.0.0.0:11434`，容器通过 `http://host.docker.internal:11434` 访问。
+- Reranker 对 RRF 候选做二阶段排序；模型不可用或评分失败时自动保留原 RRF 顺序，不影响基本检索。
+- `MILVUS_LEGACY_COLLECTIONS` 只用于 chunk ID 查重，不把不同 Embedding 模型的向量混入同一次相似度检索。
 ## 大规模合成知识库（Agent + RAG 压力测试）
 
 项目额外内置一套**合成测试数据**，不代表 AI Mall 或任何真实电商平台的服务承诺：
 
-- **规模**：300 份文档，约 618 万字符；使用默认分块参数实测生成 **19,502 个 chunks**
-- **类型**：FAQ 120、INTRO 100、POLICY 80；格式包括 MD 240、TXT 50、PDF 10
+- **规模**：15 份分层抽样文档，约 30.9 万字符；保持 `chunk_size=600`、`chunk_overlap=90`，实测生成 **970 个 chunks**
+- **类型**：FAQ 6、INTRO 5、POLICY 4；格式包括 MD 12、TXT 2、PDF 1，覆盖 15 个不同电商主题
 - **场景**：平台/商家政策、支付发票、会员营销、普通/跨境/冷链/大件物流、售后维权、账户风控及 16 类商品知识
 - **检索难例**：口语改写、近义规则、条件与例外、地区/渠道/版本差异、多跳问题和硬负样本
-- **受控摄取**：默认每批 2 份、最多 4 份同时处于 PROCESSING；失败或超过 900 秒的任务会自动续跑，不会在启动时瞬间提交 300 份
+- **受控摄取**：默认每批 2 份、最多 4 份同时处于 PROCESSING；失败或超过 900 秒的任务会自动续跑，不会在启动时瞬间提交全部文档
 
 数据由固定种子的脚本生成，可重复构建：
 
@@ -151,7 +165,7 @@ npm run dev             # http://localhost:5173
 python backend/scripts/generate_kb_dataset.py
 ```
 
-生成清单位于 `backend/src/main/resources/kbseed/generated/manifest.json`，检索标注集位于 `eval/dataset/kb_large_rag.jsonl`。大规模摄取会调用约 1.95 万个 chunk 的 Embedding，请先确认模型配额；不需要压力数据时设置 `KB_BULK_SEED_ENABLED=false`。
+生成清单位于 `backend/src/main/resources/kbseed/generated/manifest.json`，检索标注集位于 `eval/dataset/kb_large_rag.jsonl`。完整摄取会调用约 970 个 chunk 的 Embedding，请先确认模型配额；不需要压力数据时设置 `KB_BULK_SEED_ENABLED=false`。
 
 关键配置：
 
@@ -182,4 +196,5 @@ python backend/scripts/generate_kb_dataset.py
 | 部署 | Docker Compose v2（frontend:80 / backend:8080 对外，ai-service 仅内网） |
 
 设计文档见 `docs/`（8 份，v2.0 电商版）。
+
 
