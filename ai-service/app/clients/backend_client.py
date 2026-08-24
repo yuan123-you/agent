@@ -116,6 +116,15 @@ class BackendClient:
             "query": query, "docType": doc_type, "productId": product_id, "topK": top_k,
         })
 
+    async def kb_current_chunks(self, chunk_ids: list[int]) -> dict[int, str]:
+        """校验候选分块仍属于 ACTIVE 文档当前版本，并返回 chunkId → title。"""
+        if not chunk_ids:
+            return {}
+        r = await self._post("/internal/kb/chunks/current", {"chunkIds": list(chunk_ids)}, retries=1)
+        if "error" in r:
+            return {}
+        return {int(k): str(v) for k, v in r.items()}
+
     async def kb_titles(self, doc_ids: list[int]) -> dict:
         """文档标题批量查询：docId → title 映射（向量命中后用于展示来源标题）"""
         if not doc_ids:

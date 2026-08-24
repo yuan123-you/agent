@@ -14,7 +14,7 @@
                                                       ├── MinIO（对象存储：知识库源文件）
                                                       └── WebClient(SSE) ──> ai-service(FastAPI:8000，不对外)
                                                                                 ├── LLM(OpenAI兼容 API)
-                                                                                ├── Milvus 2.5(向量库)
+                                                                                ├── Milvus 2.4.9（向量库）
                                                                                 └── 工具回调 backend /internal/tools/**
 ```
 
@@ -206,7 +206,7 @@ python backend/scripts/generate_kb_dataset.py
 |----|------|
 | 前端 | Vue 3.5 / TypeScript 5 / Vite 6 / Element-Plus 2.9 / Pinia 2 / Vue-Router 4 / marked 12 + DOMPurify |
 | 后端 | SpringBoot 3.3.x / JDK 17 / Spring Security 6 + JWT(jjwt 0.12) / MyBatis-Plus 3.5.7 / MySQL 8 / Redis 7 / Resilience4j |
-| AI 服务 | Python 3.13 / FastAPI / LangChain 1.x / LangGraph 1.x / pymilvus 2.5 / pypdf |
+| AI 服务 | Python 3.13 / FastAPI / LangChain 1.x / LangGraph 1.x / pymilvus 2.4.15 / pypdf |
 | 本地运行 | Docker Compose v2（基础设施）+ Vite / Spring Boot / Uvicorn（宿主机应用） |
 
 设计文档见 `docs/`（8 份，v2.0 电商版）。

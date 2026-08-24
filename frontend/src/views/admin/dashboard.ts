@@ -28,9 +28,9 @@ export function orderStatusText(status: string): string {
 }
 
 export function normalizeDashboard(value: Partial<AdminDashboardVO> = {}): NormalizedDashboard {
-  const summary = value.summary || {}
-  const operations = value.operations || {}
-  const aiQuality = value.aiQuality || {}
+  const summary: Partial<AdminDashboardVO['summary']> = value.summary ?? {}
+  const operations: Partial<AdminDashboardVO['operations']> = value.operations ?? {}
+  const aiQuality: Partial<AdminDashboardVO['aiQuality']> = value.aiQuality ?? {}
   return {
     summary: {
       userCount: numberOrZero(summary.userCount), merchantCount: numberOrZero(summary.merchantCount),
