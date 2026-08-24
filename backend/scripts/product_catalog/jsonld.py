@@ -18,7 +18,8 @@ class _JsonLdScriptParser(HTMLParser):
         self.scripts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() == "script" and dict(attrs).get("type", "").lower() == "application/ld+json":
+        media_type = dict(attrs).get("type", "").split(";", 1)[0].strip().lower()
+        if tag.lower() == "script" and media_type == "application/ld+json":
             self._inside_jsonld = True
             self._parts = []
 
@@ -59,22 +60,19 @@ def _text(value: Any) -> str | None:
 
 
 def _brand(value: Any) -> str | None:
-    if isinstance(value, dict):
-        return _text(value.get("name"))
-    return _text(value)
+    return _text(value.get("name")) if isinstance(value, dict) else _text(value)
 
 
 def _images(value: Any) -> tuple[ImageCandidate, ...]:
     values = value if isinstance(value, list) else [value]
-    urls: list[ImageCandidate] = []
-    for image in values:
-        url = _text(image.get("url")) if isinstance(image, dict) else _text(image)
-        if url:
-            urls.append(ImageCandidate(url))
-    return tuple(urls)
+    return tuple(
+        ImageCandidate(url)
+        for image in values
+        if (url := _text(image.get("url")) if isinstance(image, dict) else _text(image))
+    )
 
 
-def _available_offer(offer: dict[str, Any]) -> tuple[Decimal, str] | None:
+def _available_offer(offer: dict[str, Any]) -> tuple[Decimal, str, str | None] | None:
     availability = _text(offer.get("availability"))
     if availability and availability.rsplit("/", 1)[-1] == "OutOfStock":
         return None
@@ -83,10 +81,10 @@ def _available_offer(offer: dict[str, Any]) -> tuple[Decimal, str] | None:
     except (InvalidOperation, ValueError):
         return None
     currency = _text(offer.get("priceCurrency"))
-    return (price, currency) if price.is_finite() and price > 0 and currency else None
+    return (price, currency, _text(offer.get("sku"))) if price.is_finite() and price > 0 and currency else None
 
 
-def _offer(node: dict[str, Any]) -> tuple[Decimal, str] | None:
+def _offer(node: dict[str, Any]) -> tuple[Decimal, str, str | None] | None:
     offers = node.get("offers")
     options = offers if isinstance(offers, list) else [offers]
     available = [result for item in options if isinstance(item, dict) and (result := _available_offer(item))]
@@ -108,6 +106,8 @@ def _specs(value: Any) -> dict[str, Any]:
 
 def extract_products(html: str, source_url: str, collected_at: datetime, source_name: str) -> list[RawProduct]:
     """Return valid raw Products from JSON-LD, never from rendered page text."""
+    if not (_text(source_name) and _text(source_url)):
+        return []
     parser = _JsonLdScriptParser()
     parser.feed(html)
     parser.close()
@@ -123,11 +123,13 @@ def extract_products(html: str, source_url: str, collected_at: datetime, source_
             name = _text(node.get("name"))
             brand = _brand(node.get("brand"))
             images = _images(node.get("image"))
-            source_product_id = _text(node.get("sku"))
             offer = _offer(node)
-            if not (name and brand and images and source_product_id and offer):
+            if not (name and brand and images and offer):
                 continue
-            price, currency = offer
+            price, currency, offer_sku = offer
+            source_product_id = _text(node.get("sku")) or offer_sku
+            if not source_product_id:
+                continue
             products.append(RawProduct(
                 name=name,
                 brand=brand,
