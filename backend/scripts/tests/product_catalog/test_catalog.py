@@ -194,3 +194,22 @@ def test_verify_rejects_missing_provenance_uppercase_image_and_simulated_fields_
     assert "missing name" in result.errors
     assert "invalid image path" in result.errors
     assert "report simulated fields mismatch" in result.errors
+
+
+def test_verify_catalog_returns_failure_not_exception_for_hostile_json_field_types(tmp_path: Path):
+    write_catalog(catalog_inputs(), tmp_path)
+    manifest = tmp_path / "products.jsonl"
+    report = tmp_path / "catalog-report.json"
+    rows = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+    rows[0].update({"source_url": [], "image_url": {}, "image_sha256": [], "price": {}, "image_original_bytes": "100", "source_updated_at": [], "collected_at": {}, "replacement_slot": {}})
+    manifest.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8", newline="\n")
+
+    result = verify_catalog(manifest, report)
+
+    assert not result.valid
+    assert "invalid source URL" in result.errors
+    assert "invalid image path" in result.errors
+    assert "invalid image hash" in result.errors
+    assert "price must be positive" in result.errors
+    assert "invalid image bytes" in result.errors
+    assert "stale time" in result.errors

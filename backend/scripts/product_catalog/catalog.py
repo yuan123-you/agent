@@ -16,7 +16,7 @@ TARGET_COUNT, REPLACEMENT_COUNT = 2512, 512
 MINIMUM_TIME = datetime(2025, 1, 1, tzinfo=timezone.utc)
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _IMAGE_PATH = re.compile(r"^/api/v1/product-images/catalog/([0-9a-f]{64})\.(jpg|png|webp)$")
-_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected", "missing name", "missing brand", "missing currency", "missing source_name", "missing source_url", "missing source_product_id", "invalid source URL"})
+_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected", "missing name", "missing brand", "missing currency", "missing source_name", "missing source_url", "missing source_product_id", "invalid source URL", "invalid replacement slot"})
 
 @dataclass(frozen=True)
 class CatalogReport:
@@ -38,19 +38,27 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
     path = row.get("image_url"); match = _IMAGE_PATH.fullmatch(path) if isinstance(path, str) else None
     if not match or match.group(1) != row.get("image_sha256"): errors.append("invalid image path")
     original = row.get("original_image_url")
-    if isinstance(path, str) and ("picsum" in path.casefold() or path.startswith(("http://", "https://"))) or (isinstance(original, str) and "picsum" in urlsplit(original).netloc.casefold()): errors.append("remote or Picsum image URL")
+    try:
+        original_is_picsum = isinstance(original, str) and "picsum" in urlsplit(original).netloc.casefold()
+    except (TypeError, ValueError):
+        original_is_picsum = True
+    if (isinstance(path, str) and ("picsum" in path.casefold() or path.startswith(("http://", "https://")))) or original_is_picsum: errors.append("remote or Picsum image URL")
     if row.get("commerce_values_simulated") is not True: errors.append("commerce_values_simulated must be true")
     try:
         price = Decimal(str(row.get("price")))
         if not price.is_finite() or price <= 0: errors.append("price must be positive")
     except (InvalidOperation, ValueError): errors.append("price must be positive")
-    if row.get("category") not in CATEGORIES: errors.append("unsupported category")
+    if not isinstance(row.get("category"), str) or row["category"] not in CATEGORIES: errors.append("unsupported category")
     for field in ("name", "brand", "currency", "source_name", "source_url", "source_product_id"):
         if not isinstance(row.get(field), str) or not row[field].strip(): errors.append(f"missing {field}")
-    try:
-        source = urlsplit(row.get("source_url", ""))
-        if source.scheme not in {"http", "https"} or not source.hostname or source.username is not None or source.password is not None: errors.append("invalid source URL")
-    except ValueError: errors.append("invalid source URL")
+    source_url = row.get("source_url")
+    if not isinstance(source_url, str):
+        errors.append("invalid source URL")
+    else:
+        try:
+            source = urlsplit(source_url)
+            if source.scheme not in {"http", "https"} or not source.hostname or source.username is not None or source.password is not None: errors.append("invalid source URL")
+        except (TypeError, ValueError): errors.append("invalid source URL")
     for field, label in (("content_hash", "invalid content hash"), ("image_sha256", "invalid image hash")):
         if not isinstance(row.get(field), str) or not _HASH.fullmatch(row[field]): errors.append(label)
     try:
@@ -68,6 +76,8 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
             if stamp.tzinfo: times.append(stamp.astimezone(timezone.utc))
         except ValueError: pass
     if not times or max(times) < MINIMUM_TIME: errors.append("stale time")
+    slot = row.get("replacement_slot")
+    if slot is not None and (type(slot) is not int or not 1 <= slot <= REPLACEMENT_COUNT): errors.append("invalid replacement slot")
     return errors
 
 def _pool(items: Iterable[CatalogProduct]) -> tuple[list[CatalogProduct], Counter[str], Counter[str]]:
@@ -118,11 +128,12 @@ def verify_catalog(path: Path | str, report_path: Path | str) -> VerificationRes
     sources: set[tuple[Any, Any]] = set(); contents: set[Any] = set(); slots: list[Any] = []
     for row in rows:
         if not isinstance(row, dict): errors.append("invalid JSON row"); continue
-        errors.extend(_row_errors(row)); source = (row.get("source_name"), row.get("source_product_id"))
+        errors.extend(_row_errors(row)); source = (row.get("source_name") if isinstance(row.get("source_name"), str) else None, row.get("source_product_id") if isinstance(row.get("source_product_id"), str) else None)
+        content = row.get("content_hash") if isinstance(row.get("content_hash"), str) else None
         if source in sources: errors.append("duplicate source key")
-        if row.get("content_hash") in contents: errors.append("duplicate content hash")
-        sources.add(source); contents.add(row.get("content_hash"));
-        if row.get("replacement_slot") is not None: slots.append(row["replacement_slot"])
+        if content in contents: errors.append("duplicate content hash")
+        sources.add(source); contents.add(content)
+        if type(row.get("replacement_slot")) is int: slots.append(row["replacement_slot"])
     if len(rows) != TARGET_COUNT: errors.append(f"expected {TARGET_COUNT} products")
     if sorted(slots) != list(range(1, REPLACEMENT_COUNT + 1)): errors.append(f"expected replacement slots 1-{REPLACEMENT_COUNT}")
     try:
@@ -134,8 +145,8 @@ def verify_catalog(path: Path | str, report_path: Path | str) -> VerificationRes
             rejected = {}
         before = sum(row.get("image_original_bytes", 0) for row in rows if type(row.get("image_original_bytes")) is int)
         after = sum(row.get("image_output_bytes", 0) for row in rows if type(row.get("image_output_bytes")) is int)
-        image_hashes = Counter(row.get("image_sha256") for row in rows)
-        actual = {"product_count": len(rows), "replacement_slots": len(slots), "source_counts": dict(sorted(Counter(row.get("source_name") for row in rows).items())), "category_counts": {category: sum(row.get("category") == category for row in rows) for category in CATEGORIES}, "bytes_before": before, "bytes_after": after, "bytes_saved": before - after, "bytes_saved_percentage": (before - after) * 100 / before if before else 0.0, "webp_count": sum(str(row.get("image_url")).endswith(".webp") for row in rows), "retained_original_count": sum(not str(row.get("image_url")).endswith(".webp") for row in rows), "shared_image_references": sum(count - 1 for count in image_hashes.values())}
+        image_hashes = Counter(str(row.get("image_sha256")) for row in rows)
+        actual = {"product_count": len(rows), "replacement_slots": len(slots), "source_counts": dict(sorted(Counter(str(row.get("source_name")) for row in rows).items())), "category_counts": {category: sum(row.get("category") == category for row in rows) for category in CATEGORIES}, "bytes_before": before, "bytes_after": after, "bytes_saved": before - after, "bytes_saved_percentage": (before - after) * 100 / before if before else 0.0, "webp_count": sum(str(row.get("image_url")).endswith(".webp") for row in rows), "retained_original_count": sum(not str(row.get("image_url")).endswith(".webp") for row in rows), "shared_image_references": sum(count - 1 for count in image_hashes.values())}
         for field, value in actual.items():
             if report.get(field) != value: errors.append("report image statistics mismatch" if field in {"bytes_before", "bytes_after", "bytes_saved", "bytes_saved_percentage", "webp_count", "retained_original_count", "shared_image_references"} else "report distribution mismatch")
         if report.get("input_count") != len(rows) + sum(rejected.values()): errors.append("report input-count mismatch")
