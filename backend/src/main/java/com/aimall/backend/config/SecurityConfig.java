@@ -46,7 +46,7 @@ public class SecurityConfig {
                         // 开放接口
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/register/customer",
                                 "/api/v1/auth/register/merchant", "/api/v1/auth/refresh").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/actuator/**", "/api/v1/product-images/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 内部接口：仅 AI 服务（内部令牌）
                         .requestMatchers("/internal/**").hasRole("INTERNAL")
