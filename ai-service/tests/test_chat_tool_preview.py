@@ -3,7 +3,7 @@ import json
 import pytest
 from langchain_core.messages import ToolMessage
 
-from app.api.chat import _tool_result_preview
+from app.api.chat import _timeout_fallback, _tool_result_preview
 
 
 def tool_message(name: str, content: object) -> ToolMessage:
@@ -73,3 +73,19 @@ def test_tool_result_preview_keeps_plain_human_readable_results():
     message = ToolMessage(content="已成功转接人工客服", name="escalate_to_human", tool_call_id="call_456")
 
     assert _tool_result_preview(message) == {"preview": "已成功转接人工客服"}
+
+
+def test_timeout_fallback_preserves_partial_content():
+    assert _timeout_fallback("已找到两件商品", timed_out=True) == "已找到两件商品"
+
+
+def test_timeout_fallback_fills_empty_timed_out_content():
+    result = _timeout_fallback("", timed_out=True)
+
+    assert result
+    assert "耗时" in result
+    assert "重试" in result or "人工" in result
+
+
+def test_timeout_fallback_does_not_change_normal_empty_content():
+    assert _timeout_fallback("", timed_out=False) == ""

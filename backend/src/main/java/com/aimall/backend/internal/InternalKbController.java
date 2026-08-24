@@ -89,6 +89,11 @@ public class InternalKbController {
         if (doc == null) {
             throw new BizException(2002, "文档不存在");
         }
+        if ("ACTIVE".equals(body.getStatus()) && doc.getVersion() != null) {
+            kbChunkMapper.delete(new LambdaQueryWrapper<KbChunk>()
+                    .eq(KbChunk::getDocId, doc.getId())
+                    .ne(KbChunk::getDocVersion, doc.getVersion()));
+        }
         KbDoc upd = new KbDoc();
         upd.setId(doc.getId());
         upd.setStatus(body.getStatus());
@@ -105,6 +110,37 @@ public class InternalKbController {
     @Data
     public static class TitlesBody {
         private List<Long> docIds;
+    }
+
+    @Data
+    public static class CurrentChunksBody {
+        private List<Long> chunkIds;
+    }
+
+    /** 校验 Milvus 候选是否仍属于 ACTIVE 文档的当前版本，并返回 chunkId → title。 */
+    @PostMapping("/chunks/current")
+    public ApiResponse<Map<String, String>> currentChunks(@RequestBody CurrentChunksBody body) {
+        if (body.getChunkIds() == null || body.getChunkIds().isEmpty()) {
+            return ApiResponse.ok(Map.of());
+        }
+        List<KbChunk> chunks = kbChunkMapper.selectBatchIds(body.getChunkIds());
+        if (chunks.isEmpty()) {
+            return ApiResponse.ok(Map.of());
+        }
+        List<Long> docIds = chunks.stream().map(KbChunk::getDocId).distinct().toList();
+        Map<Long, KbDoc> docs = new HashMap<>();
+        for (KbDoc doc : kbDocMapper.selectBatchIds(docIds)) {
+            docs.put(doc.getId(), doc);
+        }
+        Map<String, String> current = new HashMap<>();
+        for (KbChunk chunk : chunks) {
+            KbDoc doc = docs.get(chunk.getDocId());
+            if (doc != null && "ACTIVE".equals(doc.getStatus())
+                    && doc.getVersion() != null && doc.getVersion().equals(chunk.getDocVersion())) {
+                current.put(String.valueOf(chunk.getId()), doc.getTitle());
+            }
+        }
+        return ApiResponse.ok(current);
     }
 
     /** 文档标题批量查询（AI 向量检索命中后，将来源从内部编号映射为文档标题） */
@@ -139,6 +175,7 @@ public class InternalKbController {
 
         LambdaQueryWrapper<KbChunk> wrapper = new LambdaQueryWrapper<KbChunk>()
                 .inSql(KbChunk::getDocId, "SELECT id FROM kb_doc WHERE status = 'ACTIVE' AND deleted = 0")
+                .apply("doc_version = (SELECT version FROM kb_doc WHERE id = kb_chunk.doc_id)")
                 .and(body.getDocType() != null && !"ALL".equals(body.getDocType())
                                 && !body.getDocType().isBlank(),
                         w -> w.eq(KbChunk::getDocType, body.getDocType())

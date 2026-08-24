@@ -69,11 +69,9 @@ class VectorStore:
         # 不设绝对分数阈值：IP 距离在不同 embedding 模型间不可迁移，相关性判定交给
         # kb_search 的双路 RRF 混排（关键词无命中即判无答案）。此处返回全部候选供融合。
         hits = []
-        doc_ids: set[int] = set()
         for h in (res[0] if res else []):
             entity = h.get("entity", {}) or {}
             doc_id = int(entity.get("doc_id", 0))
-            doc_ids.add(doc_id)
             hits.append({
                 "content": entity.get("content", ""),
                 "chunk_id": int(h.get("id", 0)),  # Milvus 主键 = kb_chunk.id，作双路 RRF 融合身份
@@ -81,15 +79,16 @@ class VectorStore:
                 "docType": entity.get("doc_type", ""),
                 "score": round(float(h.get("distance", 0)), 4),
             })
-        # 来源标注：内部编号 → 文档标题（如《退换货条款》），后端批量查询
+        # 后端是版本真相源：过滤已停用/已被新版本替代的 Milvus 残留，并同时补充标题。
         if hits:
             try:
-                titles = await backend_client.kb_titles(list(doc_ids))
+                current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
             except Exception as e:
-                logger.warning("kb titles lookup failed: %s", e)
-                titles = {}
+                logger.warning("current chunk validation failed: %s", e)
+                current = {}
+            hits = [hit for hit in hits if hit["chunk_id"] in current]
             for hit in hits:
-                hit["source"] = titles.get(hit.get("doc_id"), f"知识库文档#{hit.get('doc_id')}")
+                hit["source"] = current[hit["chunk_id"]]
         return {"hits": hits, "total": len(hits)}
 
     async def existing_ids(self, ids: list[int]) -> set[int]:

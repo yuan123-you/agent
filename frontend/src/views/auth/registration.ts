@@ -12,8 +12,6 @@ export function validateRegistration(kind: RegistrationKind, form: RegistrationF
   return errors
 }
 
-export function buildRegistrationPayload(kind: 'CUSTOMER', form: RegistrationForm): CustomerRegistration
-export function buildRegistrationPayload(kind: 'MERCHANT', form: RegistrationForm): MerchantRegistration
 export function buildRegistrationPayload(kind: RegistrationKind, form: RegistrationForm): CustomerRegistration | MerchantRegistration {
   const customer = {
     username: form.username.trim(),
