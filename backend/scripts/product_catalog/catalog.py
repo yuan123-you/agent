@@ -16,7 +16,7 @@ TARGET_COUNT, REPLACEMENT_COUNT = 2512, 512
 MINIMUM_TIME = datetime(2025, 1, 1, tzinfo=timezone.utc)
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _IMAGE_PATH = re.compile(r"^/api/v1/product-images/catalog/([0-9a-f]{64})\.(jpg|png|webp)$")
-_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected", "missing name", "missing brand", "missing currency", "missing source_name", "missing source_url", "missing source_product_id", "invalid source URL", "invalid replacement slot"})
+_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected", "missing name", "missing brand", "missing currency", "missing source_name", "missing source_url", "missing source_product_id", "invalid source URL", "invalid replacement slot", "invalid source_updated_at", "invalid collected_at"})
 
 @dataclass(frozen=True)
 class CatalogReport:
@@ -70,11 +70,17 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
         try: json.dumps(row["specs"], allow_nan=False)
         except (TypeError, ValueError): errors.append("invalid specs")
     times = []
-    for value in (row.get("source_updated_at"), row.get("collected_at")):
+    for field in ("source_updated_at", "collected_at"):
+        value = row.get(field)
+        if field == "source_updated_at" and value is None:
+            continue
         try:
-            stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-            if stamp.tzinfo: times.append(stamp.astimezone(timezone.utc))
-        except ValueError: pass
+            if not isinstance(value, str): raise ValueError
+            stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if stamp.tzinfo is None or stamp.utcoffset() is None: raise ValueError
+            times.append(stamp.astimezone(timezone.utc))
+        except ValueError:
+            errors.append(f"invalid {field}")
     if not times or max(times) < MINIMUM_TIME: errors.append("stale time")
     slot = row.get("replacement_slot")
     if slot is not None and (type(slot) is not int or not 1 <= slot <= REPLACEMENT_COUNT): errors.append("invalid replacement slot")

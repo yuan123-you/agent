@@ -39,6 +39,15 @@ def catalog_inputs() -> list[CatalogProduct]:
             for position in range(120)]
 
 
+def _verify_with_timestamp_updates(tmp_path: Path, **updates):
+    write_catalog(catalog_inputs(), tmp_path)
+    manifest = tmp_path / "products.jsonl"
+    rows = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+    rows[0].update(updates)
+    manifest.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8", newline="\n")
+    return verify_catalog(manifest, tmp_path / "catalog-report.json")
+
+
 def test_select_catalog_is_order_independent_round_robin_and_assigns_exact_replacement_slots():
     items = catalog_inputs()
     shuffled = items[:]
@@ -212,4 +221,34 @@ def test_verify_catalog_returns_failure_not_exception_for_hostile_json_field_typ
     assert "invalid image hash" in result.errors
     assert "price must be positive" in result.errors
     assert "invalid image bytes" in result.errors
+    assert "stale time" in result.errors
+
+
+@pytest.mark.parametrize("bad_timestamp", [[], "not-a-timestamp", "2026-08-24T00:00:00"])
+def test_verify_rejects_bad_source_updated_at_even_with_fresh_collected_at(tmp_path: Path, bad_timestamp):
+    result = _verify_with_timestamp_updates(tmp_path, source_updated_at=bad_timestamp)
+
+    assert not result.valid
+    assert "invalid source_updated_at" in result.errors
+
+
+@pytest.mark.parametrize("bad_timestamp", [[], "not-a-timestamp", "2026-08-24T00:00:00"])
+def test_verify_rejects_bad_collected_at_even_with_fresh_source_updated_at(tmp_path: Path, bad_timestamp):
+    result = _verify_with_timestamp_updates(tmp_path, collected_at=bad_timestamp)
+
+    assert not result.valid
+    assert "invalid collected_at" in result.errors
+
+
+def test_verify_accepts_null_optional_source_updated_at(tmp_path: Path):
+    result = _verify_with_timestamp_updates(tmp_path, source_updated_at=None)
+
+    assert result.valid
+
+
+def test_verify_rejects_stale_valid_timestamp_pair(tmp_path: Path):
+    stale = "2024-12-31T23:59:59+00:00"
+    result = _verify_with_timestamp_updates(tmp_path, source_updated_at=stale, collected_at=stale)
+
+    assert not result.valid
     assert "stale time" in result.errors
