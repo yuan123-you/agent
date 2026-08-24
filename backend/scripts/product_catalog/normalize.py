@@ -110,7 +110,7 @@ def _normalize_url(value: str | None) -> str | None:
         port = parts.port
     except ValueError:
         return text
-    if not parts.scheme or not parts.hostname or parts.username or parts.password:
+    if not parts.scheme or not parts.hostname or parts.username is not None or parts.password is not None:
         return text
     scheme = parts.scheme.lower()
     if scheme not in {"http", "https"}:
@@ -219,7 +219,7 @@ def _valid_url(value: str | None) -> bool:
         parts.port
     except ValueError:
         return False
-    return parts.scheme in {"http", "https"} and bool(parts.hostname) and not parts.username and not parts.password
+    return parts.scheme in {"http", "https"} and bool(parts.hostname) and parts.username is None and parts.password is None
 
 
 def deduplicate(items: list[CatalogProductCandidate]) -> list[CatalogProductCandidate]:

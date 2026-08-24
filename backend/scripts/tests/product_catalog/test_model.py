@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import MappingProxyType
 
 import pytest
 
@@ -90,3 +91,17 @@ def test_catalog_product_serializes_auditable_facts_and_simulated_commerce_value
 def test_catalog_product_rejects_invalid_final_record_values(field, value, message):
     with pytest.raises(ValueError, match=message):
         _product(**{field: value})
+
+
+def test_catalog_product_materializes_nested_mapping_specs_for_serialization():
+    product = _product(
+        raw=_raw(specs=MappingProxyType({"a": MappingProxyType({"values": (1, 2)})}))
+    )
+
+    assert product.to_json()["specs"] == {"a": {"values": [1, 2]}}
+
+
+@pytest.mark.parametrize("specs", [{"a": {"set"}}, {"a": [float("nan")]}])
+def test_catalog_product_rejects_nested_non_json_specs(specs):
+    with pytest.raises(ValueError, match="specs must be JSON-serializable"):
+        _product(raw=_raw(specs=specs))

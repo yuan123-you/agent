@@ -156,6 +156,16 @@ def test_normalize_preserves_credential_url_for_rejection_instead_of_erasing_pro
     assert disallowed.raw.source_url == disallowed_url
     assert "source_url must be an absolute HTTP URL" in validation_errors(disallowed, MINIMUM_TIME)
 
+    empty_userinfo_url = "http://@Example.TEST/product"
+    empty_userinfo = normalize(_raw(source_url=empty_userinfo_url), "PHONE")
+    assert empty_userinfo.raw.source_url == empty_userinfo_url
+    assert "source_url must be an absolute HTTP URL" in validation_errors(empty_userinfo, MINIMUM_TIME)
+
+    empty_password_url = "http://user:@Example.TEST/product"
+    empty_password = normalize(_raw(source_url=empty_password_url), "PHONE")
+    assert empty_password.raw.source_url == empty_password_url
+    assert "source_url must be an absolute HTTP URL" in validation_errors(empty_password, MINIMUM_TIME)
+
 
 def test_keyword_category_inference_uses_deliberate_terms_without_substring_false_positives():
     cabbage = normalize(_raw(name="Cabbage seeds", category=None), None)

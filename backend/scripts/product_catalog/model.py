@@ -28,6 +28,15 @@ def _require_nonblank(value: str | None, field: str) -> None:
         raise ValueError(f"{field} must be nonblank")
 
 
+def _materialize_json(value: Any) -> Any:
+    """Convert accepted Mapping/sequence values to JSON-native containers."""
+    if isinstance(value, Mapping):
+        return {key: _materialize_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_materialize_json(item) for item in value]
+    return value
+
+
 @dataclass(frozen=True)
 class ImageCandidate:
     """An image URL discovered at the source, before it is downloaded."""
@@ -108,7 +117,7 @@ class CatalogProduct:
         if not isinstance(raw.specs, Mapping):
             raise ValueError("specs must be a JSON object")
         try:
-            json.dumps(raw.specs, allow_nan=False)
+            json.dumps(_materialize_json(raw.specs), allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ValueError("specs must be JSON-serializable") from exc
         if not isinstance(self.image_url, str) or not self.image_url.startswith("/") or self.image_url.startswith("//") or ".." in self.image_url:
@@ -133,7 +142,7 @@ class CatalogProduct:
             "commerce_values_simulated": self.commerce_values_simulated,
             "description": raw.description,
             "selling_points": list(raw.selling_points),
-            "specs": dict(raw.specs),
+            "specs": _materialize_json(raw.specs),
             "origin": raw.origin,
             "material": raw.material,
             "production_date": raw.production_date,
