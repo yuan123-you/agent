@@ -26,7 +26,7 @@ def test_load_source_config_reads_the_pinned_catalog_policy(tmp_path: Path):
     config = load_source_config(config_path)
 
     assert config.common_crawl_index == "CC-MAIN-2025-30"
-    assert config.minimum_source_time == datetime(2025, 1, 1, tzinfo=timezone.utc)
+    assert config.minimum_collected_at == datetime(2025, 1, 1, tzinfo=timezone.utc)
     assert config.rate_limit_per_second == 1
     assert config.max_candidates_per_source == 100
     assert config.allowed_domains == ("apple.com", "samsung.com")
@@ -58,3 +58,40 @@ def test_load_source_config_allows_an_empty_blocked_domain_list(tmp_path: Path):
     )
 
     assert load_source_config(config_path).blocked_domains == ()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "common_crawl_index": "CC-MAIN-2025-30",
+            "minimum_source_time": "2025-01-01T00:00:00Z",
+            "rate_limit_per_second": 1,
+            "max_candidates_per_source": 100,
+            "allowed_domains": ["apple.com"],
+            "blocked_domains": [],
+            "unexpected": True,
+        },
+        {
+            "common_crawl_index": "CC-MAIN-2025-30",
+            "minimum_source_time": "not-a-time",
+            "rate_limit_per_second": 1,
+            "max_candidates_per_source": 100,
+            "allowed_domains": ["apple.com"],
+            "blocked_domains": [],
+        },
+        {
+            "common_crawl_index": "CC-MAIN-2025-30",
+            "minimum_source_time": "2025-01-01T00:00:00Z",
+            "rate_limit_per_second": 0,
+            "max_candidates_per_source": 100,
+            "allowed_domains": ["apple.com"],
+            "blocked_domains": [],
+        },
+    ],
+)
+def test_load_source_config_rejects_unknown_keys_and_malformed_values(tmp_path: Path, payload):
+    config_path = tmp_path / "sources.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        load_source_config(config_path)
