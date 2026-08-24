@@ -25,6 +25,33 @@ public class Product {
 
     private String imageUrl;
 
+    /** 价格币种 */
+    private String currency;
+
+    /** 来源名称 */
+    private String sourceName;
+
+    /** 来源商品URL */
+    private String sourceUrl;
+
+    /** 来源商品标识 */
+    private String sourceProductId;
+
+    /** 来源更新时间 */
+    private LocalDateTime sourceUpdatedAt;
+
+    /** 采集时间 */
+    private LocalDateTime collectedAt;
+
+    /** 原始图片URL */
+    private String originalImageUrl;
+
+    /** 图片 SHA-256 */
+    private String imageSha256;
+
+    /** 库存、销量等商业字段是否为模拟值 */
+    private Boolean simulatedCommerceFields;
+
     private String description;
 
     private String sellingPoints;
