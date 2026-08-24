@@ -123,13 +123,15 @@ def process_image(data: bytes, content_type: str) -> ProcessedImage:
             has_alpha = "A" in transposed.getbands() or "transparency" in source.info
             normalized = transposed.convert("RGBA" if has_alpha else "RGB")
             normalized.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
+            pixels = Image.new(normalized.mode, normalized.size)
+            pixels.paste(normalized)
 
-            webp = _save(normalized, "WEBP")
+            webp = _save(pixels, "WEBP")
             extension, mime_type = _FORMATS["WEBP"]
             payload = webp
 
             if format in ("JPEG", "PNG"):
-                safe_original_format = _save(normalized, format)
+                safe_original_format = _save(pixels, format)
                 if len(safe_original_format) <= len(webp):
                     payload = safe_original_format
                     extension, mime_type = _FORMATS[format]

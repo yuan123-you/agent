@@ -51,3 +51,15 @@ Complete.
 
 ### Concerns
 - None identified for this fix round.
+
+## Fix Round 2 — RED-GREEN
+- **RED:** `python -m pytest backend/scripts/tests/product_catalog/test_images.py -q` produced the expected metadata-isolation failures (`2 failed, 22 passed`): adding an ICC profile changed the selected PNG into WebP because the profile leaked into the PNG candidate, and a selected JPEG retained its source `comment`.
+- **GREEN:** focused image suite passed with `24 passed` and pristine output.
+- **REGRESSION:** full product-catalog suite passed with `77 passed` and pristine output.
+
+### Fix
+- After orientation, mode conversion, and thumbnailing, processing now pastes pixels into a fresh `Image.new(...)` image. JPEG, PNG, and WebP candidates are all encoded exclusively from this pixel-only image with empty `.info`, preventing implicit propagation of source comments, EXIF, ICC profiles, text chunks, and other metadata.
+- Regressions force same-format selection and verify reopened JPEG output has no `comment` and reopened PNG output has no `icc_profile`; existing trailing-byte, EXIF, and PNG text checks remain in place.
+
+### Concerns
+- None identified for this fix round.

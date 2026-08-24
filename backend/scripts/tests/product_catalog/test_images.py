@@ -101,13 +101,15 @@ def test_retains_smaller_browser_safe_png_instead_of_larger_webp() -> None:
     for x in range(16):
         for y in range(16):
             checker.putpixel((x, y), (255 if (x + y) % 2 else 0, 0, 0))
-    original = _encoded(checker, "PNG", optimize=True)
+    original = _encoded(checker, "PNG", optimize=True, icc_profile=b"private-profile")
 
     processed = process_image(original, "image/png")
 
     assert processed.extension == "png"
     assert processed.mime_type == "image/png"
     assert processed.output_bytes <= len(original)
+    with Image.open(BytesIO(processed.payload)) as decoded:
+        assert "icc_profile" not in decoded.info
 
 
 def test_canonically_reencodes_png_and_jpeg_without_metadata_or_trailing_bytes() -> None:
@@ -146,7 +148,7 @@ def test_retains_smaller_canonically_encoded_jpeg_format() -> None:
         tuple(randomizer.randrange(256) for _ in range(3))
         for _ in range(64 * 64)
     ])
-    original = _encoded(noisy, "JPEG", quality=95) + b"discard me"
+    original = _encoded(noisy, "JPEG", quality=95, comment=b"private-comment") + b"discard me"
 
     processed = process_image(original, "image/jpeg")
 
@@ -154,6 +156,8 @@ def test_retains_smaller_canonically_encoded_jpeg_format() -> None:
     assert processed.mime_type == "image/jpeg"
     assert processed.payload != original
     assert b"discard me" not in processed.payload
+    with Image.open(BytesIO(processed.payload)) as decoded:
+        assert "comment" not in decoded.info
 
 
 @pytest.mark.parametrize(("format", "content_type"), [("PNG", "image/png"), ("WEBP", "image/webp")])
