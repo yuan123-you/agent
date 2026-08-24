@@ -93,11 +93,11 @@ def test_timeout_fallback_does_not_change_normal_empty_content():
 
 def test_eval_tool_metadata_exposes_only_ranked_product_identity():
     message = tool_message("product_search", {"products": [
-        {"productId": 7, "name": "星耀 X5", "price": 999, "stock": 3, "secret": "x"}
+        {"productId": 7, "name": "星耀 X5", "category": "PHONE", "price": 999, "stock": 3, "secret": "x"}
     ]})
 
     assert _eval_tool_metadata(message) == {
-        "products": [{"productId": 7, "name": "星耀 X5", "rank": 1}]
+        "products": [{"productId": 7, "name": "星耀 X5", "category": "PHONE", "rank": 1}]
     }
 
 

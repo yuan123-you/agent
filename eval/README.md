@@ -45,7 +45,7 @@ python scripts/run_eval.py --mode live --limit 1 --internal-token "$INTERNAL_TOK
 |------|------|
 | intentAccuracy | 规则分类器命中预期意图的占比 |
 | toolCorrectness | 预测工具集与期望工具集交非空占比 |
-| ragHitRate | 查询在 BM25 top-5 召回命中期望商品占比 |
+| ragHitRate | 离线按期望商品名；live 优先商品名，扩充目录后允许 `expected_category` 的 top-5 类目命中 |
 | replyQuality | 回复要点覆盖率；live 使用真实最终回复 |
 | toolArgumentAccuracy | live 工具参数对标注参数的匹配率 |
 | ragMRR | live 期望商品首个命中的平均倒数排名 |

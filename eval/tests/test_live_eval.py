@@ -67,3 +67,22 @@ def test_evaluate_live_scores_actual_agent_outputs():
     assert metrics["latencyMs"] == {"p50": 100, "p95": 300}
     assert metrics["totalTokens"] == 20
     assert len(client.calls) == 2
+
+
+def test_rag_metric_accepts_current_catalog_category_when_seed_names_change():
+    live_result = result("PRODUCT_CONSULT", tools=(("product_search", {"category": "PHONE"}),))
+    live_result["tool_results"] = [{"tool": "product_search", "eval": {"products": [
+        {"name": "新款手机", "category": "PHONE", "rank": 1}
+    ]}}]
+    client = FakeClient({"PHONE 推荐": live_result})
+    datasets = {
+        "intent": [], "tool": [],
+        "rag": [{"query": "PHONE 推荐", "must_hit": ["旧种子手机"],
+                 "expected_category": "PHONE", "expect_hit": True}],
+        "reply": [],
+    }
+
+    metrics = evaluate_live(client, datasets)
+
+    assert metrics["ragHitRate"] == 1.0
+    assert metrics["ragMRR"] == 1.0

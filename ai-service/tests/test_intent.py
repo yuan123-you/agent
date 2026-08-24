@@ -74,3 +74,36 @@ def test_intent_prompt_explicitly_routes_identity_and_capability_questions():
     assert "ASSISTANT_META" in INTENT_SYSTEM_PROMPT
     assert "你是谁" in INTENT_SYSTEM_PROMPT
     assert "你能帮我做什么" in INTENT_SYSTEM_PROMPT
+
+
+class _ToolCallMessage:
+    def __init__(self, name, args):
+        self.tool_calls = [{"name": name, "args": args, "id": "call"}]
+        self.content = ""
+
+
+class _ToolResultMessage:
+    tool_calls = []
+    content = "result"
+
+
+def _tool_loop_state(messages):
+    return AgentState(messages=messages, intent="PRODUCT_CONSULT", tool_loop_count=2,
+                      escalated=False, user_id="1", conversation_id="1", history=[],
+                      summary=None, web_search_enabled=False)
+
+
+def test_should_finalize_instead_of_reexecuting_identical_tool_call():
+    from app.agent.nodes import FINALIZE_FLAG, should_continue
+    first = _ToolCallMessage("product_search", {"category": "PHONE"})
+    repeated = _ToolCallMessage("product_search", {"category": "PHONE"})
+
+    assert should_continue(_tool_loop_state([first, _ToolResultMessage(), repeated])) == FINALIZE_FLAG
+
+
+def test_should_execute_tool_again_when_arguments_change():
+    from app.agent.nodes import should_continue
+    first = _ToolCallMessage("product_search", {"category": "PHONE"})
+    changed = _ToolCallMessage("product_search", {"category": "PHONE", "max_price": 3000})
+
+    assert should_continue(_tool_loop_state([first, _ToolResultMessage(), changed])) == "tools"

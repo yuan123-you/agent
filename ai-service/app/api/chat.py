@@ -160,7 +160,8 @@ def _eval_tool_metadata(out) -> dict:
         return {}
     if name == "product_search":
         return {"products": [
-            {"productId": item.get("productId"), "name": item.get("name", ""), "rank": rank}
+            {"productId": item.get("productId"), "name": item.get("name", ""),
+             "category": item.get("category", ""), "rank": rank}
             for rank, item in enumerate(value.get("products") or [], 1)
         ]}
     if name == "kb_search":

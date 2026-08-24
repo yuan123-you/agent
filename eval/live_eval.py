@@ -101,14 +101,20 @@ def evaluate_live(client, datasets: dict[str, list[dict]], conversation_start: i
     reciprocal_sum = 0.0
     for case in rag_cases:
         results = replay(case["query"])["tool_results"]
-        products = next((item.get("eval", {}).get("products", []) for item in results
-                         if item.get("tool") == "product_search"), [])
+        product_lists = [item.get("eval", {}).get("products", []) for item in results
+                         if item.get("tool") == "product_search"]
         expected = set(case.get("must_hit") or [])
-        rank = next((item.get("rank", i) for i, item in enumerate(products[:5], 1)
-                     if item.get("name") in expected), None)
+        expected_category = case.get("expected_category")
+        exact_ranks = [product.get("rank", rank) for products in product_lists
+                       for rank, product in enumerate(products[:5], 1)
+                       if product.get("name") in expected]
+        category_ranks = [product.get("rank", rank) for products in product_lists
+                          for rank, product in enumerate(products[:5], 1)
+                          if expected_category and product.get("category") == expected_category]
+        rank = min(exact_ranks or category_ranks, default=None)
         hit = rank is not None
         if not case.get("expect_hit", True):
-            hit = not products
+            hit = not any(product_lists)
         rag_hits += hit
         reciprocal_sum += 1.0 / rank if rank else 0.0
 
