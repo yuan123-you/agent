@@ -1,10 +1,12 @@
 """Safe decoding, normalization, downloading, and storage of catalog images."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -18,6 +20,7 @@ _FORMATS = {
     "WEBP": ("webp", "image/webp"),
 }
 _ALLOWED_CONTENT_TYPES = frozenset(mime for _, mime in _FORMATS.values())
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 
 @dataclass(frozen=True)
@@ -92,17 +95,8 @@ def _save(image: Image.Image, format: str) -> bytes:
     elif format == "PNG":
         image.save(output, "PNG", optimize=True)
     else:
-        image.save(output, "JPEG", quality=95, optimize=True)
+        image.save(output, "JPEG", quality=82, optimize=True)
     return output.getvalue()
-
-
-def _can_retain_input(image: Image.Image, format: str, orientation: int, resized: bool) -> bool:
-    if resized or orientation not in (None, 1):
-        return False
-    metadata = set(image.info)
-    if format == "JPEG":
-        metadata -= {"jfif", "jfif_version", "jfif_unit", "jfif_density"}
-    return not metadata
 
 
 def process_image(data: bytes, content_type: str) -> ProcessedImage:
@@ -120,27 +114,24 @@ def process_image(data: bytes, content_type: str) -> ProcessedImage:
             width, height = source.size
             if width <= 0 or height <= 0 or width * height > MAX_DECODED_PIXELS:
                 raise ValueError("decoded image must not exceed 40,000,000 pixels")
+            if getattr(source, "is_animated", False) or getattr(source, "n_frames", 1) > 1:
+                raise ValueError("animated images are not supported")
 
             orientation = source.getexif().get(274, 1)
             source.load()
             transposed = ImageOps.exif_transpose(source)
             has_alpha = "A" in transposed.getbands() or "transparency" in source.info
             normalized = transposed.convert("RGBA" if has_alpha else "RGB")
-            before_size = normalized.size
             normalized.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
-            resized = normalized.size != before_size
 
             webp = _save(normalized, "WEBP")
             extension, mime_type = _FORMATS["WEBP"]
             payload = webp
 
             if format in ("JPEG", "PNG"):
-                if _can_retain_input(source, format, orientation, resized):
-                    original_format = data
-                else:
-                    original_format = _save(normalized, format)
-                if len(original_format) <= len(webp):
-                    payload = original_format
+                safe_original_format = _save(normalized, format)
+                if len(safe_original_format) <= len(webp):
+                    payload = safe_original_format
                     extension, mime_type = _FORMATS[format]
 
             output_hash = sha256(payload).hexdigest()
@@ -162,52 +153,73 @@ def process_image(data: bytes, content_type: str) -> ProcessedImage:
     )
 
 
+def _http_url(url: str) -> bool:
+    parsed = urlsplit(url)
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.hostname)
+
+
 def download_image(url: str, session: Any, settings: DownloadSettings) -> DownloadedImage:
-    """Stream one image through a caller-provided HTTP session without real I/O in tests."""
-    previous_redirect_limit = getattr(session, "max_redirects", None)
-    has_redirect_limit = hasattr(session, "max_redirects")
-    if has_redirect_limit:
-        session.max_redirects = settings.max_redirects
-    try:
+    """Stream one image through a caller-provided HTTP session with local redirect limits."""
+    current_url = url
+    for redirects_followed in range(settings.max_redirects + 1):
+        if not _http_url(current_url):
+            raise ValueError("image URL must use HTTP or HTTPS")
+
         response = session.get(
-            url,
+            current_url,
             stream=True,
             timeout=settings.timeout_seconds,
-            allow_redirects=True,
+            allow_redirects=False,
         )
-    finally:
-        if has_redirect_limit:
-            session.max_redirects = previous_redirect_limit
-
-    try:
-        response.raise_for_status()
-        if len(getattr(response, "history", ())) > settings.max_redirects:
-            raise ValueError("image download exceeded redirect limit")
-
-        content_length = response.headers.get("Content-Length")
-        if content_length is not None:
-            try:
-                announced_bytes = int(content_length)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("image response has an invalid Content-Length") from exc
-            if announced_bytes < 0 or announced_bytes > settings.max_bytes:
-                raise ValueError("image response exceeds 10 MiB")
-
-        payload = bytearray()
-        for chunk in response.iter_content(chunk_size=_CHUNK_BYTES):
-            if not chunk:
+        try:
+            if getattr(response, "status_code", 200) in _REDIRECT_STATUSES:
+                location = response.headers.get("Location")
+                if not location:
+                    raise ValueError("image redirect is missing Location")
+                if redirects_followed >= settings.max_redirects:
+                    raise ValueError("image download exceeded redirect limit")
+                next_url = urljoin(getattr(response, "url", current_url), location)
+                if not _http_url(next_url):
+                    raise ValueError("image redirect must use HTTP or HTTPS")
+                current_url = next_url
                 continue
-            payload.extend(chunk)
-            if len(payload) > settings.max_bytes:
-                raise ValueError("image response exceeds 10 MiB")
 
-        return DownloadedImage(
-            payload=bytes(payload),
-            content_type=_normalized_content_type(response.headers.get("Content-Type", "")),
-            final_url=getattr(response, "url", url),
-        )
-    finally:
-        response.close()
+            response.raise_for_status()
+            content_length = response.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    announced_bytes = int(content_length)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("image response has an invalid Content-Length") from exc
+                if announced_bytes < 0 or announced_bytes > settings.max_bytes:
+                    raise ValueError("image response exceeds 10 MiB")
+
+            payload = bytearray()
+            for chunk in response.iter_content(chunk_size=_CHUNK_BYTES):
+                if not chunk:
+                    continue
+                if len(chunk) > settings.max_bytes - len(payload):
+                    raise ValueError("image response exceeds 10 MiB")
+                payload.extend(chunk)
+
+            return DownloadedImage(
+                payload=bytes(payload),
+                content_type=_normalized_content_type(response.headers.get("Content-Type", "")),
+                final_url=getattr(response, "url", current_url),
+            )
+        finally:
+            response.close()
+
+    raise AssertionError("redirect loop must return or raise")
+
+
+def _stored_sha256(metadata: Any) -> str | None:
+    if not isinstance(metadata, Mapping):
+        return None
+    for key, value in metadata.items():
+        if str(key).lower() in {"sha256", "x-amz-meta-sha256"}:
+            return str(value)
+    return None
 
 
 def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
@@ -219,7 +231,15 @@ def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
         if getattr(exc, "code", None) not in {"NoSuchKey", "NoSuchObject"}:
             raise
     else:
-        if existing.size == image.output_bytes:
+        metadata = getattr(existing, "metadata", {})
+        content_type = getattr(existing, "content_type", None)
+        if content_type is None and isinstance(metadata, Mapping):
+            content_type = metadata.get("content-type") or metadata.get("Content-Type")
+        if (
+            existing.size == image.output_bytes
+            and content_type == image.mime_type
+            and _stored_sha256(metadata) == image.sha256
+        ):
             return f"/api/v1/product-images/{object_name}"
 
     client.put_object(
@@ -228,5 +248,6 @@ def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
         BytesIO(image.payload),
         image.output_bytes,
         content_type=image.mime_type,
+        metadata={"sha256": image.sha256},
     )
     return f"/api/v1/product-images/{object_name}"

@@ -33,3 +33,21 @@ Complete.
 
 ## Concerns
 - Idempotent existence checks rely on the SHA-256 object name plus stored byte length; an externally corrupted object with the same key and length is outside this pipeline's normal write model and would require object retrieval to detect.
+
+## Fix Round 1 — RED-GREEN
+- This section supersedes the initial raw-retention, same-size MinIO skip, and related concern statements above.
+- **RED:** `python -m pytest backend/scripts/tests/product_catalog/test_images.py -q` produced the expected boundary failures (`15 failed, 9 passed`): JPEG canonical retention, animated PNG/WebP rejection, request-local redirects, pre-allocation byte enforcement, and MinIO metadata identity were not implemented.
+- **RED (real metadata mapping):** after the first green pass, a regression using immutable mapping metadata failed (`1 failed, 23 passed`), proving MinIO's mapping-compatible metadata container was not recognized by a `dict`-only check.
+- **GREEN:** focused image suite passed with `24 passed` and pristine output.
+- **REGRESSION:** full product-catalog suite passed with `77 passed` and pristine output.
+
+### Fixes
+- JPEG and PNG candidates are now always canonically re-encoded; no source bytes, trailing data, EXIF, text chunks, or unknown ancillary bytes are copied into stored payloads. The safe same-format candidate is compared with WebP, including deterministic JPEG retention when smaller.
+- Animated PNG and WebP inputs are rejected before frame loading or transforms.
+- Redirects use `allow_redirects=False`, are resolved one hop at a time, and never mutate shared session redirect state. The configured hop limit is checked before another request; every response is closed, and missing or non-HTTP(S) targets are rejected.
+- Streamed chunks are checked against remaining capacity before `bytearray.extend`, so the accumulation buffer never crosses the configured maximum.
+- Existing MinIO objects are skipped only when size, content type, and SHA-256 metadata all match. Uploads include `sha256` user metadata; missing or mismatched identity fields cause overwrite without downloading the object.
+- The object key and public path contracts remain `catalog/{sha256}.{jpg|png|webp}` and `/api/v1/product-images/catalog/{sha256}.{jpg|png|webp}`.
+
+### Concerns
+- None identified for this fix round.
