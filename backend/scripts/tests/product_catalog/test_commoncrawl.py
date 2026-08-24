@@ -215,3 +215,56 @@ def test_discover_records_refetches_corrupt_or_truncated_cache(monkeypatch, tmp_
     assert [record.url for record in discover_records(config, tmp_path)] == ["https://www.example.com/a"]
     assert calls == [True]
     assert cache_path.read_bytes().endswith(b"\n")
+
+@pytest.mark.parametrize("header_prefix,total", [("BYTES", "*"), ("bYtEs", "999")])
+def test_fetch_warc_html_accepts_case_insensitive_and_wildcard_content_range(header_prefix, total):
+    warc_bytes = _warc_bytes()
+    record = _record(len(warc_bytes))
+
+    class Session:
+        def get(self, *_args, **_kwargs):
+            return FakeResponse(
+                content=warc_bytes,
+                headers={
+                    "Content-Length": str(len(warc_bytes)),
+                    "Content-Range": f"{header_prefix} {record.offset}-{record.offset + record.length - 1}/{total}",
+                },
+                status_code=206,
+            )
+
+    assert fetch_warc_html(record, Session()) == "<html><body>Product</body></html>"
+
+
+def test_fetch_warc_html_rejects_content_range_total_not_after_requested_end():
+    warc_bytes = _warc_bytes()
+    record = _record(len(warc_bytes))
+    end = record.offset + record.length - 1
+
+    class Session:
+        def get(self, *_args, **_kwargs):
+            return FakeResponse(
+                content=warc_bytes,
+                headers={
+                    "Content-Length": str(len(warc_bytes)),
+                    "Content-Range": f"bytes {record.offset}-{end}/{end}",
+                },
+                status_code=206,
+            )
+
+    with pytest.raises(ValueError, match="Content-Range"):
+        fetch_warc_html(record, Session())
+
+
+def test_discover_records_caches_empty_index_results_without_refetch(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_get(*_args, **_kwargs):
+        calls.append(True)
+        return FakeResponse()
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    assert list(discover_records(source_config(), tmp_path)) == []
+    assert list(discover_records(source_config(), tmp_path)) == []
+    assert calls == [True]
+    assert next(tmp_path.glob("*.jsonl")).read_text(encoding="utf-8") == "# commoncrawl-cache-complete\n"

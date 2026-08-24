@@ -24,7 +24,7 @@ MAX_INDEX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_HTML_BYTES = 5 * 1024 * 1024
 DATA_BASE_URL = "https://data.commoncrawl.org/"
 INDEX_BASE_URL = "https://index.commoncrawl.org/"
-_CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
+_CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+|\*)$", re.IGNORECASE)
 _CACHE_COMPLETE_MARKER = "# commoncrawl-cache-complete"
 
 
@@ -132,7 +132,7 @@ def _read_cache(path: Path, rate_limit_per_second: int) -> list[str]:
         payload = cache_file.read(maximum_cache_bytes + 1)
     if len(payload) > maximum_cache_bytes:
         raise ValueError("cached Common Crawl index exceeds response cap")
-    if not payload.endswith(("\n" + _CACHE_COMPLETE_MARKER + "\n").encode("utf-8")):
+    if not payload.endswith((_CACHE_COMPLETE_MARKER + "\n").encode("utf-8")):
         raise ValueError("cached Common Crawl index is truncated")
     try:
         lines = payload.decode("utf-8").splitlines()
@@ -149,7 +149,7 @@ def _write_cache(path: Path, lines: list[str]) -> None:
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n", dir=path.parent, delete=False) as temporary:
             temporary_name = temporary.name
-            temporary.write("\n".join(lines) + "\n" + _CACHE_COMPLETE_MARKER + "\n")
+            temporary.write(("\n".join(lines) + "\n" if lines else "") + _CACHE_COMPLETE_MARKER + "\n")
             temporary.flush()
             os.fsync(temporary.fileno())
         os.replace(temporary_name, path)
@@ -228,6 +228,9 @@ def _validate_content_range(response: requests.Response, start: int, end: int) -
     match = _CONTENT_RANGE.fullmatch(response.headers.get("Content-Range", ""))
     if match is None or (int(match.group(1)), int(match.group(2))) != (start, end):
         raise ValueError("WARC Content-Range does not match requested range")
+    total = match.group(3)
+    if total != "*" and int(total) <= end:
+        raise ValueError("WARC Content-Range total does not contain requested range")
 
 
 def fetch_warc_html(record: CrawlRecord, session: requests.Session) -> str:
