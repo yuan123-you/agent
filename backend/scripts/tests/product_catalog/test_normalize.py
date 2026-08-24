@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
-from hashlib import sha256
 from decimal import Decimal
+from hashlib import sha256
+from types import MappingProxyType
 
 from backend.scripts.product_catalog.model import ImageCandidate, RawProduct
 from backend.scripts.product_catalog.normalize import deduplicate, normalize, validation_errors
@@ -127,3 +128,42 @@ def test_normalize_leaves_malformed_urls_for_validation_rejection():
     candidate = normalize(_raw(source_url="https://example.test:bad/"), "PHONE")
 
     assert "source_url must be an absolute HTTP URL" in validation_errors(candidate, MINIMUM_TIME)
+
+
+def test_validation_normalizes_json_compatible_mapping_specs_and_rejects_non_json_values():
+    mapping_specs = normalize(
+        _raw(specs=MappingProxyType({" nested ": MappingProxyType({"count": 1})})),
+        "PHONE",
+    )
+    set_specs = normalize(_raw(specs={"colors": {"blue", "black"}}), "PHONE")
+    non_finite_specs = normalize(_raw(specs={"weight": float("nan")}), "PHONE")
+
+    assert mapping_specs.raw.specs == {"nested": {"count": 1}}
+    assert validation_errors(mapping_specs, MINIMUM_TIME) == []
+    assert "specs must be JSON-serializable" in validation_errors(set_specs, MINIMUM_TIME)
+    assert "specs must be JSON-serializable" in validation_errors(non_finite_specs, MINIMUM_TIME)
+
+
+def test_normalize_preserves_credential_url_for_rejection_instead_of_erasing_provenance():
+    source_url = "HTTPS://user:secret@Example.TEST/product"
+    candidate = normalize(_raw(source_url=source_url), "PHONE")
+
+    assert candidate.raw.source_url == source_url
+    assert "source_url must be an absolute HTTP URL" in validation_errors(candidate, MINIMUM_TIME)
+
+    disallowed_url = "ftp://Example.TEST/product"
+    disallowed = normalize(_raw(source_url=disallowed_url), "PHONE")
+    assert disallowed.raw.source_url == disallowed_url
+    assert "source_url must be an absolute HTTP URL" in validation_errors(disallowed, MINIMUM_TIME)
+
+
+def test_keyword_category_inference_uses_deliberate_terms_without_substring_false_positives():
+    cabbage = normalize(_raw(name="Cabbage seeds", category=None), None)
+    carpet = normalize(_raw(name="Carpet cleaner", category=None), None)
+    backpack = normalize(_raw(name="Compact travel backpack", category=None), None)
+    pet_food = normalize(_raw(name="Pet food bowl", category=None), None)
+
+    assert cabbage.raw.category is None
+    assert carpet.raw.category is None
+    assert backpack.raw.category == "BAGS"
+    assert pet_food.raw.category == "PET"

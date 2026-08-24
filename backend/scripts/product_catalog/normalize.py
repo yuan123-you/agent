@@ -4,7 +4,9 @@ from __future__ import annotations
 from dataclasses import replace
 from decimal import Decimal, ROUND_HALF_UP
 from html.parser import HTMLParser
-from typing import Any
+import json
+import re
+from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .model import CATEGORIES, CatalogProductCandidate, RawProduct
@@ -20,9 +22,9 @@ RWF SAR SBD SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT 
 TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAF XCD XCG XOF XPF YER ZAR ZMW ZWG
 """.split())
 _CATEGORY_TERMS = (
-    ("PHONE", ("smartphone", "cell phone", "mobile phone", "iphone", "android phone", " phone")),
+    ("PHONE", ("smartphone", "cell phone", "mobile phone", "iphone", "android phone", "phone")),
     ("COMPUTER", ("laptop", "notebook", "macbook", "desktop", "chromebook", "computer")),
-    ("DIGITAL", ("headphone", "earphone", "earbud", "camera", "speaker", "television", " tv")),
+    ("DIGITAL", ("headphone", "headphones", "earphone", "earphones", "earbud", "earbuds", "camera", "speaker", "television", "tv")),
     ("APPLIANCE", ("refrigerator", "washing machine", "vacuum", "microwave", "air conditioner")),
     ("HOME_DECOR", ("lamp", "rug", "curtain", "mirror", "decor")),
     ("FURNITURE", ("chair", "table", "sofa", "bed", "desk", "cabinet")),
@@ -94,7 +96,7 @@ def _category(value: str | None) -> str | None:
 def _keyword_category(name: str | None) -> str | None:
     folded = _fold(name)
     for category, terms in _CATEGORY_TERMS:
-        if any(term in folded for term in terms):
+        if any(re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", folded) for term in terms):
             return category
     return None
 
@@ -108,9 +110,11 @@ def _normalize_url(value: str | None) -> str | None:
         port = parts.port
     except ValueError:
         return text
-    if not parts.scheme or not parts.hostname:
+    if not parts.scheme or not parts.hostname or parts.username or parts.password:
         return text
     scheme = parts.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return text
     host = parts.hostname.lower()
     netloc = host if port is None or (scheme, port) in (("http", 80), ("https", 443)) else f"{host}:{port}"
     query = urlencode([(key, item) for key, item in parse_qsl(parts.query, keep_blank_values=True)
@@ -119,14 +123,24 @@ def _normalize_url(value: str | None) -> str | None:
 
 
 def _normalize_specs(specs: Any) -> Any:
-    if not isinstance(specs, dict):
+    if not isinstance(specs, Mapping):
         return specs
     normalized = {}
     for key, value in specs.items():
         cleaned_key = _clean_text(key)
         if cleaned_key:
-            normalized[cleaned_key] = _clean_text(value) if isinstance(value, str) else value
+            normalized[cleaned_key] = _normalize_spec_value(value)
     return normalized
+
+
+def _normalize_spec_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return _normalize_specs(value)
+    if isinstance(value, list):
+        return [_normalize_spec_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalize_spec_value(item) for item in value]
+    return _clean_text(value) if isinstance(value, str) else value
 
 
 def _normalize_price(value: Decimal | None) -> Decimal | None:
@@ -180,8 +194,13 @@ def validation_errors(item: CatalogProductCandidate, minimum_time) -> list[str]:
         errors.append("price must be positive")
     if raw.currency not in _CURRENCIES:
         errors.append(f"unsupported currency: {raw.currency}")
-    if not isinstance(raw.specs, dict):
+    if not isinstance(raw.specs, Mapping):
         errors.append("specs must be an object")
+    else:
+        try:
+            json.dumps(_normalize_specs(raw.specs), allow_nan=False)
+        except (TypeError, ValueError):
+            errors.append("specs must be JSON-serializable")
     if not raw.image_candidates:
         errors.append("at least one image is required")
     if not _valid_url(raw.source_url):
