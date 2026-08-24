@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-23T00:00:00+08:00",
+  "generatedAt": "2026-08-24T00:00:00+08:00",
   "seed": 20260823,
   "documents": [
     {
@@ -15,8 +15,8 @@
         "POLICY",
         "direct"
       ],
-      "charCount": 1157,
-      "estimatedChunkCount": 3
+      "charCount": 18688,
+      "estimatedChunkCount": 37
     },
     {
       "key": "order-change-cancel",
@@ -30,8 +30,8 @@
         "FAQ",
         "paraphrase"
       ],
-      "charCount": 1108,
-      "estimatedChunkCount": 3
+      "charCount": 18501,
+      "estimatedChunkCount": 37
     },
     {
       "key": "payment-refund",
@@ -45,8 +45,8 @@
         "FAQ",
         "conditional"
       ],
-      "charCount": 1089,
-      "estimatedChunkCount": 3
+      "charCount": 18507,
+      "estimatedChunkCount": 37
     },
     {
       "key": "invoice-service",
@@ -60,8 +60,8 @@
         "FAQ",
         "multi_hop"
       ],
-      "charCount": 1039,
-      "estimatedChunkCount": 3
+      "charCount": 18413,
+      "estimatedChunkCount": 37
     },
     {
       "key": "membership-promotions",
@@ -75,8 +75,8 @@
         "FAQ",
         "temporal"
       ],
-      "charCount": 1064,
-      "estimatedChunkCount": 3
+      "charCount": 18310,
+      "estimatedChunkCount": 36
     },
     {
       "key": "standard-delivery",
@@ -90,8 +90,8 @@
         "POLICY",
         "hard_negative"
       ],
-      "charCount": 1087,
-      "estimatedChunkCount": 3
+      "charCount": 18358,
+      "estimatedChunkCount": 36
     },
     {
       "key": "special-delivery",
@@ -105,8 +105,8 @@
         "POLICY",
         "direct"
       ],
-      "charCount": 1133,
-      "estimatedChunkCount": 3
+      "charCount": 18616,
+      "estimatedChunkCount": 37
     },
     {
       "key": "crossborder-remote-delivery",
@@ -120,8 +120,8 @@
         "POLICY",
         "paraphrase"
       ],
-      "charCount": 1103,
-      "estimatedChunkCount": 3
+      "charCount": 18581,
+      "estimatedChunkCount": 37
     },
     {
       "key": "seven-day-return",
@@ -135,8 +135,8 @@
         "POLICY",
         "conditional"
       ],
-      "charCount": 1108,
-      "estimatedChunkCount": 3
+      "charCount": 18494,
+      "estimatedChunkCount": 37
     },
     {
       "key": "quality-exchange",
@@ -150,8 +150,8 @@
         "POLICY",
         "multi_hop"
       ],
-      "charCount": 1095,
-      "estimatedChunkCount": 3
+      "charCount": 18589,
+      "estimatedChunkCount": 37
     },
     {
       "key": "warranty-repair",
@@ -165,8 +165,8 @@
         "INTRO",
         "temporal"
       ],
-      "charCount": 1106,
-      "estimatedChunkCount": 3
+      "charCount": 18509,
+      "estimatedChunkCount": 37
     },
     {
       "key": "complaint-mediation",
@@ -180,8 +180,8 @@
         "POLICY",
         "hard_negative"
       ],
-      "charCount": 1110,
-      "estimatedChunkCount": 3
+      "charCount": 18601,
+      "estimatedChunkCount": 37
     },
     {
       "key": "account-security-privacy",
@@ -195,8 +195,8 @@
         "POLICY",
         "direct"
       ],
-      "charCount": 1108,
-      "estimatedChunkCount": 3
+      "charCount": 18569,
+      "estimatedChunkCount": 37
     },
     {
       "key": "digital-home-beauty-aftercare",
@@ -210,8 +210,8 @@
         "INTRO",
         "paraphrase"
       ],
-      "charCount": 1144,
-      "estimatedChunkCount": 3
+      "charCount": 18688,
+      "estimatedChunkCount": 37
     },
     {
       "key": "food-family-home-aftercare",
@@ -225,8 +225,8 @@
         "INTRO",
         "conditional"
       ],
-      "charCount": 1220,
-      "estimatedChunkCount": 3
+      "charCount": 18856,
+      "estimatedChunkCount": 37
     }
   ]
 }

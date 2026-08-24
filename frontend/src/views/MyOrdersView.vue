@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page orders"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page orders">
     <h3 class="page-title">我的订单</h3>
     <el-tabs v-model="status" @tab-change="reload">
       <el-tab-pane label="全部" name="" />
@@ -47,7 +43,8 @@
 
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && orders.length > 0" class="load-state">— 没有更多了 —</div>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -138,14 +135,14 @@ function statusTextOf(status: string): string {
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .orders {
   background: #fff;
   border-radius: 8px;
   margin: 16px;
   padding: 16px;
   width: calc(100% - 32px);
-  height: calc(100% - 32px);
-  overflow-y: auto;
+  min-height: calc(100% - 32px);
   box-sizing: border-box;
 }
 

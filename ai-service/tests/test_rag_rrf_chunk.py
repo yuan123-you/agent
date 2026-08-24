@@ -95,7 +95,7 @@ def test_generated_corpus_splits_each_formal_document_into_useful_chunks():
         assert all(chunk.strip() for chunk in chunks)
         chunk_counts.append(len(chunks))
 
-    assert all(5 <= count <= 20 for count in chunk_counts)
+    assert all(30 <= count <= 70 for count in chunk_counts)
 @pytest.mark.asyncio
 async def test_kb_search_reranks_fused_candidates(monkeypatch):
     from unittest.mock import AsyncMock

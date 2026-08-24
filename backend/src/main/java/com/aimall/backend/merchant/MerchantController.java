@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -27,7 +28,7 @@ import java.util.Map;
 /**
  * 商家端接口：/api/v1/merchant（仅 MERCHANT）
  * <p>商品上架模板：必填（商品名/品牌/类目/价格/库存/商品简介/商品图片）；
- * 选填（卖点/参数JSON/材质/产地/发货地/生产日期/详细介绍）。</p>
+ * 必填（产地/发货地）；选填（材质/自定义商品信息/生产日期/详细介绍）。</p>
  */
 @RestController
 @RequestMapping("/api/v1/merchant")
@@ -38,6 +39,7 @@ public class MerchantController {
     private final MerchantMapper merchantMapper;
     private final ProductMapper productMapper;
     private final ProductReviewMapper reviewMapper;
+    private final ProductImageService productImageService;
 
     /** 上架/编辑商品模板 */
     @Data
@@ -59,11 +61,13 @@ public class MerchantController {
         private String sellingPoints;
         @NotBlank(message = "商品图片为必填项")
         private String imageUrl;
+        @NotBlank(message = "产地为必填项")
+        private String origin;
+        @NotBlank(message = "发货地为必填项")
+        private String shipFrom;
         // ── 选填项 ──
         private String specs;
         private String material;
-        private String origin;
-        private String shipFrom;
         private String productionDate;
         private String description;
     }
@@ -108,6 +112,12 @@ public class MerchantController {
                         .eq(status != null && !status.isBlank(), Product::getStatus, status)
                         .orderByDesc(Product::getId));
         return ApiResponse.ok(result);
+    }
+
+    /** 上传商品图片 */
+    @PostMapping(value = "/product-images", consumes = "multipart/form-data")
+    public ApiResponse<Map<String, String>> uploadProductImage(@RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(Map.of("url", productImageService.upload(file)));
     }
 
     /** 按模板上架商品（必填项由 Bean Validation 校验） */

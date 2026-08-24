@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page">
     <div class="toolbar">
       <h3 class="page-title">知识库管理（{{ total }}）</h3>
       <el-select v-model="status" style="width: 130px" @change="reload">
@@ -96,7 +92,8 @@
         <el-button type="primary" :loading="uploading" @click="submitUpload">上传并摄取</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -270,9 +267,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .page {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   box-sizing: border-box;
 }
 

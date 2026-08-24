@@ -50,10 +50,15 @@
             评价会话
           </el-button>
           <el-button
-            v-else-if="chat.current.status !== 'PENDING_HUMAN'"
+            v-else-if="chat.current.status === 'PENDING_HUMAN'"
+            type="warning"
+            plain
             size="small"
-            @click="onClose"
+            @click="onCancelHuman"
           >
+            取消转人工（{{ waitSeconds }}秒）
+          </el-button>
+          <el-button v-else size="small" @click="onClose">
             结束会话
           </el-button>
         </header>
@@ -145,6 +150,7 @@ import { Link, Menu, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import AiMessage from '@/components/chat/AiMessage.vue'
+import { remainingHumanWaitSeconds } from './humanHandoff'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -155,6 +161,7 @@ const showConvList = ref(false)
 const msgList = ref<HTMLElement>()
 const showRate = ref(false)
 const rateScore = ref(5)
+const waitSeconds = ref(0)
 const quickQuestions = ['推荐一款3000以内拍照好的手机', '我的订单到哪了', '支持7天无理由退货吗', '转人工客服']
 
 let pollTimer: number | undefined
@@ -168,7 +175,11 @@ onMounted(async () => {
     return
   }
   chat.expireOrderActions()
-  actionExpiryTimer = window.setInterval(() => chat.expireOrderActions(), 1000)
+  updateHumanWaitCountdown()
+  actionExpiryTimer = window.setInterval(() => {
+    chat.expireOrderActions()
+    updateHumanWaitCountdown()
+  }, 1000)
   await chat.loadConversations()
   const routeId = Number(route.params.conversationId)
   if (routeId) {
@@ -193,7 +204,10 @@ watch(
 
 watch(
   () => chat.current?.status,
-  () => startPollingIfNeeded(),
+  () => {
+    startPollingIfNeeded()
+    updateHumanWaitCountdown()
+  },
 )
 
 onBeforeUnmount(() => {
@@ -259,6 +273,30 @@ function transferHuman() {
   send('转人工客服')
 }
 
+let refreshingExpiredHandoff = false
+
+function updateHumanWaitCountdown() {
+  waitSeconds.value = chat.current?.status === 'PENDING_HUMAN'
+    ? remainingHumanWaitSeconds(chat.current.humanWaitExpiresAt)
+    : 0
+  if (chat.current?.status === 'PENDING_HUMAN' && waitSeconds.value === 0 && !refreshingExpiredHandoff) {
+    refreshingExpiredHandoff = true
+    chat.pollNewMessages()
+      .then(() => {
+        if (chat.current?.status === 'ACTIVE') ElMessage.warning('等待人工客服超时，已恢复 AI 客服')
+      })
+      .finally(() => { refreshingExpiredHandoff = false })
+  }
+}
+
+async function onCancelHuman() {
+  try {
+    await chat.cancelHumanHandoff()
+    ElMessage.success('已取消转人工，恢复 AI 客服')
+  } catch {
+    await chat.pollNewMessages().catch(() => {})
+  }
+}
 async function onClose() {
   try {
     await ElMessageBox.confirm('确定结束当前会话吗？', '提示', { type: 'warning' })

@@ -34,6 +34,7 @@ public class ChatService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final HumanHandoffService humanHandoffService;
     private final UserMapper userMapper;
     private final AiClient aiClient;
     private final SseEmitterManager sseEmitterManager;
@@ -339,6 +340,7 @@ public class ChatService {
     }
 
     public Page<Conversation> myConversations(Long userId, long page, long size) {
+        humanHandoffService.expireAll();
         return conversationMapper.selectPage(new Page<>(page, size),
                 new LambdaQueryWrapper<Conversation>()
                         .eq(Conversation::getUserId, userId)
@@ -346,6 +348,7 @@ public class ChatService {
     }
 
     public Conversation requireOwned(Long userId, Long conversationId) {
+        humanHandoffService.expire(conversationId);
         Conversation conv = conversationMapper.selectById(conversationId);
         if (conv == null || !conv.getUserId().equals(userId)) {
             throw new BizException(2003, "无权访问该会话");
@@ -364,6 +367,13 @@ public class ChatService {
         conversationMapper.updateById(upd);
     }
 
+    public void cancelHuman(Long userId, Long conversationId) {
+        humanHandoffService.cancel(userId, conversationId);
+    }
+
+    public java.time.LocalDateTime humanWaitExpiresAt(Conversation conversation) {
+        return humanHandoffService.expiresAt(conversation);
+    }
     public void satisfaction(Long userId, Long conversationId, Integer score) {
         Conversation conv = requireOwned(userId, conversationId);
         if (!"CLOSED".equals(conv.getStatus())) {
@@ -413,7 +423,7 @@ public class ChatService {
         vo.put("conversationId", conv.getId());
         vo.put("status", conv.getStatus());
         vo.put("updatedAt", conv.getUpdatedAt() == null ? "" : conv.getUpdatedAt().toString());
+        vo.put("humanWaitExpiresAt", humanHandoffService.expiresAt(conv));
         return vo;
     }
 }
-

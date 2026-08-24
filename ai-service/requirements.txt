@@ -16,6 +16,7 @@ setuptools<81
 pypdf==6.16.1
 python-multipart==0.0.32
 duckduckgo-search==8.1.1
+opencc-python-reimplemented==0.1.7
 rank_bm25==0.2.2
 # 可观测性：全链路 tracing（不开启时不依赖其连库）；配套自托管 langfuse v2 服务
 langfuse==2.56.1

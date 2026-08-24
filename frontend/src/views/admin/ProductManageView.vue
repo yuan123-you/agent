@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page">
     <div class="toolbar">
       <h3 class="page-title">商品管理（{{ total }}）</h3>
       <el-input v-model="keyword" placeholder="搜索商品/品牌" clearable style="width: 220px"
@@ -73,9 +69,6 @@
         <el-form-item label="卖点">
           <el-input v-model="form.sellingPoints" placeholder="空格分隔，如：5000万像素 大电池" />
         </el-form-item>
-        <el-form-item label="参数JSON">
-          <el-input v-model="form.specs" type="textarea" :rows="3" placeholder='{"屏幕":"6.7英寸"}' />
-        </el-form-item>
         <el-form-item label="介绍">
           <el-input v-model="form.description" type="textarea" :rows="4" />
         </el-form-item>
@@ -85,7 +78,8 @@
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -109,7 +103,7 @@ const saving = ref(false)
 
 const emptyForm = (): Partial<ProductVO> => ({
   name: '', brand: '', category: 'PHONE', price: 0, stock: 0,
-  imageUrl: '', sellingPoints: '', specs: '', description: '',
+  imageUrl: '', sellingPoints: '', description: '',
 })
 const form = reactive<Partial<ProductVO>>(emptyForm())
 
@@ -180,9 +174,9 @@ onMounted(load)
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .page {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   box-sizing: border-box;
 }
 

@@ -1,7 +1,7 @@
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, AdminDashboardVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
+  AddressVO, AdminDashboardVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderAction, OrderApprovalForm, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
 
 // ---------- 认证 ----------
@@ -72,6 +72,11 @@ export const apiMerchantProfile = () =>
   get<{ merchantId: number; shopName: string; description?: string; address?: string; onSaleCount: number; totalProducts: number }>('/merchant/profile')
 export const apiMerchantProducts = (params: Record<string, unknown>) =>
   get<PageResult<ProductVO>>('/merchant/products', { params })
+export const apiMerchantProductImage = (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return upload<{ url: string }>('/merchant/product-images', form)
+}
 export const apiMerchantCreate = (data: Record<string, unknown>) =>
   post<number>('/merchant/products', data)
 export const apiMerchantUpdate = (id: number, data: Record<string, unknown>) =>
@@ -108,8 +113,14 @@ export const apiAdminShip = (id: number, logisticsNo: string) =>
 export const apiAdminDeliver = (id: number) => post<void>(`/admin/orders/${id}/deliver`)
 
 // ---------- AI 下单动作 ----------
-export const apiConfirmOrderAction = (actionId: string) =>
-  post<{ orderId: number; orderNo: string; status: string; totalAmount: number }>(`/order-actions/${actionId}/confirm`)
+export const apiConfirmOrderAction = (actionId: string, approval: OrderApprovalForm) =>
+  post<{ orderId: number; orderNo: string; status: string; totalAmount: number }>(
+    `/order-actions/${actionId}/confirm`, approval,
+  )
+export const apiCancelOrderAction = (actionId: string) =>
+  post<void>(`/order-actions/${actionId}/cancel`)
+export const apiOrderActionStatus = (actionId: string) =>
+  get<Pick<OrderAction, 'status' | 'orderId' | 'orderNo'>>(`/order-actions/${actionId}`)
 
 // ---------- 收货地址簿 ----------
 export interface AddressPayload {
@@ -187,7 +198,8 @@ export const apiMessages = (id: number, params: Record<string, unknown>) =>
 export const apiMessagesAfter = (id: number, afterId: number) =>
   get<import('@/types/api').ChatMessage[]>(`/chat/conversations/${id}/messages`, { params: { afterId }, silent: true } as never)
 export const apiConversationStatus = (id: number) =>
-  get<{ conversationId: number; status: string }>(`/chat/conversations/${id}/status`, { silent: true } as never)
+  get<{ conversationId: number; status: string; humanWaitExpiresAt?: string }>(`/chat/conversations/${id}/status`, { silent: true } as never)
+export const apiCancelHuman = (id: number) => post<void>(`/chat/conversations/${id}/cancel-human`)
 export const apiHumanMessage = (id: number, content: string) =>
   post<void>(`/chat/conversations/${id}/human-message`, { content })
 

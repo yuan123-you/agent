@@ -1,4 +1,6 @@
 services:
+  # Stateful and third-party infrastructure stays in Docker.
+  # Application services (frontend/backend/ai-service) run on the host for hot reload and debugging.
   mysql:
     image: mysql:8.0.42
     container_name: aimall-mysql
@@ -10,14 +12,12 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     ports:
-      - "3306:3306"   # 本地开发可通过 localhost:3306 访问；生产建议移除
+      - "3307:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # ===== 基础设施（全部容器化，容器内通过服务名互相访问，不再依赖 host.docker.internal）=====
 
   redis:
     image: redis:7-alpine
@@ -26,7 +26,7 @@ services:
     volumes:
       - redis-data:/data
     ports:
-      - "6379:6379"   # 本地开发可访问；生产建议移除
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -44,15 +44,15 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "9000:9000"    # S3 API
-      - "9001:9001"    # 控制台
+      - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  # Milvus Standalone：镜像内置 etcd 与 MinIO，仅需单个容器（etcd/MinIO 无需单独部署）
+  # Milvus Standalone embeds etcd and uses local storage, so no extra etcd/object-store containers are needed.
   milvus:
     image: milvusdb/milvus:v2.4.9
     container_name: aimall-milvus
@@ -75,85 +75,9 @@ services:
       retries: 10
       start_period: 30s
 
-  ai-service:
-    build: ./ai-service
-    container_name: aimall-ai
-    env_file:
-      - ./ai-service/.env
-    environment:
-      TZ: Asia/Shanghai
-      MILVUS_URI: http://milvus:19530
-      BACKEND_BASE_URL: http://backend:8080
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
-      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-600}
-      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-90}
-      LANGFUSE_HOST: http://langfuse:3000
-    # Docker 容器访问 Windows 主机上的 Ollama
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # expose 不映射宿主端口：AI 服务永不直接对外（架构红线）
-    expose:
-      - "8000"
-    depends_on:
-      mysql:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  backend:
-    build: ./backend
-    container_name: aimall-backend
-    # 修复 MyBatis-Plus 在容器内 InetAddress.getLocalHost() 解析失败（"Unable to retrieve localhost"）
-    hostname: aimall-backend
-    environment:
-      TZ: Asia/Shanghai
-      MYSQL_HOST: mysql
-      MYSQL_DB: ai_mall
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ""
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-in-production-0123456789abcdef0123456789abcdef}
-      AI_SERVICE_BASE_URL: http://ai-service:8000
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-aimall-files}
-      KB_BULK_SEED_ENABLED: ${KB_BULK_SEED_ENABLED:-true}
-      KB_INGEST_BATCH_SIZE: ${KB_INGEST_BATCH_SIZE:-2}
-      KB_INGEST_MAX_CONCURRENT: ${KB_INGEST_MAX_CONCURRENT:-4}
-      KB_INGEST_STUCK_TIMEOUT_SECONDS: ${KB_INGEST_STUCK_TIMEOUT_SECONDS:-900}
-    ports:
-      - "8080:8080"   # 唯一对外业务入口
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      ai-service:
-        condition: service_started
-
-  frontend:
-    build: ./frontend
-    container_name: aimall-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-
-  # ===== 可观测性：Langfuse 自托管（全链路 tracing）=====
-  # 首次启动需在 .env 设置 LANGFUSE_INIT_* 自动创建项目并输出公钥/密钥，填入 ai-service/.env
+  # Optional local tracing: docker compose --profile observability up -d
   langfuse-db:
+    profiles: ["observability"]
     image: postgres:15
     container_name: aimall-langfuse-db
     environment:
@@ -169,6 +93,7 @@ services:
       retries: 10
 
   langfuse:
+    profiles: ["observability"]
     image: langfuse/langfuse:2.58.0
     container_name: aimall-langfuse
     environment:
@@ -177,7 +102,6 @@ services:
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-secret-please-change-0123456789abcdef}
       AUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-secret-please-change-0123456789abcdef}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
-      # 首次启动自动初始化示例项目与密钥（生产请改为 UI 登录后手动创建）
       LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-aimall}
       LANGFUSE_INIT_PUBLIC_KEY: ${LANGFUSE_INIT_PUBLIC_KEY:-pk-lf-aimall-dev}
       LANGFUSE_INIT_SECRET_KEY: ${LANGFUSE_INIT_SECRET_KEY:-sk-lf-aimall-dev}
@@ -203,4 +127,3 @@ volumes:
   minio-data:
   milvus-data:
   langfuse-db:
-

@@ -1,10 +1,18 @@
 """联网搜索工具：Tavily 优先（配置了 TAVILY_API_KEY 时），否则 DuckDuckGo 兜底（均免费起步）"""
 import asyncio
+import html
 import logging
 
 from langchain_core.tools import tool
+from opencc import OpenCC
 
 logger = logging.getLogger("ai-service.websearch")
+_to_simplified = OpenCC("t2s").convert
+
+
+def _clean_text(value: str | None) -> str:
+    """Decode entities and normalize search-provider text to Simplified Chinese."""
+    return _to_simplified(html.unescape(value or "")).strip()
 
 
 def _search_tavily(query: str, max_results: int) -> list[dict]:
@@ -32,8 +40,8 @@ def _search_tavily(query: str, max_results: int) -> list[dict]:
     results = []
     for item in data.get("results", []):
         results.append({
-            "title": item.get("title", ""),
-            "snippet": (item.get("content") or "")[:500],
+            "title": _clean_text(item.get("title")),
+            "snippet": _clean_text(item.get("content"))[:500],
             "url": item.get("url", ""),
         })
     return results
@@ -46,8 +54,8 @@ def _search_ddg(query: str, max_results: int) -> list[dict]:
     with DDGS() as ddgs:
         for item in ddgs.text(query, max_results=max_results):
             results.append({
-                "title": item.get("title", ""),
-                "snippet": item.get("body", ""),
+                "title": _clean_text(item.get("title")),
+                "snippet": _clean_text(item.get("body")),
                 "url": item.get("href", ""),
             })
     return results

@@ -3,17 +3,20 @@ package com.aimall.backend.order;
 import com.aimall.backend.common.ApiResponse;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.internal.AgentOrderActionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Buyer-owned explicit confirmation endpoint for prepared AI order actions. */
+/** Buyer-owned explicit decision endpoints for prepared AI order actions. */
 @RestController
 @RequestMapping("/api/v1/order-actions")
 @RequiredArgsConstructor
@@ -22,13 +25,28 @@ public class OrderActionController {
 
     @PostMapping("/{actionId}/confirm")
     public ApiResponse<Map<String, Object>> confirm(@AuthenticationPrincipal Long userId,
-                                                    @PathVariable String actionId) {
-        OrderInfo order = actionService.confirm(userId, actionId);
+                                                    @PathVariable String actionId,
+                                                    @Valid @RequestBody(required = false)
+                                                    AgentOrderActionService.ApprovalRequest approval) {
+        OrderInfo order = actionService.confirm(userId, actionId, approval);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("orderId", order.getId());
         result.put("orderNo", order.getOrderNo());
         result.put("status", order.getStatus());
         result.put("totalAmount", order.getTotalAmount());
         return ApiResponse.ok(result);
+    }
+
+    @GetMapping("/{actionId}")
+    public ApiResponse<AgentOrderActionService.ActionStatusResult> status(
+            @AuthenticationPrincipal Long userId, @PathVariable String actionId) {
+        return ApiResponse.ok(actionService.status(userId, actionId));
+    }
+
+    @PostMapping("/{actionId}/cancel")
+    public ApiResponse<Void> cancel(@AuthenticationPrincipal Long userId,
+                                    @PathVariable String actionId) {
+        actionService.cancel(userId, actionId);
+        return ApiResponse.ok();
     }
 }

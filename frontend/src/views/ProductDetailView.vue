@@ -1,5 +1,6 @@
 <template>
-  <div v-if="product" class="page detail">
+  <el-scrollbar class="page-scroll" :distance="30" @end-reached="direction => direction === 'bottom' && loadReviews()">
+    <div v-if="product" class="page detail">
     <div class="main">
       <el-image :src="product.imageUrl" fit="cover" class="pic" :preview-src-list="[product.imageUrl]">
         <template #error>
@@ -47,7 +48,7 @@
 
     <!-- 规格参数 -->
     <el-card shadow="never" class="card">
-      <template #header>规格参数</template>
+      <template #header>商品信息</template>
       <el-descriptions :column="isMobile ? 1 : 2" border>
         <el-descriptions-item label="品牌">{{ product.brand }}</el-descriptions-item>
         <el-descriptions-item label="类目">{{ categoryName(product.category) }}</el-descriptions-item>
@@ -75,11 +76,7 @@
           <span class="avg">平均 {{ avgRating }} 分</span>
         </div>
       </template>
-      <div
-        v-infinite-scroll="loadReviews"
-        :infinite-scroll-disabled="reviewLoading || reviewFinished"
-        :infinite-scroll-distance="30"
-      >
+      <div>
         <div v-for="r in reviews" :key="r.reviewId" class="review-item">
           <div class="r-head">
             <el-avatar :size="28">{{ r.nickname.slice(0, 1) }}</el-avatar>
@@ -132,7 +129,8 @@
         <el-button type="primary" :loading="submitting" :disabled="addressLoading || !selectedAddressId" @click="submitOrder">提交订单</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -284,9 +282,9 @@ function shortTime(t?: string): string {
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .detail {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   box-sizing: border-box;
   max-width: 1200px;
   margin: 0 auto;

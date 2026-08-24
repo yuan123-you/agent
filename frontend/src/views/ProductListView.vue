@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page product-list"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page product-list">
     <div class="filter-bar">
       <div class="filters">
         <el-input v-model="keyword" placeholder="搜索商品/品牌/卖点" clearable style="width: 220px"
@@ -28,7 +24,8 @@
     <!-- 懒加载状态 -->
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -97,12 +94,12 @@ onMounted(load)
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .product-list {
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   padding: 16px;
   box-sizing: border-box;
 }
