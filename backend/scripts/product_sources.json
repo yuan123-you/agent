@@ -1,0 +1,13 @@
+{
+  "common_crawl_index": "CC-MAIN-2025-30",
+  "minimum_source_time": "2025-01-01T00:00:00Z",
+  "rate_limit_per_second": 1,
+  "max_candidates_per_source": 100,
+  "allowed_domains": [
+    "apple.com", "samsung.com", "lenovo.com", "hp.com", "dell.com", "asus.com",
+    "ikea.com", "lego.com", "nike.com", "adidas.com", "sephora.com", "ulta.com",
+    "decathlon.com", "petsmart.com", "bookshop.org", "bestbuy.com", "target.com",
+    "walmart.com", "homedepot.com"
+  ],
+  "blocked_domains": []
+}
