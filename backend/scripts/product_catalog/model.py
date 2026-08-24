@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -69,6 +70,18 @@ class CatalogProductCandidate:
     """A normalized candidate retained for Task 3 quality validation."""
 
     raw: RawProduct
+    stock: int | None = None
+    sales: int | None = None
+    simulated_commerce_fields: bool = True
+
+    @property
+    def unique_key(self) -> str:
+        """Stable source identity used for duplicate and demo-value derivation."""
+        return f"{self.raw.source_name}\x1f{self.raw.source_product_id}"
+
+    @property
+    def seed(self) -> int:
+        return int(sha256(self.unique_key.encode("utf-8")).hexdigest()[:8], 16)
 
 
 @dataclass(frozen=True)
