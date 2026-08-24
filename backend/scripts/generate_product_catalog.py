@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -194,12 +195,65 @@ def _domain(url: str) -> str:
     return urlsplit(url).hostname or "source"
 
 
+# 结构化的商品页 URL 模式：命中任意一条即视为候选商品页。
+# 依据 Common Crawl 缓存索引实测：adidas/{region}/{lang}/{slug}/{SKU}.html、
+# apple/shop/product/{SKU}、petsmart -{5-8位}.html、target /p/、samsung 分类路径。
+_PRODUCT_URL_PATTERNS = (
+    re.compile(r"/shop/product/"),
+    re.compile(r"/shop/buy-"),
+    re.compile(r"/p/"),
+    re.compile(r"\.p$"),
+    re.compile(r"/product"),
+    re.compile(r"/products/"),
+    re.compile(r"-\d{5,8}\.html$"),
+    re.compile(r"/[^/]+/[A-Z0-9]{5,10}\.html$"),
+    re.compile(r"/(smartphones|business|tv|appliances|monitors|audio|wearables|tablets|watches|wearable)/"),
+    re.compile(r"/item/"),
+    re.compile(r"/ip/"),
+    re.compile(r"/pd/"),
+)
+
+
+def _is_product_page_url(url: str) -> bool:
+    """True when ``url`` looks like a structured product page worth fetching."""
+    from urllib.parse import urlparse
+    path = urlparse(url).path
+    return any(pattern.search(path) for pattern in _PRODUCT_URL_PATTERNS)
+
+
+# Apple 商店商品页 URL 形如 /shop/product/{SKU}/slug/...；SKU 跨地区一致。
+_APPLE_PRODUCT_SKU = re.compile(r"/shop/product/([A-Z0-9]+(?:/[A-Z0-9]+)?)/", re.IGNORECASE)
+
+
+def _is_apple_url(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").casefold()
+    return host == "apple.com" or host.endswith(".apple.com")
+
+
 def collect_raw_products(config: Any, cache_dir: Path, session: Any) -> list[RawProduct]:
     """Discover cached WARC pages and extract raw JSON-LD products per domain."""
     collected: list[RawProduct] = []
+    checked = 0
+    fetched = 0
+    next_progress = 0
+    # Apple 商店同一 SKU 会跨地区重复出现；抓取前按 URL 中的 SKU 预去重，
+    # 与 build 阶段的 (source_name, source_product_id) 去重结果一致。
+    seen_apple_skus: set[str] = set()
     for record in commoncrawl.discover_records(config, cache_dir):
+        checked += 1
+        if not _is_product_page_url(record.url):
+            continue
+        if _is_apple_url(record.url):
+            match = _APPLE_PRODUCT_SKU.search(record.url)
+            if match:
+                sku = match.group(1)
+                if sku in seen_apple_skus:
+                    continue
+                seen_apple_skus.add(sku)
         try:
             html = commoncrawl.fetch_warc_html(record, session)
+            fetched += 1
         except Exception:
             continue
         try:
@@ -207,6 +261,13 @@ def collect_raw_products(config: Any, cache_dir: Path, session: Any) -> list[Raw
         except Exception:
             continue
         collected.extend(raw)
+        if fetched >= next_progress:
+            next_progress = fetched + 500
+            print(
+                f"discover: fetched={fetched} products={len(collected)} "
+                f"domain={_domain(record.url)} url={record.url[:100]}",
+                file=sys.stderr,
+            )
     return collected
 
 

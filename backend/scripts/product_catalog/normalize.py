@@ -52,6 +52,25 @@ _CATEGORY_ALIASES = {
     "maternal and baby": "MATERNAL", "books": "BOOK", "cars": "CAR", "pets": "PET",
 }
 
+# 来源域名 → 内部一级分类兜底：当商品名不包含可识别的分类词时，
+# 依据公开来源类型给出稳定的内部分类代码（不虚构任何来源事实）。
+_SOURCE_FALLBACK_CATEGORY = {
+    "apple.com": "DIGITAL",
+    "samsung.com": "DIGITAL",
+    "adidas.com": "SPORTS",
+    "petsmart.com": "PET",
+}
+
+
+def _source_fallback_category(source_name: str | None) -> str | None:
+    if not source_name:
+        return None
+    host = " ".join(source_name.split()).casefold()
+    for suffix, category in _SOURCE_FALLBACK_CATEGORY.items():
+        if host == suffix or host.endswith("." + suffix):
+            return category
+    return None
+
 
 class _TextExtractor(HTMLParser):
     def __init__(self) -> None:
@@ -152,7 +171,12 @@ def _normalize_price(value: Decimal | None) -> Decimal | None:
 def normalize(raw: RawProduct, category_hint: str | None) -> CatalogProductCandidate:
     """Clean extraction text without inventing missing source facts."""
     name = _clean_text(raw.name)
-    category = _category(category_hint) or _category(raw.category) or _keyword_category(name)
+    category = (
+        _category(category_hint)
+        or _category(raw.category)
+        or _keyword_category(name)
+        or _source_fallback_category(raw.source_name)
+    )
     specs = _normalize_specs(raw.specs)
     images = tuple(
         replace(image, original_url=_normalize_url(image.original_url) or image.original_url,
