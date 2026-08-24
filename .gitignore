@@ -30,3 +30,6 @@ Thumbs.db
 
 # Local one-off script containing a private API credential
 _test_emb.ps1
+
+# Environment-specific live Agent evaluation output
+eval/results/live.json

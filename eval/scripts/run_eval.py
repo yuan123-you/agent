@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import Counter
 from datetime import datetime
@@ -26,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # eval/ 入 path
 from eval_core import BM25, proxy_intent, proxy_reply_score, tokenize  # noqa: E402
+from live_eval import LiveClient, evaluate_live  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parents[1]
 DATASET_DIR = EVAL_DIR / "dataset"
@@ -105,21 +107,35 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["offline", "live"], default="offline")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--base-url", default=os.getenv("AI_BASE_URL", "http://localhost:8000"))
+    ap.add_argument("--internal-token", default=os.getenv("INTERNAL_TOKEN", ""))
+    ap.add_argument("--user-id", type=int, default=int(os.getenv("EVAL_USER_ID", "1")))
+    ap.add_argument("--conversation-start", type=int, default=900000)
+    ap.add_argument("--timeout", type=float, default=180.0)
+    ap.add_argument("--limit", type=int, default=0, help="每个数据集最多回放条数；0 表示全量")
     args = ap.parse_args()
 
     if args.mode == "live":
-        print("live 模式需接入真实 LLM + Milvus 管线，当前版本未内置，请使用 --mode offline。",
-              file=sys.stderr)
-        sys.exit(2)
+        if not args.internal_token:
+            ap.error("live mode requires --internal-token or INTERNAL_TOKEN")
+        datasets = {name: _load_lines(name) for name in ("intent", "tool", "rag", "reply")}
+        if args.limit > 0:
+            datasets = {name: cases[:args.limit] for name, cases in datasets.items()}
+        client = LiveClient(args.base_url, args.internal_token, args.user_id, args.timeout)
+        baseline = evaluate_live(client, datasets, args.conversation_start)
+        baseline["generated_at"] = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+        out_name = "live.json"
+    else:
+        baseline = evaluate_offline()
+        out_name = "baseline.json"
 
-    baseline = evaluate_offline()
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "baseline.json"
+    out = RESULTS_DIR / out_name
     out.write_text(json.dumps(baseline, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.json:
         print(json.dumps(baseline, ensure_ascii=False, indent=2))
     else:
-        print("== eval baseline (offline) ==")
+        print(f"== eval ({baseline['mode']}) ==")
         for k, v in baseline["counts"].items():
             print(f"  {k}: {v}")
         print(f"  intentAccuracy : {baseline['intentAccuracy']}")

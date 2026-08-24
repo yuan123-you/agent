@@ -3,7 +3,7 @@ import json
 import pytest
 from langchain_core.messages import ToolMessage
 
-from app.api.chat import _timeout_fallback, _tool_result_preview
+from app.api.chat import _done_eval_metadata, _eval_tool_metadata, _timeout_fallback, _tool_result_preview
 
 
 def tool_message(name: str, content: object) -> ToolMessage:
@@ -89,3 +89,29 @@ def test_timeout_fallback_fills_empty_timed_out_content():
 
 def test_timeout_fallback_does_not_change_normal_empty_content():
     assert _timeout_fallback("", timed_out=False) == ""
+
+
+def test_eval_tool_metadata_exposes_only_ranked_product_identity():
+    message = tool_message("product_search", {"products": [
+        {"productId": 7, "name": "星耀 X5", "price": 999, "stock": 3, "secret": "x"}
+    ]})
+
+    assert _eval_tool_metadata(message) == {
+        "products": [{"productId": 7, "name": "星耀 X5", "rank": 1}]
+    }
+
+
+def test_eval_tool_metadata_exposes_ranked_kb_citations():
+    message = tool_message("kb_search", {"hits": [
+        {"chunk_id": 11, "doc_id": 2, "source": "退换货政策", "score": 0.8, "content": "secret"}
+    ]})
+
+    assert _eval_tool_metadata(message) == {
+        "hits": [{"chunkId": 11, "docId": 2, "source": "退换货政策", "score": 0.8, "rank": 1}]
+    }
+
+
+def test_done_eval_metadata_is_opt_in():
+    state = {"intent": "PRODUCT_CONSULT"}
+    assert _done_eval_metadata(state, enabled=True) == {"intent": "PRODUCT_CONSULT"}
+    assert _done_eval_metadata(state, enabled=False) == {}
