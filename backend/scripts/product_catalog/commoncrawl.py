@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ INDEX_TIMEOUT_SECONDS = 30
 WARC_TIMEOUT_SECONDS = 30
 INDEX_MAX_RETRIES = 4
 INDEX_RETRY_BACKOFF_SECONDS = 2
-MAX_INDEX_RESPONSE_BYTES = 5 * 1024 * 1024
+MAX_INDEX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_HTML_BYTES = 5 * 1024 * 1024
 DATA_BASE_URL = "https://data.commoncrawl.org/"
 INDEX_BASE_URL = "https://index.commoncrawl.org/"
@@ -206,8 +207,14 @@ def discover_records(source: SourceConfig, cache_dir: Path) -> Iterator[CrawlRec
             path.unlink(missing_ok=True)
             lines = None
         if lines is None:
-            lines = _fetch_index_lines(source, domain)
-            _write_cache(path, lines)
+            try:
+                lines = _fetch_index_lines(source, domain)
+                _write_cache(path, lines)
+            except (ValueError, requests.RequestException) as exc:
+                # 单个来源失效（索引超限、损坏或重试耗尽）不终止候选采集
+                path.unlink(missing_ok=True)
+                print(f"discover: skipping {domain}: {exc}", file=sys.stderr)
+                continue
 
         for count, record in enumerate(_records_from_lines(lines, source.rate_limit_per_second), start=1):
             yield record

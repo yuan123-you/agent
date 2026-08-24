@@ -78,14 +78,37 @@ def test_discover_records_caches_index_response_and_limits_candidates(monkeypatc
     assert len(list(tmp_path.glob("*.jsonl"))) == 1
 
 
-def test_discover_records_rejects_index_responses_over_cap(monkeypatch, tmp_path: Path):
+def test_discover_records_skips_index_responses_over_cap(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         "backend.scripts.product_catalog.commoncrawl.requests.get",
         lambda *_, **__: FakeResponse(headers={"Content-Length": str(MAX_INDEX_RESPONSE_BYTES + 1)}),
     )
 
-    with pytest.raises(ValueError, match="response cap"):
-        list(discover_records(source_config(), tmp_path))
+    assert list(discover_records(source_config(), tmp_path)) == []
+
+
+def test_discover_records_skips_failed_domain_and_continues(monkeypatch, tmp_path: Path):
+    config = SourceConfig(
+        common_crawl_index="CC-MAIN-2025-30",
+        minimum_source_time=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        rate_limit_per_second=2,
+        max_candidates_per_source=10,
+        allowed_domains=("fail.example", "ok.example"),
+        blocked_domains=(),
+    )
+    valid_line = '{"url":"https://www.ok.example/a","filename":"a","offset":"0","length":"1","timestamp":"20250701123456"}'
+    responses = [
+        FakeResponse(headers={"Content-Length": str(MAX_INDEX_RESPONSE_BYTES + 1)}),
+        FakeResponse(lines=[valid_line]),
+    ]
+
+    def fake_get(*_args, **_kwargs):
+        return responses.pop(0)
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    assert [record.url for record in discover_records(config, tmp_path)] == ["https://www.ok.example/a"]
+    assert len(list(tmp_path.glob("*.jsonl"))) == 1
 
 
 def test_fetch_warc_html_uses_declared_byte_range_and_decodes_one_record():
@@ -294,6 +317,5 @@ def test_discover_records_does_not_retry_permanent_4xx(monkeypatch, tmp_path: Pa
 
     monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
 
-    with pytest.raises(requests.HTTPError):
-        list(discover_records(source_config(), tmp_path))
+    assert list(discover_records(source_config(), tmp_path)) == []
     assert calls == [True]
