@@ -14,9 +14,9 @@ from .model import CATEGORIES, CatalogProduct
 
 TARGET_COUNT, REPLACEMENT_COUNT = 2512, 512
 MINIMUM_TIME = datetime(2025, 1, 1, tzinfo=timezone.utc)
-_HASH = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
-_IMAGE_PATH = re.compile(r"^/api/v1/product-images/catalog/([0-9a-f]{64})\.(jpg|png|webp)$", re.IGNORECASE)
-_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected"})
+_HASH = re.compile(r"^[0-9a-f]{64}$")
+_IMAGE_PATH = re.compile(r"^/api/v1/product-images/catalog/([0-9a-f]{64})\.(jpg|png|webp)$")
+_ALLOWED_REJECTIONS = frozenset({"duplicate source key", "duplicate content hash", "remote or Picsum image URL", "commerce_values_simulated must be true", "price must be positive", "unsupported category", "invalid specs", "stale time", "invalid content hash", "invalid image hash", "invalid image bytes", "invalid image path", "not selected", "missing name", "missing brand", "missing currency", "missing source_name", "missing source_url", "missing source_product_id", "invalid source URL"})
 
 @dataclass(frozen=True)
 class CatalogReport:
@@ -36,7 +36,7 @@ def _serialized_key(product: CatalogProduct) -> tuple[str, ...]:
 def _row_errors(row: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     path = row.get("image_url"); match = _IMAGE_PATH.fullmatch(path) if isinstance(path, str) else None
-    if not match or match.group(1).casefold() != str(row.get("image_sha256")).casefold(): errors.append("invalid image path")
+    if not match or match.group(1) != row.get("image_sha256"): errors.append("invalid image path")
     original = row.get("original_image_url")
     if isinstance(path, str) and ("picsum" in path.casefold() or path.startswith(("http://", "https://"))) or (isinstance(original, str) and "picsum" in urlsplit(original).netloc.casefold()): errors.append("remote or Picsum image URL")
     if row.get("commerce_values_simulated") is not True: errors.append("commerce_values_simulated must be true")
@@ -45,6 +45,12 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
         if not price.is_finite() or price <= 0: errors.append("price must be positive")
     except (InvalidOperation, ValueError): errors.append("price must be positive")
     if row.get("category") not in CATEGORIES: errors.append("unsupported category")
+    for field in ("name", "brand", "currency", "source_name", "source_url", "source_product_id"):
+        if not isinstance(row.get(field), str) or not row[field].strip(): errors.append(f"missing {field}")
+    try:
+        source = urlsplit(row.get("source_url", ""))
+        if source.scheme not in {"http", "https"} or not source.hostname or source.username is not None or source.password is not None: errors.append("invalid source URL")
+    except ValueError: errors.append("invalid source URL")
     for field, label in (("content_hash", "invalid content hash"), ("image_sha256", "invalid image hash")):
         if not isinstance(row.get(field), str) or not _HASH.fullmatch(row[field]): errors.append(label)
     try:
@@ -64,19 +70,24 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
     if not times or max(times) < MINIMUM_TIME: errors.append("stale time")
     return errors
 
-def _pool(items: Iterable[CatalogProduct]) -> tuple[list[CatalogProduct], Counter[str]]:
+def _pool(items: Iterable[CatalogProduct]) -> tuple[list[CatalogProduct], Counter[str], Counter[str]]:
+    ordered = sorted(items, key=_serialized_key)
+    rows = [item.to_json() for item in ordered]
+    source_groups = Counter((str(row.get("source_name")), str(row.get("source_product_id"))) for row in rows)
+    content_groups = Counter(item.content_hash for item in ordered)
+    summaries = Counter({"duplicate source key": sum(count - 1 for count in source_groups.values()), "duplicate content hash": sum(count - 1 for count in content_groups.values()), "image failures": sum(any("image" in error for error in _row_errors(row)) for row in rows)})
     valid: list[CatalogProduct] = []; rejected: Counter[str] = Counter(); sources: set[tuple[str, str]] = set(); contents: set[str] = set()
-    for item in sorted(items, key=_serialized_key):
-        row = item.to_json(); errors = _row_errors(row); source = (str(row.get("source_name")), str(row.get("source_product_id")))
+    for item, row in zip(ordered, rows):
+        errors = _row_errors(row); source = (str(row.get("source_name")), str(row.get("source_product_id")))
         if source in sources: errors.append("duplicate source key")
         if item.content_hash in contents: errors.append("duplicate content hash")
         if errors: rejected[min(errors)] += 1; continue
         sources.add(source); contents.add(item.content_hash); valid.append(item)
-    return valid, rejected
+    return valid, rejected, summaries
 
 def select_catalog(items: Iterable[CatalogProduct], total: int = TARGET_COUNT, replacement_count: int = REPLACEMENT_COUNT) -> list[CatalogProduct]:
     if type(total) is not int or total <= 0 or type(replacement_count) is not int or not 0 <= replacement_count <= total: raise ValueError("invalid catalog size or replacement count")
-    valid, _ = _pool(items); queues: dict[str, list[CatalogProduct]] = defaultdict(list)
+    valid, _, _ = _pool(items); queues: dict[str, list[CatalogProduct]] = defaultdict(list)
     for item in valid: queues[item.raw.category or ""].append(item)
     chosen: list[CatalogProduct] = []
     while len(chosen) < total:
@@ -87,14 +98,14 @@ def select_catalog(items: Iterable[CatalogProduct], total: int = TARGET_COUNT, r
         if not progressed: raise ValueError(f"only {len(chosen)} valid products available; need {total}")
     return [replace(item, replacement_slot=index if index <= replacement_count else None) for index, item in enumerate(chosen, 1)]
 
-def _report(products: list[CatalogProduct], input_count: int, rejected: Counter[str]) -> CatalogReport:
+def _report(products: list[CatalogProduct], input_count: int, rejected: Counter[str], summaries: Counter[str]) -> CatalogReport:
     rows = [product.to_json() for product in products]; before = sum(row["image_original_bytes"] for row in rows); after = sum(row["image_output_bytes"] for row in rows); saved = before - after; webp = sum(row["image_url"].endswith(".webp") for row in rows); images = Counter(row["image_sha256"] for row in rows)
-    return CatalogReport(input_count, len(rows), sum(row["replacement_slot"] is not None for row in rows), dict(sorted(Counter(row["source_name"] for row in rows).items())), {category: sum(row["category"] == category for row in rows) for category in CATEGORIES}, dict(sorted(rejected.items())), rejected["duplicate source key"], rejected["duplicate content hash"], sum(value for key, value in rejected.items() if "image" in key), before, after, saved, saved * 100 / before, webp, len(rows) - webp, sum(count - 1 for count in images.values()), ["stock", "sales"])
+    return CatalogReport(input_count, len(rows), sum(row["replacement_slot"] is not None for row in rows), dict(sorted(Counter(row["source_name"] for row in rows).items())), {category: sum(row["category"] == category for row in rows) for category in CATEGORIES}, dict(sorted(rejected.items())), summaries["duplicate source key"], summaries["duplicate content hash"], summaries["image failures"], before, after, saved, saved * 100 / before, webp, len(rows) - webp, sum(count - 1 for count in images.values()), ["stock", "sales"])
 
 def write_catalog(items: Iterable[CatalogProduct], output_dir: Path | str) -> CatalogReport:
-    records = list(items); valid, rejected = _pool(records); products = select_catalog(valid); directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True)
+    records = list(items); valid, rejected, summaries = _pool(records); products = select_catalog(valid); directory = Path(output_dir); directory.mkdir(parents=True, exist_ok=True)
     manifest = directory / "products.jsonl"; manifest.write_text("".join(json.dumps(product.to_json(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n" for product in products), encoding="utf-8", newline="\n")
-    rejected["not selected"] += len(valid) - len(products); report = _report(products, len(records), rejected); (directory / "catalog-report.json").write_text(json.dumps(report.to_json(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    rejected["not selected"] += len(valid) - len(products); report = _report(products, len(records), rejected, summaries); (directory / "catalog-report.json").write_text(json.dumps(report.to_json(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
     lines = ["# Catalog report", "", *[f"- {key}: {value}" for key, value in report.to_json().items()], "", "## Sources", *[f"- {key}: {value}" for key, value in report.source_counts.items()], "", "## Categories", *[f"- {key}: {value}" for key, value in report.category_counts.items()], "", "## Rejections", *[f"- {key}: {value}" for key, value in report.rejection_counts.items()]]
     (directory / "catalog-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n"); return report
 
@@ -128,6 +139,7 @@ def verify_catalog(path: Path | str, report_path: Path | str) -> VerificationRes
         for field, value in actual.items():
             if report.get(field) != value: errors.append("report image statistics mismatch" if field in {"bytes_before", "bytes_after", "bytes_saved", "bytes_saved_percentage", "webp_count", "retained_original_count", "shared_image_references"} else "report distribution mismatch")
         if report.get("input_count") != len(rows) + sum(rejected.values()): errors.append("report input-count mismatch")
-        if report.get("duplicate_source_keys") != rejected.get("duplicate source key", 0) or report.get("duplicate_content_hashes") != rejected.get("duplicate content hash", 0) or report.get("image_failures") != sum(value for key, value in rejected.items() if "image" in key): errors.append("report duplicate summary mismatch")
+        if any(type(report.get(field)) is not int or report[field] < 0 for field in ("duplicate_source_keys", "duplicate_content_hashes", "image_failures")): errors.append("report duplicate summary mismatch")
+        if report.get("simulated_fields") != ["stock", "sales"]: errors.append("report simulated fields mismatch")
     except (OSError, json.JSONDecodeError, TypeError, KeyError, ValueError) as exc: errors.append(f"invalid report: {exc}")
     return VerificationResult(not errors, tuple(sorted(set(errors))), len(rows), len(slots))

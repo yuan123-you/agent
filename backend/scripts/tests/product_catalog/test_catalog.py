@@ -158,3 +158,39 @@ def test_duplicate_winner_is_canonical_across_reversed_and_shuffled_input():
 
     assert [item.to_json() for item in selected] == [item.to_json() for item in reversed_selected]
     assert [item.to_json() for item in selected] == [item.to_json() for item in shuffled_selected]
+
+
+def test_report_counts_all_overlapping_duplicate_and_image_failures(tmp_path: Path):
+    first = product(1)
+    overlapping = replace(
+        first,
+        raw=replace(first.raw, image_candidates=(ImageCandidate("https://picsum.photos/200"),)),
+    )
+
+    report = write_catalog(catalog_inputs() + [overlapping], tmp_path)
+
+    assert report.input_count == 2521
+    assert report.duplicate_source_keys == 1
+    assert report.duplicate_content_hashes == 1
+    assert report.image_failures == 1
+    assert sum(report.rejection_counts.values()) == report.input_count - report.product_count
+
+
+def test_verify_rejects_missing_provenance_uppercase_image_and_simulated_fields_report(tmp_path: Path):
+    write_catalog(catalog_inputs(), tmp_path)
+    manifest = tmp_path / "products.jsonl"
+    report_path = tmp_path / "catalog-report.json"
+    rows = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+    rows[0]["name"] = ""
+    rows[1]["image_url"] = rows[1]["image_url"].upper()
+    manifest.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8", newline="\n")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["simulated_fields"] = ["sales", "stock"]
+    report_path.write_text(json.dumps(report, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+    result = verify_catalog(manifest, report_path)
+
+    assert not result.valid
+    assert "missing name" in result.errors
+    assert "invalid image path" in result.errors
+    assert "report simulated fields mismatch" in result.errors
