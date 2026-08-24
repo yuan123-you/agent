@@ -21,7 +21,7 @@ class FakeResponse:
 
     def raise_for_status(self):
         if not 200 <= self.status_code < 400:
-            raise requests.HTTPError(f"HTTP {self.status_code}")
+            raise requests.HTTPError(f"HTTP {self.status_code}", response=self)
 
     def iter_lines(self, decode_unicode=False):
         yield from self._lines
@@ -268,3 +268,32 @@ def test_discover_records_caches_empty_index_results_without_refetch(monkeypatch
     assert list(discover_records(source_config(), tmp_path)) == []
     assert calls == [True]
     assert next(tmp_path.glob("*.jsonl")).read_text(encoding="utf-8") == "# commoncrawl-cache-complete\n"
+
+
+def test_discover_records_retries_recoverable_5xx_then_succeeds(monkeypatch, tmp_path: Path):
+    valid_line = '{"url":"https://www.example.com/a","filename":"a","offset":"0","length":"1","timestamp":"20250701123456"}'
+    statuses = iter([502, 503, 200])
+    calls = []
+
+    def fake_get(*_args, **_kwargs):
+        calls.append(next(statuses))
+        return FakeResponse(status_code=calls[-1], lines=[valid_line] if calls[-1] == 200 else ())
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    assert [record.url for record in discover_records(source_config(), tmp_path)] == ["https://www.example.com/a"]
+    assert calls == [502, 503, 200]
+
+
+def test_discover_records_does_not_retry_permanent_4xx(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_get(*_args, **_kwargs):
+        calls.append(True)
+        return FakeResponse(status_code=404)
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    with pytest.raises(requests.HTTPError):
+        list(discover_records(source_config(), tmp_path))
+    assert calls == [True]

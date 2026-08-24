@@ -20,6 +20,8 @@ from .model import SourceConfig
 
 INDEX_TIMEOUT_SECONDS = 30
 WARC_TIMEOUT_SECONDS = 30
+INDEX_MAX_RETRIES = 4
+INDEX_RETRY_BACKOFF_SECONDS = 2
 MAX_INDEX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_HTML_BYTES = 5 * 1024 * 1024
 DATA_BASE_URL = "https://data.commoncrawl.org/"
@@ -160,22 +162,34 @@ def _write_cache(path: Path, lines: list[str]) -> None:
 
 def _fetch_index_lines(source: SourceConfig, domain: str) -> list[str]:
     _wait_for_rate_limit(source.rate_limit_per_second)
-    response = requests.get(
-        f"{INDEX_BASE_URL}{source.common_crawl_index}-index",
-        params=[
-            ("url", f"*.{domain}/*"),
-            ("output", "json"),
-            ("filter", "status:200"),
-            ("filter", "mime:text/html"),
-            ("collapse", "urlkey"),
-        ],
-        timeout=INDEX_TIMEOUT_SECONDS,
-        stream=True,
-    )
-    response.raise_for_status()
-    lines = _read_index_lines(response)
-    list(_records_from_lines(lines, source.rate_limit_per_second))
-    return lines
+    url = f"{INDEX_BASE_URL}{source.common_crawl_index}-index"
+    params = [
+        ("url", f"*.{domain}/*"),
+        ("output", "json"),
+        ("filter", "status:200"),
+        ("filter", "mime:text/html"),
+        ("collapse", "urlkey"),
+    ]
+    last_error: requests.RequestException | None = None
+    for attempt in range(INDEX_MAX_RETRIES):
+        try:
+            response = requests.get(url, params=params, timeout=INDEX_TIMEOUT_SECONDS, stream=True)
+            response.raise_for_status()
+            lines = _read_index_lines(response)
+            list(_records_from_lines(lines, source.rate_limit_per_second))
+            return lines
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status is not None and 400 <= status < 500 and status != 429:
+                raise
+            last_error = exc
+        except requests.RequestException as exc:
+            last_error = exc
+        if attempt + 1 < INDEX_MAX_RETRIES:
+            time.sleep(INDEX_RETRY_BACKOFF_SECONDS * (2**attempt))
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("unreachable")
 
 
 def discover_records(source: SourceConfig, cache_dir: Path) -> Iterator[CrawlRecord]:
