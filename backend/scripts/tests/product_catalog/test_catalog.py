@@ -29,7 +29,8 @@ def product(index: int, category: str | None = None) -> CatalogProduct:
     return CatalogProduct(raw=raw, stock=10, sales=20,
                           image_url=f"/api/v1/product-images/catalog/{token}.webp",
                           image_sha256=token, content_hash=f"{index + 3000:064x}",
-                          catalog_version="2026-08-24")
+                          catalog_version="2026-08-24", image_original_bytes=100 + index,
+                          image_output_bytes=80 + index)
 
 
 def catalog_inputs() -> list[CatalogProduct]:
@@ -112,3 +113,48 @@ def test_verify_catalog_hard_fails_invalid_hash_specs_and_stale_time(tmp_path: P
     assert "invalid content hash" in result.errors
     assert "invalid specs" in result.errors
     assert "stale time" in result.errors
+
+
+def test_catalog_report_uses_manifest_byte_statistics_and_allows_shared_images(tmp_path: Path):
+    shared_hash = "f" * 64
+    first = replace(product(1), image_sha256=shared_hash, image_url=f"/api/v1/product-images/catalog/{shared_hash}.webp")
+    second = replace(product(2), image_sha256=shared_hash, image_url=f"/api/v1/product-images/catalog/{shared_hash}.webp")
+
+    selected = select_catalog([first, second], total=2, replacement_count=1)
+
+    assert len(selected) == 2
+    assert selected[0].image_sha256 == selected[1].image_sha256
+    report = write_catalog(catalog_inputs(), tmp_path)
+    rows = [json.loads(line) for line in (tmp_path / "products.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert report.bytes_before == sum(row["image_original_bytes"] for row in rows)
+    assert report.bytes_after == sum(row["image_output_bytes"] for row in rows)
+    assert report.bytes_saved == report.bytes_before - report.bytes_after
+    assert report.bytes_saved_percentage == pytest.approx(report.bytes_saved * 100 / report.bytes_before)
+
+
+def test_verify_catalog_rejects_corrupted_byte_report(tmp_path: Path):
+    write_catalog(catalog_inputs(), tmp_path)
+    report_path = tmp_path / "catalog-report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["bytes_saved"] += 1
+    report_path.write_text(json.dumps(report, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+    result = verify_catalog(tmp_path / "products.jsonl", report_path)
+
+    assert not result.valid
+    assert "report image statistics mismatch" in result.errors
+
+
+def test_duplicate_winner_is_canonical_across_reversed_and_shuffled_input():
+    first = product(1)
+    duplicate = replace(product(2), content_hash=first.content_hash)
+    inputs = [first, duplicate, product(3)]
+    shuffled = inputs[:]
+    random.Random(42).shuffle(shuffled)
+
+    selected = select_catalog(inputs, total=2, replacement_count=1)
+    reversed_selected = select_catalog(list(reversed(inputs)), total=2, replacement_count=1)
+    shuffled_selected = select_catalog(shuffled, total=2, replacement_count=1)
+
+    assert [item.to_json() for item in selected] == [item.to_json() for item in reversed_selected]
+    assert [item.to_json() for item in selected] == [item.to_json() for item in shuffled_selected]

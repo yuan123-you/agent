@@ -42,6 +42,8 @@ def _product(**changes):
         "image_sha256": "a" * 64,
         "content_hash": "b" * 64,
         "catalog_version": "2025-30",
+        "image_original_bytes": 100,
+        "image_output_bytes": 80,
     }
     values.update(changes)
     return CatalogProduct(**values)
@@ -69,6 +71,8 @@ def test_catalog_product_serializes_auditable_facts_and_simulated_commerce_value
     assert payload["commerce_values_simulated"] is True
     assert payload["stock"] == 100
     assert payload["sales"] == 25
+    assert payload["image_original_bytes"] == 100
+    assert payload["image_output_bytes"] == 80
 
 
 @pytest.mark.parametrize(
