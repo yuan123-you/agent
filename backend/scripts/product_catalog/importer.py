@@ -4,13 +4,14 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Iterable, Mapping, Sequence
 
 TARGET_COUNT = 2512
 REPLACEMENT_COUNT = 512
 BATCH_SIZE = 100
-KNOWN_V1_SEED_DIGEST = "fad578ccc7a3bc7bf7213ce735fa9998b008888c5be7c577cd8af7faea540c9c"
+KNOWN_V1_SEED_DIGEST = "04ba4c06c06868894529f50c0e0c34643697f754bc27f6cc38574d21dfcce34d"
 
 
 class ImportSafetyError(RuntimeError):
@@ -105,6 +106,14 @@ SELECT /* DATABASE_STATE */
                       THEN source_product_id END)
 FROM product
 WHERE deleted = 0 AND status = 'ON_SALE'
+"""
+
+_LOCK_ACTIVE_PRODUCTS = """
+SELECT id
+FROM product
+WHERE deleted = 0 AND status = 'ON_SALE'
+ORDER BY id
+FOR UPDATE
 """
 
 _SEED_IDENTITY = """
@@ -218,20 +227,44 @@ def _as_mapping(product: Any) -> Mapping[str, Any]:
     return value
 
 
+def _manifest_timestamp(value: Any, field: str, *, optional: bool = False) -> datetime | None:
+    if optional and value is None:
+        return None
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if stamp.tzinfo is None or stamp.utcoffset() is None:
+            raise ValueError
+        return stamp.astimezone(timezone.utc).replace(tzinfo=None)
+    except (TypeError, ValueError) as exc:
+        raise ImportSafetyError(f"invalid {field}") from exc
+
+
 def _stage_row(product: Mapping[str, Any]) -> tuple[Any, ...]:
     try:
+        source_updated_at = _manifest_timestamp(
+            product.get("source_updated_at"), "source_updated_at", optional=True
+        )
+        collected_at = _manifest_timestamp(product.get("collected_at"), "collected_at")
+        aware_times = [stamp.replace(tzinfo=timezone.utc) for stamp in (source_updated_at, collected_at) if stamp]
+        if max(aware_times) < datetime(2025, 1, 1, tzinfo=timezone.utc):
+            raise ImportSafetyError("stale time")
         selling_points = " ".join(product["selling_points"])
         specs = json.dumps(product["specs"], ensure_ascii=False, separators=(",", ":"), allow_nan=False)
         values = {
             **product,
+            "source_updated_at": source_updated_at,
+            "collected_at": collected_at,
             "selling_points": selling_points,
             "specs": specs,
             "simulated_commerce_fields": product["commerce_values_simulated"],
         }
         return tuple(values[column] for column in _STAGE_COLUMNS)
+    except ImportSafetyError:
+        raise
     except (KeyError, TypeError, ValueError) as exc:
         raise ImportSafetyError(f"invalid catalog row: {exc}") from exc
-
 
 def _prepare_products(products: Iterable[Any]) -> tuple[list[tuple[Any, ...]], str]:
     rows = [_stage_row(_as_mapping(product)) for product in products]
@@ -283,6 +316,7 @@ def import_catalog(
     rows, catalog_version = _prepare_products(products)
     cursor = connection.cursor()
     began = False
+    failure: BaseException | None = None
     try:
         connection.begin()
         began = True
@@ -296,6 +330,8 @@ def import_catalog(
         if staged != (TARGET_COUNT, TARGET_COUNT, REPLACEMENT_COUNT, 0, 0, 0, 0):
             raise ImportSafetyError(f"staging validation failed: {staged}")
 
+        cursor.execute(_LOCK_ACTIVE_PRODUCTS)
+        cursor.fetchall()
         active_count, source_key_count = _fetch_database_state(cursor)
         if refresh_existing_catalog:
             if (active_count, source_key_count) != (TARGET_COUNT, TARGET_COUNT):
@@ -311,13 +347,22 @@ def import_catalog(
                 raise ImportSafetyError("active products do not match the known V1 seed catalog")
 
         if dry_run:
-            cursor.execute("DROP TEMPORARY TABLE product_catalog_stage")
             connection.rollback()
             began = False
             return ImportResult(True, catalog_version, 0, 0, 0, active_count)
 
         cursor.execute(_UPDATE_REPLACEMENTS)
+        updated = int(cursor.rowcount)
+        if not refresh_existing_catalog and updated != REPLACEMENT_COUNT:
+            raise ImportSafetyError(f"replacement update affected {updated}, expected {REPLACEMENT_COUNT}")
+
         cursor.execute(_INSERT_NEW)
+        inserted = int(cursor.rowcount)
+        if not refresh_existing_catalog and inserted != TARGET_COUNT - REPLACEMENT_COUNT:
+            raise ImportSafetyError(
+                f"new-product insert affected {inserted}, expected {TARGET_COUNT - REPLACEMENT_COUNT}"
+            )
+
         deleted_reviews = 0
         if not refresh_existing_catalog:
             cursor.execute(_DELETE_DEMO_REVIEWS, tuple(value for row in _DEMO_REVIEWS for value in row))
@@ -328,12 +373,18 @@ def import_catalog(
         verification = _verification_from_cursor(cursor)
         if not verification.valid:
             raise ImportSafetyError(f"post-cutover database verification failed: {verification}")
-        cursor.execute("DROP TEMPORARY TABLE product_catalog_stage")
         connection.commit()
         began = False
-        return ImportResult(False, catalog_version, REPLACEMENT_COUNT, TARGET_COUNT - REPLACEMENT_COUNT,
-                            deleted_reviews, verification.product_count)
+        return ImportResult(
+            False,
+            catalog_version,
+            updated,
+            inserted,
+            deleted_reviews,
+            verification.product_count,
+        )
     except BaseException as exc:
+        failure = exc
         if began:
             try:
                 connection.rollback()
@@ -341,4 +392,12 @@ def import_catalog(
                 exc.add_note(f"rollback also failed: {rollback_exc!r}")
         raise
     finally:
-        cursor.close()
+        try:
+            cursor.execute("DROP TEMPORARY TABLE IF EXISTS product_catalog_stage")
+        except BaseException as cleanup_exc:
+            if failure is not None:
+                failure.add_note(f"temporary-table cleanup also failed: {cleanup_exc!r}")
+            else:
+                raise
+        finally:
+            cursor.close()
