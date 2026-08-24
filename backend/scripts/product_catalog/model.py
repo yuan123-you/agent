@@ -105,6 +105,7 @@ class CatalogProduct:
     content_hash: str
     catalog_version: str
     commerce_values_simulated: bool = True
+    replacement_slot: int | None = None
 
     def __post_init__(self) -> None:
         raw = self.raw
@@ -127,6 +128,8 @@ class CatalogProduct:
                 raise ValueError(f"{field} must be a 64-character hexadecimal hash")
         if self.commerce_values_simulated is not True:
             raise ValueError("commerce_values_simulated must be true")
+        if self.replacement_slot is not None and (type(self.replacement_slot) is not int or not 1 <= self.replacement_slot <= 512):
+            raise ValueError("replacement_slot must be between 1 and 512")
 
     def to_json(self) -> dict[str, Any]:
         """Return a JSON-compatible, auditable manifest representation."""
@@ -160,6 +163,7 @@ class CatalogProduct:
             "image_sha256": self.image_sha256,
             "content_hash": self.content_hash,
             "catalog_version": self.catalog_version,
+            "replacement_slot": self.replacement_slot,
         }
 
 
