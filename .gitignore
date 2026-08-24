@@ -30,3 +30,10 @@ Thumbs.db
 
 # Local one-off script containing a private API credential
 _test_emb.ps1
+
+# 商品目录流水线缓存与临时文件（不入库；提交的清单与报告除外）
+backend/.catalog-cache/
+*.warc
+*.warc.gz
+*.tmp
+backend/.venv-product-catalog/
