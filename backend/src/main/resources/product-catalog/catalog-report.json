@@ -1,0 +1,50 @@
+{
+  "bytes_after": 70453136,
+  "bytes_before": 1917351225,
+  "bytes_saved": 1846898089,
+  "bytes_saved_percentage": 96.3254965975261,
+  "category_counts": {
+    "APPLIANCE": 0,
+    "BAGS": 2,
+    "BEAUTY": 0,
+    "BOOK": 0,
+    "CAR": 0,
+    "CLOTHING": 32,
+    "COMPUTER": 226,
+    "DIGITAL": 1824,
+    "FOOD": 0,
+    "FRESH": 0,
+    "FURNITURE": 0,
+    "HEALTH": 0,
+    "HOME_DECOR": 0,
+    "JEWELRY": 24,
+    "MATERNAL": 0,
+    "PERSONAL_CARE": 0,
+    "PET": 0,
+    "PHONE": 36,
+    "SHOES": 1,
+    "SPORTS": 367,
+    "TOYS": 0
+  },
+  "duplicate_content_hashes": 0,
+  "duplicate_source_keys": 0,
+  "image_failures": 0,
+  "input_count": 2512,
+  "product_count": 2512,
+  "rejection_counts": {
+    "not selected": 0
+  },
+  "replacement_slots": 512,
+  "retained_original_count": 0,
+  "shared_image_references": 1667,
+  "simulated_fields": [
+    "stock",
+    "sales"
+  ],
+  "source_counts": {
+    "www.adidas.com": 402,
+    "www.apple.com": 2026,
+    "www.samsung.com": 84
+  },
+  "webp_count": 2512
+}
