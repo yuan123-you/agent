@@ -52,6 +52,6 @@ export function normalizeDashboard(value: Partial<AdminDashboardVO> = {}): Norma
 export function toolText(tool: string): string {
   return {
     product_search: '检索商品', product_detail: '商品详情', order_query: '查询订单',
-    order_create: '创建订单', kb_search: '检索知识库', escalate_to_human: '转人工',
+    order_create: '准备订单', order_cancel_prepare: '准备取消订单', after_sale_prepare: '准备售后申请', kb_search: '检索知识库', escalate_to_human: '转人工',
   }[tool] || tool || '未知工具'
 }

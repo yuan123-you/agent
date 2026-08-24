@@ -74,6 +74,17 @@ public class InternalToolController {
     }
 
     /** 中文类目名 → 类目编码（容错：LLM 可能传"手机"而非 PHONE） */
+    @Data
+    public static class OrderCancelBody {
+        private Long userId; private Long conversationId; private Long orderId; private String reason;
+    }
+
+    @Data
+    public static class AfterSalePrepareBody {
+        private Long userId; private Long conversationId; private Long orderId; private Long orderItemId;
+        private String serviceType; private String issueCategory; private String reason; private Integer quantity;
+    }
+
     private static final Map<String, String> CATEGORY_ALIAS = Map.ofEntries(
             Map.entry("手机", "PHONE"), Map.entry("手机数码", "PHONE"), Map.entry("数码", "PHONE"),
             Map.entry("电脑", "LAPTOP"), Map.entry("电脑办公", "LAPTOP"), Map.entry("笔记本", "LAPTOP"),
@@ -204,7 +215,7 @@ public class InternalToolController {
             vo.put("totalAmount", o.getTotalAmount());
             vo.put("createdAt", o.getCreatedAt());
             vo.put("items", orderService.itemsOf(o.getId()).stream().map(i -> Map.of(
-                    "productId", i.getProductId(), "productName", i.getProductName(),
+                    "orderItemId", i.getId(), "productId", i.getProductId(), "productName", i.getProductName(),
                     "quantity", i.getQuantity())).toList());
             vo.put("link", "mall://order/" + o.getId());
             return vo;
@@ -219,6 +230,22 @@ public class InternalToolController {
                 body.getUserId(), body.getConversationId(), body.getProductId(), body.getQuantity() == null ? 1 : body.getQuantity(),
                 body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress());
         return ApiResponse.ok(agentOrderActionService.prepare(request));
+    }
+
+    /** 准备取消订单：只保存待确认动作。 */
+    @PostMapping("/order/cancel/prepare")
+    public ApiResponse<AgentOrderActionService.BusinessPrepareResult> orderCancelPrepare(@RequestBody OrderCancelBody body) {
+        return ApiResponse.ok(agentOrderActionService.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(
+                body.getUserId(), body.getConversationId(), body.getOrderId(), body.getReason())));
+    }
+
+    /** 准备售后申请：确认前不创建售后单。 */
+    @PostMapping("/after-sale/prepare")
+    public ApiResponse<AgentOrderActionService.BusinessPrepareResult> afterSalePrepare(@RequestBody AfterSalePrepareBody body) {
+        return ApiResponse.ok(agentOrderActionService.prepareAfterSale(new AgentOrderActionService.AfterSalePrepareRequest(
+                body.getUserId(), body.getConversationId(), body.getOrderId(), body.getOrderItemId(),
+                body.getServiceType(), body.getIssueCategory(), body.getReason(),
+                body.getQuantity() == null ? 1 : body.getQuantity())));
     }
 
     @Data

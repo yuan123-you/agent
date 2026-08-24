@@ -131,6 +131,12 @@ def _tool_result_preview(out) -> dict:
     if tool_name == "order_create":
         return {"preview": "已生成待确认订单，请在下方确认卡片中核对信息"}
 
+    if tool_name == "order_cancel_prepare":
+        return {"preview": "已生成待确认的订单取消请求，请在下方卡片中核对"}
+
+    if tool_name == "after_sale_prepare":
+        return {"preview": "已生成待确认的售后申请，请在下方卡片中核对"}
+
     if tool_name == "kb_search":
         hits = value.get("hits") or []
         sources = list(dict.fromkeys(str(h.get("source")) for h in hits if h.get("source")))

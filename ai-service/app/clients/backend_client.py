@@ -76,6 +76,22 @@ class BackendClient:
             "receiverAddress": receiver_address,
         })
 
+    async def order_cancel_prepare(self, user_id: int, conversation_id: int,
+                                   order_id: int, reason: str) -> dict:
+        return await self._post("/internal/tools/order/cancel/prepare", {
+            "userId": user_id, "conversationId": conversation_id,
+            "orderId": order_id, "reason": reason,
+        })
+
+    async def after_sale_prepare(self, user_id: int, conversation_id: int, order_id: int,
+                                 order_item_id: int, service_type: str, issue_category: str,
+                                 reason: str, quantity: int) -> dict:
+        return await self._post("/internal/tools/after-sale/prepare", {
+            "userId": user_id, "conversationId": conversation_id, "orderId": order_id,
+            "orderItemId": order_item_id, "serviceType": service_type,
+            "issueCategory": issue_category, "reason": reason, "quantity": quantity,
+        })
+
     async def escalate(self, user_id: int, conversation_id: int, reason: str) -> dict:
         return await self._post("/internal/tools/escalate", {
             "userId": user_id, "conversationId": conversation_id, "reason": reason,

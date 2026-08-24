@@ -4,10 +4,14 @@ import com.aimall.backend.common.BizException;
 import com.aimall.backend.address.AddressService;
 import com.aimall.backend.entity.Address;
 import com.aimall.backend.entity.AgentAction;
+import com.aimall.backend.entity.AfterSale;
+import com.aimall.backend.entity.OrderItem;
 import com.aimall.backend.entity.Conversation;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.entity.Product;
 import com.aimall.backend.mapper.AgentActionMapper;
+import com.aimall.backend.mapper.AfterSaleMapper;
+import com.aimall.backend.mapper.OrderItemMapper;
 import com.aimall.backend.mapper.ConversationMapper;
 import com.aimall.backend.mapper.OrderInfoMapper;
 import com.aimall.backend.mapper.ProductMapper;
@@ -28,6 +32,8 @@ class AgentOrderActionServiceTest {
     private final AddressService addressService = mock(AddressService.class);
     private final AgentActionMapper actionMapper = mock(AgentActionMapper.class);
     private final ProductMapper productMapper = mock(ProductMapper.class);
+    private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+    private final AfterSaleMapper afterSaleMapper = mock(AfterSaleMapper.class);
     private final ConversationMapper conversationMapper = mock(ConversationMapper.class);
     private final OrderInfoMapper orderInfoMapper = mock(OrderInfoMapper.class);
     private final OrderService orderService = mock(OrderService.class);
@@ -37,7 +43,7 @@ class AgentOrderActionServiceTest {
 
     @BeforeEach void setUp() {
         service = new AgentOrderActionService(addressService, actionMapper, productMapper, conversationMapper,
-                orderInfoMapper, orderService, redisTemplate, new ObjectMapper(), clock);
+                orderInfoMapper, orderItemMapper, afterSaleMapper, orderService, redisTemplate, new ObjectMapper(), clock);
     }
 
     @Test void prepareDoesNotCreateOrder() {
@@ -177,4 +183,88 @@ class AgentOrderActionServiceTest {
         AgentAction a = new AgentAction(); a.setActionId("act"); a.setUserId(userId); a.setType("ORDER_CREATE");
         a.setStatus("PENDING"); a.setConversationId(20L); a.setExpiresAt(Instant.parse(expiresAt)); return a;
     }
+
+    @Test void prepareCancelOnlyPersistsPendingAction() {
+        OrderInfo order = order(30L, 1L, "PENDING_PAYMENT");
+        when(orderInfoMapper.selectById(30L)).thenReturn(order);
+        when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
+        doAnswer(invocation -> { AgentAction action = invocation.getArgument(0); action.setActionId("act-cancel-order"); return 1; })
+                .when(actionMapper).insert(any(AgentAction.class));
+
+        var result = service.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(1L, 20L, 30L, "不需要了"));
+
+        assertEquals("act-cancel-order", result.actionId());
+        assertEquals("ORD-30", result.orderNo());
+        verify(orderService, never()).cancel(anyLong(), anyLong());
+    }
+
+    @Test void confirmCancelRevalidatesAndCancelsOwnedOrder() throws Exception {
+        AgentAction action = businessAction("ORDER_CANCEL", 30L,
+                new AgentOrderActionService.CancelPrepareRequest(1L, 20L, 30L, "不需要了"));
+        when(actionMapper.selectForUpdate("act-cancel-order")).thenReturn(action);
+        when(orderInfoMapper.selectById(30L)).thenReturn(order(30L, 1L, "PENDING_PAYMENT"));
+        when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
+        when(actionMapper.markBusinessConfirmed("act-cancel-order")).thenReturn(1);
+
+        var result = service.confirmBusiness(1L, "act-cancel-order");
+
+        assertEquals("ORDER_CANCEL", result.type());
+        verify(orderService).cancel(1L, 30L);
+        verify(actionMapper).markBusinessConfirmed("act-cancel-order");
+    }
+
+    @Test void confirmAfterSaleCreatesOneAuditableRequest() throws Exception {
+        var request = new AgentOrderActionService.AfterSalePrepareRequest(
+                1L, 20L, 30L, 41L, "RETURN_REFUND", "QUALITY", "屏幕损坏", 1);
+        AgentAction action = businessAction("AFTER_SALE_APPLY", 30L, request);
+        when(actionMapper.selectForUpdate("act-after-sale")).thenReturn(action);
+        when(orderInfoMapper.selectById(30L)).thenReturn(order(30L, 1L, "DELIVERED"));
+        when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
+        OrderItem item = new OrderItem(); item.setId(41L); item.setOrderId(30L); item.setProductId(10L);
+        item.setQuantity(1); item.setPrice(new BigDecimal("120.00")); item.setProductName("测试商品");
+        when(orderItemMapper.selectById(41L)).thenReturn(item);
+        Product product = product("120.00", 5); product.setMerchantId(9L);
+        when(productMapper.selectById(10L)).thenReturn(product);
+        doAnswer(invocation -> { AfterSale afterSale = invocation.getArgument(0); afterSale.setId(77L); return 1; })
+                .when(afterSaleMapper).insert(any(AfterSale.class));
+        when(actionMapper.markBusinessConfirmed("act-after-sale")).thenReturn(1);
+
+        var result = service.confirmBusiness(1L, "act-after-sale");
+
+        assertEquals(77L, result.afterSaleId());
+        verify(afterSaleMapper).insert(any(AfterSale.class));
+        verify(actionMapper).markBusinessConfirmed("act-after-sale");
+        verify(orderService, never()).cancel(anyLong(), anyLong());
+    }
+
+    private OrderInfo order(Long id, Long userId, String status) {
+        OrderInfo order = new OrderInfo(); order.setId(id); order.setUserId(userId); order.setStatus(status);
+        order.setOrderNo("ORD-" + id); order.setTotalAmount(new BigDecimal("120.00")); return order;
+    }
+
+    private AgentAction businessAction(String type, Long targetOrderId, Object payload) throws Exception {
+        AgentAction action = new AgentAction(); action.setActionId("act"); action.setUserId(1L);
+        action.setConversationId(20L); action.setType(type); action.setTargetOrderId(targetOrderId);
+        action.setPayload(new ObjectMapper().writeValueAsString(payload)); action.setStatus("PENDING");
+        action.setExpiresAt(Instant.parse("2026-08-23T08:10:00Z")); return action;
+    }
+
+
+    @Test void repeatedAfterSaleConfirmationReturnsExistingRequest() throws Exception {
+        var request = new AgentOrderActionService.AfterSalePrepareRequest(
+                1L, 20L, 30L, 41L, "RETURN_REFUND", "QUALITY", "屏幕损坏", 1);
+        AgentAction action = businessAction("AFTER_SALE_APPLY", 30L, request);
+        action.setStatus("CONFIRMED");
+        when(actionMapper.selectForUpdate("act-after-repeat")).thenReturn(action);
+        when(orderInfoMapper.selectById(30L)).thenReturn(order(30L, 1L, "DELIVERED"));
+        AfterSale existing = new AfterSale(); existing.setId(77L); existing.setAfterSaleNo("AS-77");
+        when(afterSaleMapper.selectOne(any())).thenReturn(existing);
+
+        var result = service.confirmBusiness(1L, "act-after-repeat");
+
+        assertEquals(77L, result.afterSaleId());
+        verify(afterSaleMapper, never()).insert(any(AfterSale.class));
+        verify(actionMapper, never()).markBusinessConfirmed(anyString());
+    }
+
 }

@@ -213,23 +213,26 @@ export const useChatStore = defineStore('chat', {
         return
       }
 
-      const approved = approval || {
-        receiverName: action.receiverName,
-        receiverPhone: action.receiverPhone,
-        receiverAddress: action.receiverAddress,
-      }
+      const approved = action.type === 'ORDER_CREATE' ? (approval || {
+        receiverName: action.receiverName || '',
+        receiverPhone: action.receiverPhone || '',
+        receiverAddress: action.receiverAddress || '',
+      }) : undefined
       action.status = 'CONFIRMING'
       try {
-        const order = await apiConfirmOrderAction(actionId, approved)
-        Object.assign(action, approved, {
+        const result = await apiConfirmOrderAction(actionId, approved)
+        Object.assign(action, approved || {}, {
           status: 'CONFIRMED',
-          orderId: order.orderId,
-          orderNo: order.orderNo,
-          amount: order.totalAmount,
-          orderStatus: order.status,
+          orderId: result.orderId,
+          orderNo: result.orderNo,
+          amount: result.totalAmount ?? action.amount,
+          orderStatus: result.status,
+          afterSaleId: result.afterSaleId,
+          afterSaleNo: result.afterSaleNo,
         })
-        ElMessage.success('订单创建成功')
-        return order
+        ElMessage.success(action.type === 'ORDER_CREATE' ? '订单创建成功'
+          : action.type === 'ORDER_CANCEL' ? '订单已取消' : '售后申请已提交')
+        return result
       } catch {
         action.status = Date.parse(action.expiresAt) <= Date.now() ? 'EXPIRED' : 'FAILED'
         return undefined
@@ -295,7 +298,7 @@ function parseOrderActions(msg: { toolCalls?: unknown }): OrderAction[] {
     const events = typeof msg.toolCalls === 'string' ? JSON.parse(msg.toolCalls) : msg.toolCalls
     if (!Array.isArray(events)) return []
     return events
-      .filter((event): event is OrderAction => event?.type === 'ORDER_CREATE' && typeof event.actionId === 'string')
+      .filter((event): event is OrderAction => ['ORDER_CREATE', 'ORDER_CANCEL', 'AFTER_SALE_APPLY'].includes(event?.type) && typeof event.actionId === 'string')
       .map((event) => ({ ...event, status: event.status || 'PENDING' }))
   } catch {
     return []

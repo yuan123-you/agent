@@ -99,6 +99,39 @@ async def order_create(product_id: int, quantity: int = 1,
 
 
 @tool
+async def order_cancel_prepare(order_id: int, reason: str) -> dict:
+    """准备取消待支付订单，返回待买家确认的动作卡片；绝不直接取消订单。
+    order_id 必须来自 order_query，reason 是买家明确给出的取消原因。"""
+    ctx = get_tool_ctx()
+    result = await backend_client.order_cancel_prepare(
+        user_id=int(ctx.get("user_id", 0)), conversation_id=int(ctx.get("conversation_id", 0)),
+        order_id=order_id, reason=reason,
+    )
+    if "error" not in result:
+        ctx.setdefault("actions", []).append({"type": "ORDER_CANCEL", **result})
+        result = {**result, "status": "PENDING_CONFIRMATION"}
+    return result
+
+
+@tool
+async def after_sale_prepare(order_id: int, order_item_id: int, service_type: str,
+                             issue_category: str, reason: str, quantity: int = 1) -> dict:
+    """准备售后申请并返回待买家确认的动作卡片；绝不直接创建售后单。
+    order_id/order_item_id 必须来自 order_query。service_type 可选 RETURN_REFUND/EXCHANGE/
+    REFUND_ONLY/ISSUE_REPORT；issue_category 可选 PERSONAL/QUALITY/MERCHANT/PLATFORM。"""
+    ctx = get_tool_ctx()
+    result = await backend_client.after_sale_prepare(
+        user_id=int(ctx.get("user_id", 0)), conversation_id=int(ctx.get("conversation_id", 0)),
+        order_id=order_id, order_item_id=order_item_id, service_type=service_type,
+        issue_category=issue_category, reason=reason, quantity=quantity,
+    )
+    if "error" not in result:
+        ctx.setdefault("actions", []).append({"type": "AFTER_SALE_APPLY", **result})
+        result = {**result, "status": "PENDING_CONFIRMATION"}
+    return result
+
+
+@tool
 async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = None, top_k: int = 4) -> dict:
     """检索知识库（商品介绍/售后政策/常见问题）。回答退换货政策、保修规则、商品介绍细节时调用。
     返回检索到的内容片段与来源，回答时必须基于这些内容并注明来源。
@@ -159,4 +192,5 @@ async def escalate_to_human(reason: str = "") -> dict:
     )
 
 
-ALL_TOOLS = [product_search, product_detail, order_query, order_create, kb_search, escalate_to_human, web_search]
+ALL_TOOLS = [product_search, product_detail, order_query, order_create, order_cancel_prepare,
+             after_sale_prepare, kb_search, escalate_to_human, web_search]
