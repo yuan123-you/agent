@@ -126,7 +126,25 @@ def _record_from_line(line: str, rate_limit_per_second: int) -> CrawlRecord:
 
 def _records_from_lines(lines: list[str], rate_limit_per_second: int) -> Iterator[CrawlRecord]:
     for line in lines:
-        yield _record_from_line(line, rate_limit_per_second)
+        try:
+            yield _record_from_line(line, rate_limit_per_second)
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+            # 索引中偶发的损坏行直接跳过，不丢弃整个来源
+            continue
+
+
+def _validate_index_lines(lines: list[str], rate_limit_per_second: int) -> None:
+    """Reject responses/caches that are systemically malformed, not just sporadic lines."""
+    total = 0
+    bad = 0
+    for line in lines:
+        total += 1
+        try:
+            _record_from_line(line, rate_limit_per_second)
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+            bad += 1
+    if total and bad / total > 0.01:
+        raise ValueError(f"Common Crawl index has too many malformed lines ({bad}/{total})")
 
 
 def _read_cache(path: Path, rate_limit_per_second: int) -> list[str]:
@@ -141,7 +159,7 @@ def _read_cache(path: Path, rate_limit_per_second: int) -> list[str]:
         lines = payload.decode("utf-8").splitlines()
         if lines.pop() != _CACHE_COMPLETE_MARKER:
             raise ValueError("cached Common Crawl index is incomplete")
-        list(_records_from_lines(lines, rate_limit_per_second))
+        _validate_index_lines(lines, rate_limit_per_second)
     except (UnicodeDecodeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("cached Common Crawl index is corrupt") from exc
     return lines
@@ -177,7 +195,7 @@ def _fetch_index_lines(source: SourceConfig, domain: str) -> list[str]:
             response = requests.get(url, params=params, timeout=INDEX_TIMEOUT_SECONDS, stream=True)
             response.raise_for_status()
             lines = _read_index_lines(response)
-            list(_records_from_lines(lines, source.rate_limit_per_second))
+            _validate_index_lines(lines, source.rate_limit_per_second)
             return lines
         except requests.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else None

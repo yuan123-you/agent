@@ -111,6 +111,30 @@ def test_discover_records_skips_failed_domain_and_continues(monkeypatch, tmp_pat
     assert len(list(tmp_path.glob("*.jsonl"))) == 1
 
 
+def test_discover_records_skips_malformed_index_lines_only(monkeypatch, tmp_path: Path):
+    valid_line = '{"url":"https://www.example.com/a","filename":"a","offset":"0","length":"1","timestamp":"20250701123456"}'
+    bad_line = '{"url":"https://www.example.com/b","filename":"b","offset":"0",'
+    lines = [valid_line] * 200 + [bad_line]
+
+    def fake_get(*_args, **_kwargs):
+        return FakeResponse(lines=lines)
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    assert [record.url for record in discover_records(source_config(), tmp_path)] == ["https://www.example.com/a"]
+
+
+def test_discover_records_rejects_systemically_malformed_index(monkeypatch, tmp_path: Path):
+    lines = ['{"url":"https://www.example.com/b","filename":"b","offset":"0",' for _ in range(20)]
+
+    def fake_get(*_args, **_kwargs):
+        return FakeResponse(lines=lines)
+
+    monkeypatch.setattr("backend.scripts.product_catalog.commoncrawl.requests.get", fake_get)
+
+    assert list(discover_records(source_config(), tmp_path)) == []
+
+
 def test_fetch_warc_html_uses_declared_byte_range_and_decodes_one_record():
     payload = io.BytesIO()
     writer = WARCWriter(payload, gzip=True)
