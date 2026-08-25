@@ -3,7 +3,27 @@
 前后端分离 + AI 微服务的三层架构：**Vue3 前端（frontend） ↔ SpringBoot 后端（backend） ↔ Python AI 推理服务（ai-service）**。
 以传统电商业务为核心（首页轮播/分类导航/楼层推荐/商品/下单/订单，三端响应式），**AI 购物助手作为独立模块**嵌入其中——对话中检索商品/查询订单，回答以**高亮链接**（`mall://` 协议）呈现，点击直达对应页面。
 
-**商品数据**：16 大分类（手机数码/电脑办公/家用电器/服饰内衣/美妆个护/食品生鲜/母婴玩具/运动户外/图书文娱/家具家居/珠宝饰品/箱包/鞋靴/宠物生活/医疗保健/汽车用品）共 **512 件**种子商品（每类 20 基础款 + 12 变体款）。**全部列表均为滚动懒加载**（无限加载，无分页器）。
+**商品数据**：共 **2,512 件真实商品**（512 件原位替换旧种子 + 2,000 件新增），来自 Apple / Samsung / adidas 等官方公开页面（经 Common Crawl 发现 + 官方页核验），含来源、采集等溯源元数据。**全部列表均为滚动懒加载**（无限加载，无分页器）。
+
+## 真实商品目录（product catalog）
+
+商品目录由 `backend/scripts/product_catalog/` 下的 Python 批量管线生成（确定性、可审计、可重跑）：
+
+- **数据量**：`products.jsonl` 恰好 2,512 件有效商品；`replacement_slot` 1–512 原位更新旧种子，其余为新增。幂等依赖「来源商品唯一键 + 内容哈希」。
+- **来源与新鲜度**：来源域名、robots 约束与限速见 [product_sources.json](backend/scripts/product_sources.json)；任何来源/采集时间须 ≥ `2025-01-01T00:00:00Z`，单个来源域名失效时跳过、不终止全量。
+- **图片**：最长边 ≤ 1200 px；不透明转 WebP 质量 82、透明转无损 WebP；内容寻址存储（SHA-256 文件名）至 MinIO `aimall-files`，HTTP 访问 `/api/v1/product-images/catalog/{sha}.webp`。
+- **模拟字段**：`stock` / `sales` 为确定性模拟并在记录中标注 `commerce_values_simulated=true`，勿当真实经营数据。
+- **命令**（`backend/scripts/generate_product_catalog.py`）：
+  ```bash
+  python generate_product_catalog.py discover --max-domains N --max-records N   # 发现候选（写 .catalog-cache）
+  python generate_product_catalog.py build                                        # 标准化/校验/去重 → 2512 清单
+  python generate_product_catalog.py upload-images                                # 压缩上传至 MinIO（幂等）
+  python generate_product_catalog.py verify --database --minio                    # 导入前全面核验
+  python generate_product_catalog.py import --dry-run                             # 事务预检（不落库）
+  python generate_product_catalog.py import --apply                               # 单事务：更新512/插入2000
+  ```
+- **缓存与报告**：`.catalog-cache/` 为中间缓存不入库；审计报告见 [catalog-report.json](backend/src/main/resources/product-catalog/catalog-report.json) 与 [catalog-report.md](backend/src/main/resources/product-catalog/catalog-report.md)（来源/分类计数、图片字节前后对比与节省率、WebP 数量）。
+- **恢复**：`import --apply` 单事务执行，任一断言失败整体回滚；重跑幂等，可随时安全重试。
 
 ## 架构总览
 
@@ -125,9 +145,9 @@ npm run dev             # http://localhost:5173
 ## 验证清单（核心链路）
 
 1. admin 登录 → 知识库 → 上传 `退换货政策.md`（类型 POLICY）→ 状态变为「已生效」
-2. customer01 登录 → AI 助手 → 发送 **"推荐一款3000以内拍照好的手机"**
-   - 应看到工具卡片「检索商品」→ 流式回答中**商品名为高亮链接**（如 *星耀 X5 Pro*）
-3. 点击高亮商品名 → 跳转商品详情页（价格 2999）→ 立即购买 → 填收货信息 → 模拟支付
+2. customer01 登录 → AI 助手 → 发送 **"推荐几款 DIGITAL 给我"**
+   - 应看到工具卡片「检索商品」→ 流式回答中**商品名为高亮链接**（真实商品，如 *20W USB-C Power Adapter*）
+3. 点击高亮商品名 → 跳转商品详情页（真实商品与价格）→ 立即购买 → 填收货信息 → 模拟支付
 4. admin → 订单管理 → 对该订单「发货」（填物流单号）→ 订单变已发货
 5. 回到对话发送 **"我的订单到哪了"** → AI 回答订单状态，**订单号可点击**跳转订单详情
 6. 发送 **"退货政策是什么"** → kb_search 检索知识库 → 回答引用上传文档内容

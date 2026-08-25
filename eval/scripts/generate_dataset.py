@@ -1,4 +1,7 @@
-"""生成 eval 数据集（四指标种子 + 商品语料），来源：V1__init.sql 真实商品库。
+"""生成 eval 数据集（四指标种子 + 商品语料），来源：真实商品清单 products.jsonl。
+
+商品语料取自后端发布制品 backend/src/main/resources/product-catalog/products.jsonl
+（2512 条真实采集商品，含来源/采集元数据），而非虚构种子 SQL。
 
 产物（相对 eval/ 目录）：
   dataset/products.json   商品语料（id/name/category/brand/price/selling_points）
@@ -11,7 +14,6 @@
 """
 from __future__ import annotations
 
-import csv
 import json
 import random
 from pathlib import Path
@@ -20,41 +22,34 @@ random.seed(20260821)  # 固定种子保证可复现
 
 EVAL_DIR = Path(__file__).resolve().parents[1]
 DATASET_DIR = EVAL_DIR / "dataset"
-SQL_PATH = Path(__file__).resolve().parents[2] / "backend" / "src" / "main" / "resources" / "db" / "init" / "V1__init.sql"
+JSONL_PATH = (Path(__file__).resolve().parents[2] / "backend" / "src" / "main"
+              / "resources" / "product-catalog" / "products.jsonl")
 
 # ---------------------------------------------------------------- 解析商品
-def parse_products(sql_text: str) -> list[dict]:
+def parse_products(jsonl_text: str) -> list[dict]:
     products: list[dict] = []
-    for stmt in sql_text.split(";"):
-        lines = stmt.splitlines()
-        # 语句里含商品表头（可能被 -- 注释行或空行包裹）
-        if not any(l.lstrip().upper().startswith("INSERT INTO PRODUCT") for l in lines):
+    for line in jsonl_text.splitlines():
+        line = line.strip()
+        if not line:
             continue
-        for line in lines:
-            line = line.strip().rstrip(",")
-            if not line.startswith("(") or not line.endswith(")"):
-                continue
-            row = line[1:-1]
-            try:
-                fields = next(csv.reader([row], delimiter=",", quotechar="'"))
-            except Exception:
-                continue
-            if len(fields) < 6:  # 规格/描述含内嵌引号导致解析残缺的行，跳过
-                continue
-            products.append({
-                "name": fields[0].strip(),
-                "category": fields[1].strip(),
-                "brand": fields[2].strip(),
-                "price": fields[3].strip(),
-                "selling_points": fields[5].strip(),
-            })
+        row = json.loads(line)
+        sp = row.get("selling_points") or []
+        if isinstance(sp, list):
+            sp = " ".join(str(s) for s in sp)
+        products.append({
+            "name": str(row.get("name", "")).strip(),
+            "category": str(row.get("category", "")).strip(),
+            "brand": str(row.get("brand", "")).strip(),
+            "price": str(row.get("price", "")).strip(),
+            "selling_points": sp.strip(),
+        })
     return products
 
 
 def main() -> None:
-    if not SQL_PATH.exists():
-        raise SystemExit(f"not found: {SQL_PATH}")
-    products = parse_products(SQL_PATH.read_text(encoding="utf-8"))
+    if not JSONL_PATH.exists():
+        raise SystemExit(f"not found: {JSONL_PATH}")
+    products = parse_products(JSONL_PATH.read_text(encoding="utf-8"))
     if len(products) < 20:
         raise SystemExit(f"parsed too few products: {len(products)}")
     # 生成稳定的语料 id

@@ -1,15 +1,15 @@
 {
   "mode": "offline_proxy",
-  "generated_at": "2026-08-23T07:15:56.661182+00:00",
+  "generated_at": "2026-08-25T01:46:36.785299+08:00",
   "counts": {
-    "intent": 80,
-    "tool": 50,
-    "rag": 36,
+    "intent": 72,
+    "tool": 34,
+    "rag": 28,
     "reply": 25
   },
-  "intentAccuracy": 0.8625,
-  "toolCorrectness": 0.82,
-  "ragHitRate": 0.7222,
+  "intentAccuracy": 0.8472,
+  "toolCorrectness": 0.7353,
+  "ragHitRate": 0.8571,
   "replyQuality": 0.12,
   "notes": "offline_proxy 基线：意图/工具/回复为规则代理，RAG 为 BM25 关键词召回腿。真实数值请以 live 模式（LLM+Milvus）为准。"
 }

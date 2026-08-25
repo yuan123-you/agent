@@ -1,24 +1,24 @@
-{"input": "给我介绍下星耀 X5 Pro", "expected_keywords": ["星耀 X5 Pro"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 X5", "expected_keywords": ["星耀 X5"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 Note 12", "expected_keywords": ["星耀 Note 12"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 X6 Ultra", "expected_keywords": ["星耀 X6 Ultra"], "note": "应提及商品名"}
-{"input": "给我介绍下轻语 Note 14", "expected_keywords": ["轻语 Note 14"], "note": "应提及商品名"}
-{"input": "给我介绍下轻语 S3", "expected_keywords": ["轻语 S3"], "note": "应提及商品名"}
-{"input": "给我介绍下锋达 Edge 30", "expected_keywords": ["锋达 Edge 30"], "note": "应提及商品名"}
-{"input": "给我介绍下锋达 Edge 40 Pro", "expected_keywords": ["锋达 Edge 40 Pro"], "note": "应提及商品名"}
-{"input": "给我介绍下灵犀 Air", "expected_keywords": ["灵犀 Air"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 Pad 11", "expected_keywords": ["星耀 Pad 11"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 Pad Pro 13", "expected_keywords": ["星耀 Pad Pro 13"], "note": "应提及商品名"}
-{"input": "给我介绍下锋达 Watch GT", "expected_keywords": ["锋达 Watch GT"], "note": "应提及商品名"}
-{"input": "给我介绍下锋达 Buds Pro", "expected_keywords": ["锋达 Buds Pro"], "note": "应提及商品名"}
-{"input": "给我介绍下星耀 Buds", "expected_keywords": ["星耀 Buds"], "note": "应提及商品名"}
-{"input": "给我介绍下轻语耳机 Lite", "expected_keywords": ["轻语耳机 Lite"], "note": "应提及商品名"}
-{"input": "推荐一款PHONE", "expected_keywords": ["星耀 X5 Pro"], "note": "应推荐PHONE类目商品"}
-{"input": "推荐一款LAPTOP", "expected_keywords": ["凌云 Book 14"], "note": "应推荐LAPTOP类目商品"}
-{"input": "推荐一款APPLIANCE", "expected_keywords": ["洁灵滚筒洗衣机 10kg"], "note": "应推荐APPLIANCE类目商品"}
-{"input": "推荐一款CLOTHING", "expected_keywords": ["简约主义纯棉T恤"], "note": "应推荐CLOTHING类目商品"}
-{"input": "推荐一款BEAUTY", "expected_keywords": ["肌研保湿面霜 50g"], "note": "应推荐BEAUTY类目商品"}
-{"input": "推荐一款FOOD", "expected_keywords": ["田野香东北大米 10kg"], "note": "应推荐FOOD类目商品"}
+{"input": "给我介绍下Refurbished iPhone 15 128 GB - Pink (ohne Vertrag)", "expected_keywords": ["Refurbished iPhone 15 128 GB - Pink (ohne Vertrag)"], "note": "应提及商品名"}
+{"input": "给我介绍下20W USB-C Power Adapter", "expected_keywords": ["20W USB-C Power Adapter"], "note": "应提及商品名"}
+{"input": "给我介绍下MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Bleu ciel", "expected_keywords": ["MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Bleu ciel"], "note": "应提及商品名"}
+{"input": "给我介绍下3-Stripes Pants", "expected_keywords": ["3-Stripes Pants"], "note": "应提及商品名"}
+{"input": "给我介绍下COMFORT SANDAL I", "expected_keywords": ["COMFORT SANDAL I"], "note": "应提及商品名"}
+{"input": "给我介绍下AP/Syst. Backpack", "expected_keywords": ["AP/Syst. Backpack"], "note": "应提及商品名"}
+{"input": "给我介绍下3-Stripes Swim Leggings", "expected_keywords": ["3-Stripes Swim Leggings"], "note": "应提及商品名"}
+{"input": "给我介绍下42-mm Gold Link Bracelet", "expected_keywords": ["42-mm Gold Link Bracelet"], "note": "应提及商品名"}
+{"input": "给我介绍下Refurbished iPhone 15 128 GB - Schwarz (ohne Vertrag)", "expected_keywords": ["Refurbished iPhone 15 128 GB - Schwarz (ohne Vertrag)"], "note": "应提及商品名"}
+{"input": "给我介绍下240W USB-C Charge Cable (2 m)", "expected_keywords": ["240W USB-C Charge Cable (2 m)"], "note": "应提及商品名"}
+{"input": "给我介绍下MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Minuit", "expected_keywords": ["MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Minuit"], "note": "应提及商品名"}
+{"input": "给我介绍下Adibreak Pants", "expected_keywords": ["Adibreak Pants"], "note": "应提及商品名"}
+{"input": "给我介绍下EP/Syst. Duffel Bag 50 L", "expected_keywords": ["EP/Syst. Duffel Bag 50 L"], "note": "应提及商品名"}
+{"input": "给我介绍下3G Speed Reversible Jersey", "expected_keywords": ["3G Speed Reversible Jersey"], "note": "应提及商品名"}
+{"input": "给我介绍下42-mm Natural Link Bracelet", "expected_keywords": ["42-mm Natural Link Bracelet"], "note": "应提及商品名"}
+{"input": "推荐一款PHONE", "expected_keywords": ["Refurbished iPhone 15 128 GB - Pink (ohne Vertrag)"], "note": "应推荐PHONE类目商品"}
+{"input": "推荐一款DIGITAL", "expected_keywords": ["20W USB-C Power Adapter"], "note": "应推荐DIGITAL类目商品"}
+{"input": "推荐一款COMPUTER", "expected_keywords": ["MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Bleu ciel"], "note": "应推荐COMPUTER类目商品"}
+{"input": "推荐一款CLOTHING", "expected_keywords": ["3-Stripes Pants"], "note": "应推荐CLOTHING类目商品"}
+{"input": "推荐一款SHOES", "expected_keywords": ["COMFORT SANDAL I"], "note": "应推荐SHOES类目商品"}
+{"input": "推荐一款BAGS", "expected_keywords": ["AP/Syst. Backpack"], "note": "应推荐BAGS类目商品"}
 {"input": "运费多少", "expected_keywords": ["运费"], "note": "应给出运费说明"}
 {"input": "支持退货吗", "expected_keywords": ["退货", "七天"], "note": "应说明退货政策"}
 {"input": "你好", "expected_keywords": ["你好", "购物"], "note": "应友好回应并引导"}

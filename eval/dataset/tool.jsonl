@@ -1,43 +1,27 @@
 {"input": "推荐一款PHONE", "expected_tools": ["product_search"], "expected_args": {"category": "PHONE"}, "note": "PHONE"}
 {"input": "预算内买PHONE", "expected_tools": ["product_search"], "expected_args": {"category": "PHONE"}, "note": ""}
-{"input": "推荐一款LAPTOP", "expected_tools": ["product_search"], "expected_args": {"category": "LAPTOP"}, "note": "LAPTOP"}
-{"input": "预算内买LAPTOP", "expected_tools": ["product_search"], "expected_args": {"category": "LAPTOP"}, "note": ""}
-{"input": "推荐一款APPLIANCE", "expected_tools": ["product_search"], "expected_args": {"category": "APPLIANCE"}, "note": "APPLIANCE"}
-{"input": "预算内买APPLIANCE", "expected_tools": ["product_search"], "expected_args": {"category": "APPLIANCE"}, "note": ""}
+{"input": "推荐一款DIGITAL", "expected_tools": ["product_search"], "expected_args": {"category": "DIGITAL"}, "note": "DIGITAL"}
+{"input": "预算内买DIGITAL", "expected_tools": ["product_search"], "expected_args": {"category": "DIGITAL"}, "note": ""}
+{"input": "推荐一款COMPUTER", "expected_tools": ["product_search"], "expected_args": {"category": "COMPUTER"}, "note": "COMPUTER"}
+{"input": "预算内买COMPUTER", "expected_tools": ["product_search"], "expected_args": {"category": "COMPUTER"}, "note": ""}
 {"input": "推荐一款CLOTHING", "expected_tools": ["product_search"], "expected_args": {"category": "CLOTHING"}, "note": "CLOTHING"}
 {"input": "预算内买CLOTHING", "expected_tools": ["product_search"], "expected_args": {"category": "CLOTHING"}, "note": ""}
-{"input": "推荐一款BEAUTY", "expected_tools": ["product_search"], "expected_args": {"category": "BEAUTY"}, "note": "BEAUTY"}
-{"input": "预算内买BEAUTY", "expected_tools": ["product_search"], "expected_args": {"category": "BEAUTY"}, "note": ""}
-{"input": "推荐一款FOOD", "expected_tools": ["product_search"], "expected_args": {"category": "FOOD"}, "note": "FOOD"}
-{"input": "预算内买FOOD", "expected_tools": ["product_search"], "expected_args": {"category": "FOOD"}, "note": ""}
-{"input": "推荐一款MATERNAL", "expected_tools": ["product_search"], "expected_args": {"category": "MATERNAL"}, "note": "MATERNAL"}
-{"input": "预算内买MATERNAL", "expected_tools": ["product_search"], "expected_args": {"category": "MATERNAL"}, "note": ""}
-{"input": "推荐一款SPORTS", "expected_tools": ["product_search"], "expected_args": {"category": "SPORTS"}, "note": "SPORTS"}
-{"input": "预算内买SPORTS", "expected_tools": ["product_search"], "expected_args": {"category": "SPORTS"}, "note": ""}
-{"input": "推荐一款BOOK", "expected_tools": ["product_search"], "expected_args": {"category": "BOOK"}, "note": "BOOK"}
-{"input": "预算内买BOOK", "expected_tools": ["product_search"], "expected_args": {"category": "BOOK"}, "note": ""}
-{"input": "推荐一款HOME", "expected_tools": ["product_search"], "expected_args": {"category": "HOME"}, "note": "HOME"}
-{"input": "预算内买HOME", "expected_tools": ["product_search"], "expected_args": {"category": "HOME"}, "note": ""}
-{"input": "推荐一款JEWELRY", "expected_tools": ["product_search"], "expected_args": {"category": "JEWELRY"}, "note": "JEWELRY"}
-{"input": "预算内买JEWELRY", "expected_tools": ["product_search"], "expected_args": {"category": "JEWELRY"}, "note": ""}
-{"input": "推荐一款BAGS", "expected_tools": ["product_search"], "expected_args": {"category": "BAGS"}, "note": "BAGS"}
-{"input": "预算内买BAGS", "expected_tools": ["product_search"], "expected_args": {"category": "BAGS"}, "note": ""}
 {"input": "推荐一款SHOES", "expected_tools": ["product_search"], "expected_args": {"category": "SHOES"}, "note": "SHOES"}
 {"input": "预算内买SHOES", "expected_tools": ["product_search"], "expected_args": {"category": "SHOES"}, "note": ""}
-{"input": "推荐一款PET", "expected_tools": ["product_search"], "expected_args": {"category": "PET"}, "note": "PET"}
-{"input": "预算内买PET", "expected_tools": ["product_search"], "expected_args": {"category": "PET"}, "note": ""}
-{"input": "推荐一款HEALTH", "expected_tools": ["product_search"], "expected_args": {"category": "HEALTH"}, "note": "HEALTH"}
-{"input": "预算内买HEALTH", "expected_tools": ["product_search"], "expected_args": {"category": "HEALTH"}, "note": ""}
-{"input": "推荐一款CAR", "expected_tools": ["product_search"], "expected_args": {"category": "CAR"}, "note": "CAR"}
-{"input": "预算内买CAR", "expected_tools": ["product_search"], "expected_args": {"category": "CAR"}, "note": ""}
-{"input": "这款星耀 X5 Pro的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "星耀 X5 Pro"}, "note": ""}
-{"input": "这款星耀 X5的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "星耀 X5"}, "note": ""}
-{"input": "这款星耀 Note 12的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "星耀 Note 12"}, "note": ""}
-{"input": "这款星耀 X6 Ultra的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "星耀 X6 Ultra"}, "note": ""}
-{"input": "这款轻语 Note 14的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "轻语 Note 14"}, "note": ""}
-{"input": "这款轻语 S3的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "轻语 S3"}, "note": ""}
-{"input": "这款锋达 Edge 30的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "锋达 Edge 30"}, "note": ""}
-{"input": "这款锋达 Edge 40 Pro的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "锋达 Edge 40 Pro"}, "note": ""}
+{"input": "推荐一款BAGS", "expected_tools": ["product_search"], "expected_args": {"category": "BAGS"}, "note": "BAGS"}
+{"input": "预算内买BAGS", "expected_tools": ["product_search"], "expected_args": {"category": "BAGS"}, "note": ""}
+{"input": "推荐一款SPORTS", "expected_tools": ["product_search"], "expected_args": {"category": "SPORTS"}, "note": "SPORTS"}
+{"input": "预算内买SPORTS", "expected_tools": ["product_search"], "expected_args": {"category": "SPORTS"}, "note": ""}
+{"input": "推荐一款JEWELRY", "expected_tools": ["product_search"], "expected_args": {"category": "JEWELRY"}, "note": "JEWELRY"}
+{"input": "预算内买JEWELRY", "expected_tools": ["product_search"], "expected_args": {"category": "JEWELRY"}, "note": ""}
+{"input": "这款Refurbished iPhone 15 128 GB - Pink (ohne Vertrag)的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "Refurbished iPhone 15 128 GB - Pink (ohne Vertrag)"}, "note": ""}
+{"input": "这款20W USB-C Power Adapter的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "20W USB-C Power Adapter"}, "note": ""}
+{"input": "这款MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Bleu ciel的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "MacBook Air 13 pouces reconditionné avec puce Apple M4, CPU 10 cœurs et GPU 10 cœurs – Bleu ciel"}, "note": ""}
+{"input": "这款3-Stripes Pants的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "3-Stripes Pants"}, "note": ""}
+{"input": "这款COMFORT SANDAL I的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "COMFORT SANDAL I"}, "note": ""}
+{"input": "这款AP/Syst. Backpack的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "AP/Syst. Backpack"}, "note": ""}
+{"input": "这款3-Stripes Swim Leggings的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "3-Stripes Swim Leggings"}, "note": ""}
+{"input": "这款42-mm Gold Link Bracelet的价格", "expected_tools": ["product_search"], "expected_args": {"keyword": "42-mm Gold Link Bracelet"}, "note": ""}
 {"input": "我的订单", "expected_tools": ["order_query"], "expected_args": {}, "note": ""}
 {"input": "我最近的订单状态", "expected_tools": ["order_query"], "expected_args": {}, "note": ""}
 {"input": "发货了没", "expected_tools": ["order_query"], "expected_args": {}, "note": ""}

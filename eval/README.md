@@ -4,7 +4,7 @@
 
 ## 目录
 - `dataset/` 种子数据集（由生成脚本产出，可提交、可复现）
-  - `products.json` 商品语料（解析自 `V1__init.sql`）
+  - `products.json` 商品语料（解析自 `backend/src/main/resources/product-catalog/products.jsonl` 真实采集清单）
   - `intent.jsonl` / `tool.jsonl` / `rag.jsonl` / `reply.jsonl` 四指标标注集
   - `kb_large_rag.jsonl` 300 条大规模知识库召回标注（direct/paraphrase/conditional/multi-hop/temporal-region/hard-negative）
 - `scripts/generate_dataset.py` 确定性生成（固定随机种子，无需 LLM/外部服务）
