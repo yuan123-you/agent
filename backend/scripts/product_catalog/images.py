@@ -225,8 +225,14 @@ def _stored_sha256(metadata: Any) -> str | None:
 
 
 def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
-    """Idempotently upload final bytes under their SHA-256-derived object name."""
-    object_name = f"catalog/{image.sha256}.{image.extension}"
+    """Idempotently upload final bytes under their SHA-256-derived object name.
+
+    Objects live under ``product-images/catalog/`` so the backend HTTP route
+    ``/api/v1/product-images/catalog/{filename}`` can resolve them via
+    ``ProductImageService.loadCatalog``.
+    """
+    filename = f"{image.sha256}.{image.extension}"
+    object_name = f"product-images/catalog/{filename}"
     try:
         existing = client.stat_object(bucket, object_name)
     except Exception as exc:
@@ -242,7 +248,7 @@ def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
             and content_type == image.mime_type
             and _stored_sha256(metadata) == image.sha256
         ):
-            return f"/api/v1/product-images/{object_name}"
+            return f"/api/v1/product-images/catalog/{filename}"
 
     client.put_object(
         bucket,
@@ -252,4 +258,4 @@ def upload_image(image: ProcessedImage, client: Any, bucket: str) -> str:
         content_type=image.mime_type,
         metadata={"sha256": image.sha256},
     )
-    return f"/api/v1/product-images/{object_name}"
+    return f"/api/v1/product-images/catalog/{filename}"

@@ -325,12 +325,13 @@ class FakeMinio:
 
 def test_upload_uses_content_addressed_catalog_path_and_sha_metadata() -> None:
     image = process_image((FIXTURES / "opaque.png").read_bytes(), "image/png")
-    object_name = f"catalog/{image.sha256}.{image.extension}"
+    filename = f"{image.sha256}.{image.extension}"
+    object_name = f"product-images/catalog/{filename}"
     client = FakeMinio()
 
     url = upload_image(image, client, "product-images")
 
-    assert url == f"/api/v1/product-images/{object_name}"
+    assert url == f"/api/v1/product-images/catalog/{filename}"
     assert client.puts == [(
         "product-images",
         object_name,

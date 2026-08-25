@@ -393,7 +393,7 @@ def cmd_upload_images(args: argparse.Namespace) -> int:
     candidates = _load_built_candidates(built)
     credentials = _credentials()
     client = _minio_client(credentials)
-    bucket = args.bucket or credentials.get("MINIO_BUCKET", "aimall")
+    bucket = args.bucket or credentials.get("MINIO_BUCKET", "aimall-files")
     session = _http_session()
     products: list[CatalogProduct] = []
     try:
@@ -419,7 +419,7 @@ def _verify_minio_missing(manifest: Path, client: Any, bucket: str) -> int:
     for row in _load_manifest_rows(manifest):
         name = str(row["image_url"]).rsplit("/", 1)[-1]
         try:
-            client.stat_object(bucket, f"catalog/{name}")
+            client.stat_object(bucket, f"product-images/catalog/{name}")
         except Exception:
             missing += 1
     return missing
@@ -446,7 +446,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if args.minio:
         credentials = _credentials()
         client = _minio_client(credentials)
-        bucket = args.bucket or credentials.get("MINIO_BUCKET", "aimall")
+        bucket = args.bucket or credentials.get("MINIO_BUCKET", "aimall-files")
         missing = _verify_minio_missing(manifest, client, bucket)
         if missing:
             _error(f"verify: {missing} image objects missing from MinIO")
