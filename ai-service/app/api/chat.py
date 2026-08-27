@@ -131,6 +131,12 @@ def _tool_result_preview(out) -> dict:
     if tool_name == "order_create":
         return {"preview": "已生成待确认订单，请在下方确认卡片中核对信息"}
 
+    if tool_name == "order_cancel_prepare":
+        return {"preview": "已生成待确认的订单取消请求，请在下方卡片中核对"}
+
+    if tool_name == "after_sale_prepare":
+        return {"preview": "已生成待确认的售后申请，请在下方卡片中核对"}
+
     if tool_name == "kb_search":
         hits = value.get("hits") or []
         sources = list(dict.fromkeys(str(h.get("source")) for h in hits if h.get("source")))
@@ -147,10 +153,43 @@ def _tool_result_preview(out) -> dict:
     return {"preview": "工具执行完成"}
 
 
+def _eval_tool_metadata(out) -> dict:
+    """Return only ranked identities/citations needed by opt-in live evaluation."""
+    name = getattr(out, "name", "") or ""
+    value = getattr(out, "content", out)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    if not isinstance(value, dict):
+        return {}
+    if name == "product_search":
+        return {"products": [
+            {"productId": item.get("productId"), "name": item.get("name", ""),
+             "category": item.get("category", ""), "rank": rank}
+            for rank, item in enumerate(value.get("products") or [], 1)
+        ]}
+    if name == "kb_search":
+        return {"hits": [
+            {"chunkId": item.get("chunk_id"), "docId": item.get("doc_id"),
+             "source": item.get("source", ""), "score": item.get("score"), "rank": rank}
+            for rank, item in enumerate(value.get("hits") or [], 1)
+        ]}
+    return {}
+
+
+def _done_eval_metadata(final_state, enabled: bool) -> dict:
+    if not enabled or not isinstance(final_state, dict):
+        return {}
+    return {"intent": final_state.get("intent")}
+
+
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest, request: Request):
     async def gen():
         start = time.time()
+        eval_enabled = req.options.get("include_eval_metadata") is True
         # 工具上下文：身份由服务端注入（越权防护红线）
         ctx = {"user_id": str(req.user_id), "conversation_id": str(req.conversation_id),
                "degraded": False, "escalated": False}
@@ -212,10 +251,15 @@ async def chat_stream(req: ChatRequest, request: Request):
                                 span = tool_spans.pop(ev["run_id"])
                                 span.complete(_tool_result_preview(out))
                                 span.__exit__(None, None, None)
-                            yield sse("tool_result", {
+                            tool_payload = {
                                 "callId": ev["run_id"], "tool": ev["name"],
                                 "result": _tool_result_preview(out),
-                            })
+                            }
+                            if eval_enabled:
+                                eval_data = _eval_tool_metadata(out)
+                                if eval_data:
+                                    tool_payload["eval"] = eval_data
+                            yield sse("tool_result", tool_payload)
                         elif kind == "on_chain_end" and ev.get("name") == "LangGraph":
                             # 捕获图最终状态（非流式节点如 escalate_node 的回复兜底）
                             final_state = ev["data"].get("output")
@@ -245,6 +289,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 "latencyMs": int((time.time() - start) * 1000),
                 "degraded": bool(ctx.get("degraded")),
                 "timedOut": timed_out,
+                **_done_eval_metadata(final_state, eval_enabled),
             })
         except Exception as e:
             logger.exception("chat stream error: %s", e)

@@ -5,7 +5,7 @@
   1. 向量召回（Milvus，带类目/价格标量过滤）
   2. BM25 关键词召回（同步 job 构建的内存语料，同样过滤）
   3. 两者 RRF（Reciprocal Rank Fusion）混排
-  4. 轻量重排：相关度优先，同相关度按价格升序（"便宜点"）、再按销量降序（质量信号）
+  4. 轻量重排：相关度优先；无关键词推荐使用销量质量信号
 语料未就绪（同步 job 未完成/Milvus 不可用）时返回 None，由调用方降级为后端 SQL 检索。
 """
 import asyncio
@@ -93,9 +93,9 @@ class ProductCorpus:
         self._bm25 = None
 
     def structured(self, category, min_price, max_price, top_k: int) -> list[dict]:
-        """无关键词时按价格升序（销量降序）返回过滤后的商品"""
+        """无关键词推荐优先使用销量质量信号，同销量再按价格升序。"""
         cands = [p for p in self.products.values() if _match(p, category, min_price, max_price)]
-        cands.sort(key=lambda p: (float(p.get("price") or 0), -(int(p.get("sales") or 0))))
+        cands.sort(key=lambda p: (-(int(p.get("sales") or 0)), float(p.get("price") or 0)))
         return cands[:top_k]
 
     def bm25_recall(self, query: str, category, min_price, max_price, k: int) -> list[tuple[int, float]]:
@@ -113,6 +113,14 @@ class ProductCorpus:
         return cands[:k]
 
 
+_corpus = ProductCorpus()
+
+
+def get_product_corpus() -> ProductCorpus:
+    """Process-wide keyword corpus; available even when Milvus is not."""
+    return _corpus
+
+
 class ProductIndex:
     """Milvus product_index collection：商品向量（主键=商品ID，含类目/价格/销量标量字段）"""
 
@@ -124,7 +132,7 @@ class ProductIndex:
             raise MilvusUnavailableError(
                 f"Milvus unavailable at {settings.milvus_uri}: {e}") from e
         self.embeddings = get_embeddings()
-        self.corpus = ProductCorpus()
+        self.corpus = get_product_corpus()
         self._sync_lock = asyncio.Lock()
 
     # ---------- collection ----------
@@ -223,43 +231,43 @@ def _rrf(ranked_lists: list[list[tuple[int, float]]], k: int = 60) -> dict[int, 
 async def hybrid_product_search(keyword: str | None, category: str | None,
                                 min_price: float | None, max_price: float | None,
                                 top_k: int = 5) -> dict | None:
-    """混合检索：向量召回 + BM25 关键词 → RRF 混排 → 轻量重排。
-    语料未就绪返回 None，由调用方降级后端 SQL 检索。"""
-    pidx = get_product_index()
-    if not pidx.corpus.ready() and not pidx.corpus.products:
+    """Hybrid retrieval with independently degradable vector and BM25 legs."""
+    corpus = get_product_corpus()
+    if not corpus.ready() and not corpus.products:
         return None
     kw = (keyword or "").strip()
     if not kw:
-        # 纯结构化检索（无关键词）：按价格升序，保持原有"便宜优先"语义
-        top = pidx.corpus.structured(category, min_price, max_price, top_k)
-        return {"products": [_to_vo(p) for p in top], "total": len(top)}
+        top = corpus.structured(category, min_price, max_price, top_k)
+        return {"products": [_to_vo(product) for product in top], "total": len(top)}
 
-    vec = await pidx.vector_recall(kw, category, min_price, max_price, top_k * 4)
-    bm = pidx.corpus.bm25_recall(kw, category, min_price, max_price, top_k * 4)
+    vector_available = True
+    try:
+        vec = await get_product_index().vector_recall(
+            kw, category, min_price, max_price, top_k * 4)
+    except Exception as exc:
+        logger.warning("product vector recall unavailable; using BM25 only: %s", exc)
+        vector_available = False
+        vec = []
+    bm = corpus.bm25_recall(kw, category, min_price, max_price, top_k * 4)
     rrf = _rrf([vec, bm])
     if not rrf:
-        return {"products": [], "total": 0}
+        return {"products": [], "total": 0} if vector_available else None
 
     def _sort_key(item):
         pid, score = item
-        p = pidx.corpus.products.get(pid) or {}
-        return (-score, float(p.get("price") or 0), -(int(p.get("sales") or 0)))
+        product = corpus.products.get(pid) or {}
+        return (-score, float(product.get("price") or 0), -(int(product.get("sales") or 0)))
 
     merged = sorted(rrf.items(), key=_sort_key)
-    candidate_ids = [
-        pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]
-        if pid in pidx.corpus.products
-    ]
+    candidate_ids = [pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]
+                     if pid in corpus.products]
     candidates = []
     for pid in candidate_ids:
-        product = pidx.corpus.products[pid]
+        product = corpus.products[pid]
         content = " ".join(str(product.get(key) or "") for key in (
-            "name", "brand", "category", "sellingPoints", "specs", "description"
-        ))
+            "name", "brand", "category", "sellingPoints", "specs", "description"))
         candidates.append({"product_id": pid, "content": content})
     ranked = await get_reranker().rerank(kw, candidates, top_n=top_k)
-    top = [
-        pidx.corpus.products[item["product_id"]]
-        for item in ranked if item.get("product_id") in pidx.corpus.products
-    ]
-    return {"products": [_to_vo(p) for p in top], "total": len(top)}
+    top = [corpus.products[item["product_id"]] for item in ranked
+           if item.get("product_id") in corpus.products]
+    return {"products": [_to_vo(product) for product in top], "total": len(top)}

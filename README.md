@@ -44,7 +44,7 @@
 - **LangGraph StateGraph Agent**：意图路由 → 购物助理（工具循环）→ 流式回答（禁止 LangChain 0.x / initialize_agent）
 - **SSE 五类事件**：`token / tool_call / tool_result / error / done`，前端工具卡片 + 打字机流式渲染
 - **AI 高亮链接**：回答中 `[商品名](mall://product/1001)` → 前端白名单渲染为可点击高亮文字 → 跳转商品/订单页；AI 侧 link_guard 后验 + 前端 scheme 白名单双重防护
-- **AI 能力**：商品推荐（SQL 结构化检索）、订单查询/AI 下单（回调后端，身份服务端注入）、知识库 RAG（Milvus）、转人工
+- **AI 能力**：商品混合检索、订单查询、AI 下单/取消/售后申请（全部先生成买家确认动作）、知识库 RAG（Milvus）、转人工
 - **安全红线**：前端永不直连 AI 服务；密钥全部环境变量；AI 服务不碰业务库；WebClient 非阻塞代理 SSE
 
 ## 目录结构

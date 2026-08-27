@@ -28,12 +28,20 @@ public class OrderActionController {
                                                     @PathVariable String actionId,
                                                     @Valid @RequestBody(required = false)
                                                     AgentOrderActionService.ApprovalRequest approval) {
-        OrderInfo order = actionService.confirm(userId, actionId, approval);
+        String type = actionService.typeOf(userId, actionId);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("orderId", order.getId());
-        result.put("orderNo", order.getOrderNo());
-        result.put("status", order.getStatus());
-        result.put("totalAmount", order.getTotalAmount());
+        if (AgentOrderActionService.ORDER_CREATE.equals(type)) {
+            OrderInfo order = actionService.confirm(userId, actionId, approval);
+            result.put("type", type); result.put("actionStatus", "CONFIRMED");
+            result.put("orderId", order.getId()); result.put("orderNo", order.getOrderNo());
+            result.put("status", order.getStatus()); result.put("totalAmount", order.getTotalAmount());
+        } else {
+            var confirmed = actionService.confirmBusiness(userId, actionId);
+            result.put("type", confirmed.type()); result.put("actionStatus", confirmed.status());
+            result.put("orderId", confirmed.orderId()); result.put("orderNo", confirmed.orderNo());
+            result.put("status", confirmed.orderStatus());
+            result.put("afterSaleId", confirmed.afterSaleId()); result.put("afterSaleNo", confirmed.afterSaleNo());
+        }
         return ApiResponse.ok(result);
     }
 

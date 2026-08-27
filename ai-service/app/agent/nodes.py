@@ -87,9 +87,26 @@ async def agent_node(state: AgentState) -> dict:
     return {"messages": [response]}
 
 
+def _tool_call_signature(call: dict) -> str:
+    return json.dumps({"name": call.get("name"), "args": call.get("args") or {}},
+                      ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _all_tool_calls_repeated(messages: list) -> bool:
+    latest = getattr(messages[-1], "tool_calls", None) or []
+    if not latest:
+        return False
+    previous = {_tool_call_signature(call) for message in messages[:-1]
+                for call in (getattr(message, "tool_calls", None) or [])}
+    return bool(previous) and all(_tool_call_signature(call) in previous for call in latest)
+
+
 def should_continue(state: AgentState) -> str:
     """有工具调用且未超循环上限 → tools；打满 → 强制收敛节点；否则结束"""
     last = state["messages"][-1]
+    if _all_tool_calls_repeated(state["messages"]):
+        logger.warning("duplicate tool call detected, routing to %s", FINALIZE_FLAG)
+        return FINALIZE_FLAG
     if getattr(last, "tool_calls", None) and state.get("tool_loop_count", 0) < settings.max_tool_loops:
         return "tools"
     if getattr(last, "tool_calls", None):

@@ -48,3 +48,6 @@ backend/.venv-product-catalog/
 
 # Local experimental catalog generator/output; canonical catalog lives under backend/src/main/resources/product-catalog
 /backend/scripts/china_mall/
+
+# Environment-specific live Agent evaluation output
+eval/results/live.json

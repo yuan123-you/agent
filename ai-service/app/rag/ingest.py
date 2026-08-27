@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from app.clients.backend_client import backend_client
 from app.config import settings
 from app.clients.llm import get_embeddings
-from app.rag.product_index import get_product_index
+from app.rag.product_index import get_product_corpus, get_product_index
 from app.rag.vectorstore import get_vectorstore
 
 logger = logging.getLogger("ai-service.ingest")
@@ -209,36 +209,38 @@ _product_sync_lock = asyncio.Lock()
 
 
 async def sync_products() -> dict:
-    """商品向量化 job：全量拉取在售商品 → 向量化写入 product_index（版本化重建，停用自动清除）
-    → 重建内存 BM25 语料。失败时保留上次可用语料，检索自动降级后端 SQL。
-    同步互斥（后台定时 job 与手动触发不会并发重入）。"""
+    """Refresh keyword corpus immediately, then best-effort vector index."""
     async with _product_sync_lock:
         try:
             products = await backend_client.products_all()
             if not products:
                 logger.warning("product sync: backend returned no on-sale products")
-                return {"indexed": 0, "reason": "no products"}
-            texts = [build_product_text(p) for p in products]
+                return {"indexed": 0, "vectorIndexed": 0, "reason": "no products"}
+            texts = [build_product_text(product) for product in products]
+            get_product_corpus().rebuild(products, texts)
+        except Exception as exc:
+            logger.warning("product source sync failed; preserving previous corpus: %s", exc)
+            return {"indexed": 0, "vectorIndexed": 0, "error": str(exc)[:200]}
+
+        try:
             vectors = await get_embeddings().aembed_documents(texts)
             version = int(time.time() * 1000)
-            rows = []
-            for p, t, v in zip(products, texts, vectors):
-                rows.append({
-                    "product_id": int(p["productId"]),
-                    "embedding": v,
-                    "name": (p.get("name") or "")[:200],
-                    "category": (p.get("category") or "")[:32],
-                    "brand": (p.get("brand") or "")[:64],
-                    "price": float(p.get("price") or 0),
-                    "stock": int(p.get("stock") or 0),
-                    "sales": int(p.get("sales") or 0),
-                    "build_version": version,
-                })
-            await get_product_index().upsert(rows)
-            await get_product_index().delete_old_versions(version)  # 版本重建/停用清理
-            get_product_index().corpus.rebuild(products, texts)
+            rows = [{
+                "product_id": int(product["productId"]), "embedding": vector,
+                "name": (product.get("name") or "")[:200],
+                "category": (product.get("category") or "")[:32],
+                "brand": (product.get("brand") or "")[:64],
+                "price": float(product.get("price") or 0),
+                "stock": int(product.get("stock") or 0),
+                "sales": int(product.get("sales") or 0),
+                "build_version": version,
+            } for product, vector in zip(products, vectors)]
+            index = get_product_index()
+            await index.upsert(rows)
+            await index.delete_old_versions(version)
             logger.info("product sync done: indexed=%s version=%s", len(rows), version)
-            return {"indexed": len(rows), "version": version}
-        except Exception as e:
-            logger.warning("product sync failed (search falls back to SQL): %s", e)
-            return {"indexed": 0, "error": str(e)[:200]}
+            return {"indexed": len(products), "vectorIndexed": len(rows), "version": version}
+        except Exception as exc:
+            logger.warning("product vector sync failed; keyword corpus remains available: %s", exc)
+            return {"indexed": len(products), "vectorIndexed": 0,
+                    "degraded": True, "error": str(exc)[:200]}

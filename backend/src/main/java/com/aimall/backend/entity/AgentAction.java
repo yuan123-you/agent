@@ -21,6 +21,7 @@ public class AgentAction {
     private String status;
     private Instant expiresAt;
     private Long orderId;
+    private Long targetOrderId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

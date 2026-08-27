@@ -113,10 +113,12 @@ export const apiAdminShip = (id: number, logisticsNo: string) =>
 export const apiAdminDeliver = (id: number) => post<void>(`/admin/orders/${id}/deliver`)
 
 // ---------- AI 下单动作 ----------
-export const apiConfirmOrderAction = (actionId: string, approval: OrderApprovalForm) =>
-  post<{ orderId: number; orderNo: string; status: string; totalAmount: number }>(
-    `/order-actions/${actionId}/confirm`, approval,
-  )
+export interface AgentActionConfirmResult {
+  type: OrderAction['type']; actionStatus: string; orderId?: number; orderNo?: string
+  status?: string; totalAmount?: number; afterSaleId?: number; afterSaleNo?: string
+}
+export const apiConfirmOrderAction = (actionId: string, approval?: OrderApprovalForm) =>
+  post<AgentActionConfirmResult>(`/order-actions/${actionId}/confirm`, approval)
 export const apiCancelOrderAction = (actionId: string) =>
   post<void>(`/order-actions/${actionId}/cancel`)
 export const apiOrderActionStatus = (actionId: string) =>

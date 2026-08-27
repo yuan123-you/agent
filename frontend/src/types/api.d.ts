@@ -112,20 +112,26 @@ export interface OrderApprovalForm {
 }
 
 export interface OrderAction {
-  type: 'ORDER_CREATE'
+  type: 'ORDER_CREATE' | 'ORDER_CANCEL' | 'AFTER_SALE_APPLY'
   actionId: string
-  productName: string
-  quantity: number
-  unitPrice: number
-  amount: number
-  receiverName: string
-  receiverPhone: string
-  receiverAddress: string
-  expiresAt: string
-  status?: 'PENDING' | 'CONFIRMING' | 'CANCELLING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
   orderId?: number
   orderNo?: string
   orderStatus?: string
+  productName?: string
+  quantity?: number
+  unitPrice?: number
+  amount?: number
+  receiverName?: string
+  receiverPhone?: string
+  receiverAddress?: string
+  orderItemId?: number
+  serviceType?: 'RETURN_REFUND' | 'EXCHANGE' | 'REFUND_ONLY' | 'ISSUE_REPORT'
+  issueCategory?: 'PERSONAL' | 'QUALITY' | 'MERCHANT' | 'PLATFORM'
+  reason?: string
+  afterSaleId?: number
+  afterSaleNo?: string
+  expiresAt: string
+  status?: 'PENDING' | 'CONFIRMING' | 'CANCELLING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
 }
 
 export interface ChatMessage {

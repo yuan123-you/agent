@@ -18,6 +18,7 @@ class OrderActionControllerTest {
         order.setOrderNo("A20260823001");
         order.setStatus("PENDING_PAYMENT");
         order.setTotalAmount(new BigDecimal("99.80"));
+        when(service.typeOf(7L, "act_123")).thenReturn(AgentOrderActionService.ORDER_CREATE);
         when(service.confirm(7L, "act_123", null)).thenReturn(order);
         OrderActionController controller = new OrderActionController(service);
 
@@ -36,12 +37,25 @@ class OrderActionControllerTest {
         order.setStatus("PENDING_PAYMENT");
         order.setTotalAmount(new BigDecimal("99.80"));
         var approval = new AgentOrderActionService.ApprovalRequest("李四", "13900139000", "杭州文三路90号");
+        when(service.typeOf(7L, "act_edited")).thenReturn(AgentOrderActionService.ORDER_CREATE);
         when(service.confirm(7L, "act_edited", approval)).thenReturn(order);
         OrderActionController controller = new OrderActionController(service);
 
         controller.confirm(7L, "act_edited", approval);
 
         verify(service).confirm(7L, "act_edited", approval);
+    }
+
+    @Test
+    void confirmDispatchesPreparedAfterSaleWithoutCreatingOrder() {
+        AgentOrderActionService service = mock(AgentOrderActionService.class);
+        when(service.typeOf(7L, "act_after")).thenReturn(AgentOrderActionService.AFTER_SALE_APPLY);
+        when(service.confirmBusiness(7L, "act_after")).thenReturn(
+                new AgentOrderActionService.BusinessConfirmResult("AFTER_SALE_APPLY", "CONFIRMED",
+                        30L, "ORD-30", "DELIVERED", 77L, "AS-77"));
+        var response = new OrderActionController(service).confirm(7L, "act_after", null);
+        assertEquals(77L, response.getData().get("afterSaleId"));
+        verify(service, never()).confirm(anyLong(), anyString(), any());
     }
 
     @Test

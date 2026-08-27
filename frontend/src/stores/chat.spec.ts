@@ -108,6 +108,35 @@ describe('chat order action state', () => {
     expect(action).toMatchObject({ status: 'CONFIRMED', receiverName: '李四' })
   })
 
+  it('confirms an order cancellation without delivery approval data', async () => {
+    api.confirmOrderAction.mockResolvedValue({
+      type: 'ORDER_CANCEL', actionStatus: 'CONFIRMED', orderId: 30, orderNo: 'ORD-30', status: 'CANCELLED',
+    })
+    const { chat, action } = withAction(pendingAction({
+      type: 'ORDER_CANCEL', orderId: 30, orderNo: 'ORD-30', reason: '不需要了',
+    }))
+
+    await chat.confirmOrderAction(action.actionId)
+
+    expect(api.confirmOrderAction).toHaveBeenCalledWith(action.actionId, undefined)
+    expect(action).toMatchObject({ status: 'CONFIRMED', orderStatus: 'CANCELLED' })
+  })
+
+  it('stores the after-sale identity returned by buyer confirmation', async () => {
+    api.confirmOrderAction.mockResolvedValue({
+      type: 'AFTER_SALE_APPLY', actionStatus: 'CONFIRMED', orderId: 30,
+      orderNo: 'ORD-30', status: 'DELIVERED', afterSaleId: 77, afterSaleNo: 'AS-77',
+    })
+    const { chat, action } = withAction(pendingAction({
+      type: 'AFTER_SALE_APPLY', orderId: 30, orderItemId: 41, productName: '测试商品',
+      serviceType: 'RETURN_REFUND', issueCategory: 'QUALITY', reason: '屏幕损坏',
+    }))
+
+    await chat.confirmOrderAction(action.actionId)
+
+    expect(action).toMatchObject({ status: 'CONFIRMED', afterSaleId: 77, afterSaleNo: 'AS-77' })
+  })
+
   it('marks an elapsed pending action expired and refuses confirmation', async () => {
     const { chat, action } = withAction(pendingAction({ expiresAt: '2026-08-23T08:00:00Z' }))
 
