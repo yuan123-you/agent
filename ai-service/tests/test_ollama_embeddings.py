@@ -48,11 +48,18 @@ async def test_ollama_embeddings_rejects_unexpected_dimension():
     with pytest.raises(ValueError, match="expected dimension 2"):
         await embeddings.aembed_query("退款")
 
-def test_embedding_factory_builds_native_ollama_client():
-    from app.clients.llm import get_embeddings
+def test_ollama_provider_builds_native_client():
+    from app.clients.llm import _make_embeddings
+    from app.clients.ollama import OllamaEmbeddings
 
-    get_embeddings.cache_clear()
-    assert isinstance(get_embeddings(), OllamaEmbeddings)
+    client = _make_embeddings(
+        "http://host.docker.internal:11434",
+        "",
+        "qwen3-embedding:4b",
+        provider="ollama",
+        dimensions=1024,
+    )
+    assert isinstance(client, OllamaEmbeddings)
 
 @pytest.mark.asyncio
 async def test_ollama_embeddings_batches_large_ingest_requests():
@@ -72,17 +79,3 @@ async def test_ollama_embeddings_batches_large_ingest_requests():
     )
     assert len(await embeddings.aembed_documents(["a", "b", "c"])) == 3
     assert batch_sizes == [2, 1]
-
-
-
-def test_settings_has_no_cloud_embedding_or_legacy_collection_configuration():
-    from app.config import Settings
-
-    removed = {
-        "embedding_api_base",
-        "embedding_api_key",
-        "embedding_fallback_models",
-        "embedding_provider",
-        "milvus_legacy_collections",
-    }
-    assert removed.isdisjoint(Settings.model_fields)

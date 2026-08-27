@@ -23,10 +23,10 @@ class _FakeVectorStore:
     def ensure_collection(self) -> None:
         return None
 
-    async def search(self, query, doc_type="ALL", product_id=None, top_k=4) -> dict:
+    async def search(self, query, top_k=20, **_compat) -> dict:
         return {"hits": [], "total": 0}
 
-    async def existing_ids(self, ids) -> set[int]:
+    async def existing_ids(self, ids, include_legacy=True) -> set[int]:
         return set()
 
     async def insert(self, rows) -> None:

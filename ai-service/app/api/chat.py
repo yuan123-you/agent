@@ -16,6 +16,7 @@ from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
 from app.config import settings
 from app.observability.telemetry import end_trace, get_trace_id, start_trace, tool_span
+from app.rag.citations import validate_citations
 from app.sse import sse
 from app.tools.tools import set_tool_ctx
 
@@ -197,6 +198,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         parts: list[str] = []
         usage: dict = {}
         known_ids: set[str] = set()
+        rag_started = False
         # 可观测：开启本会话 trace（session=conversation_id）
         traced = start_trace(conversation_id=req.conversation_id, user_id=req.user_id,
                              metadata={"message": _short(req.message, 200), "trace_id": ""})
@@ -226,12 +228,14 @@ async def chat_stream(req: ChatRequest, request: Request):
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
                                 parts.append(content)
-                                yield sse("token", {"content": content})
                             um = getattr(chunk, "usage_metadata", None)
                             if um:
                                 usage = {"promptTokens": um.get("input_tokens", 0),
                                          "completionTokens": um.get("output_tokens", 0)}
                         elif kind == "on_tool_start":
+                            if ev.get("name") == "kb_search" and not rag_started:
+                                parts.clear()
+                                rag_started = True
                             args = ev["data"].get("input")
                             # 可观测：工具开始
                             span = tool_span(ev["name"], input_data=_short(args, 300)) if traced else None
@@ -244,6 +248,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                                         {k: _short(v, 100) for k, v in args.items()},
                             })
                         elif kind == "on_tool_end":
+                            if ev.get("name") == "kb_search" and not rag_started:
+                                parts.clear()
+                                rag_started = True
                             out = ev["data"].get("output")
                             known_ids.update(collect_known_ids(_short(out, 4000)))
                             # 可观测：工具结束
@@ -278,19 +285,39 @@ async def chat_stream(req: ChatRequest, request: Request):
                             final_text = content
                             break
             final_text = _timeout_fallback(final_text, timed_out)
+            citations: tuple[dict, ...] = ()
+            rag_used = bool(ctx.get("rag_used") or rag_started)
+            if rag_used:
+                validation = validate_citations(
+                    final_text,
+                    allowed=ctx.get("rag_allowed_citations") or {},
+                    answerable=bool(ctx.get("rag_answerable")),
+                    rag_reason=ctx.get("rag_reason"),
+                )
+                final_text = validation.content
+                citations = validation.citations
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):
                 yield sse("action", action)
-            yield sse("done", {
+            if rag_used:
+                yield sse("token", {"content": guarded})
+            else:
+                streamed_parts = parts if "".join(parts) == guarded else [guarded]
+                for part in streamed_parts:
+                    yield sse("token", {"content": part})
+            done = {
                 "content": guarded,
                 "tokenUsage": usage,
                 "latencyMs": int((time.time() - start) * 1000),
                 "degraded": bool(ctx.get("degraded")),
                 "timedOut": timed_out,
                 **_done_eval_metadata(final_state, eval_enabled),
-            })
+            }
+            if rag_used:
+                done["citations"] = list(citations)
+            yield sse("done", done)
         except Exception as e:
             logger.exception("chat stream error: %s", e)
             end_trace(output={"error": str(e)})

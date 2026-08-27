@@ -49,19 +49,14 @@ class VectorStore:
 
     async def search(self, query: str, doc_type: str = "ALL",
                      product_id: int | None = None, top_k: int = 4) -> dict:
-        """向量检索 + 标量过滤（Milvus 中只保留 ACTIVE 文档的向量）"""
+        """Recall ACTIVE vector candidates; request metadata filters run in the pipeline."""
         emb = await self.embeddings.aembed_query(query)
-        parts: list[str] = []
-        if doc_type and doc_type != "ALL":
-            parts.append(f'doc_type == "{doc_type}"')
-        if product_id:
-            parts.append(f"(product_id == {product_id} or product_id == -1)")
-        filter_expr = " and ".join(parts) if parts else "doc_id >= 0"
+        filter_expr = "doc_id >= 0"
         res = await asyncio.to_thread(
             self.client.search,
             collection_name=settings.milvus_collection,
             data=[emb],
-            limit=top_k * 2,
+            limit=top_k,
             filter=filter_expr,
             output_fields=["content", "doc_id", "product_id", "doc_type"],
             search_params={"ef": 128},
@@ -69,17 +64,20 @@ class VectorStore:
         # 不设绝对分数阈值：IP 距离在不同 embedding 模型间不可迁移，相关性判定交给
         # kb_search 的双路 RRF 混排（关键词无命中即判无答案）。此处返回全部候选供融合。
         hits = []
+        doc_ids: set[int] = set()
         for h in (res[0] if res else []):
             entity = h.get("entity", {}) or {}
             doc_id = int(entity.get("doc_id", 0))
+            doc_ids.add(doc_id)
             hits.append({
                 "content": entity.get("content", ""),
                 "chunk_id": int(h.get("id", 0)),  # Milvus 主键 = kb_chunk.id，作双路 RRF 融合身份
                 "doc_id": doc_id,
+                "product_id": entity.get("product_id"),
                 "docType": entity.get("doc_type", ""),
                 "score": round(float(h.get("distance", 0)), 4),
             })
-        # 后端是版本真相源：过滤已停用/已被新版本替代的 Milvus 残留，并同时补充标题。
+        # 后端是版本真相源：过滤停用/旧版本向量并补充可信文档标题。
         if hits:
             try:
                 current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
@@ -91,21 +89,27 @@ class VectorStore:
                 hit["source"] = current[hit["chunk_id"]]
         return {"hits": hits, "total": len(hits)}
 
-    async def existing_ids(self, ids: list[int]) -> set[int]:
-        """Return IDs already vectorized in the current collection."""
-        if not ids or not self.client.has_collection(settings.milvus_collection):
+    async def existing_ids(self, ids: list[int], include_legacy: bool = True) -> set[int]:
+        """Return IDs already vectorized in this or configured legacy collections."""
+        if not ids:
             return set()
+        names = [settings.milvus_collection]
+        if include_legacy:
+            names.extend(settings.milvus_legacy_collection_names)
         found: set[int] = set()
-        for start in range(0, len(ids), 500):
-            batch = ids[start:start + 500]
-            rows = await asyncio.to_thread(
-                self.client.query,
-                collection_name=settings.milvus_collection,
-                filter=f"id in [{','.join(str(value) for value in batch)}]",
-                output_fields=["id"],
-                limit=len(batch),
-            )
-            found.update(int(row["id"]) for row in rows)
+        for name in names:
+            if not self.client.has_collection(name):
+                continue
+            for start in range(0, len(ids), 500):
+                batch = ids[start:start + 500]
+                rows = await asyncio.to_thread(
+                    self.client.query,
+                    collection_name=name,
+                    filter=f"id in [{','.join(str(value) for value in batch)}]",
+                    output_fields=["id"],
+                    limit=len(batch),
+                )
+                found.update(int(row["id"]) for row in rows)
         return found
     async def insert(self, rows: list[dict]) -> None:
         await asyncio.to_thread(

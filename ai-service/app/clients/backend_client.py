@@ -142,9 +142,7 @@ class BackendClient:
     async def kb_keyword_search(self, query: str, doc_type: str = "ALL",
                                 product_id: int | None = None, top_k: int = 4) -> dict:
         """关键词检索（RAG 兜底）：向量 Embedding 不可用或无命中时调用后端检索 ACTIVE 文档分块"""
-        return await self._post("/internal/kb/search", {
-            "query": query, "docType": doc_type, "productId": product_id, "topK": top_k,
-        })
+        return await self._post("/internal/kb/search", {"query": query, "topK": top_k})
 
     async def kb_current_chunks(self, chunk_ids: list[int]) -> dict[int, str]:
         """校验候选分块仍属于 ACTIVE 文档当前版本，并返回 chunkId → title。"""

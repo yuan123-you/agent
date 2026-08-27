@@ -120,7 +120,7 @@ async def run_ingest(task: IngestTask) -> None:
         vectorized = 0
         try:
             store = get_vectorstore()
-            existing = await store.existing_ids(ids)
+            existing = await store.existing_ids(ids, include_legacy=True)
             pending = [(chunk_id, text) for chunk_id, text in zip(ids, texts) if chunk_id not in existing]
             if pending:
                 embeddings = get_embeddings()

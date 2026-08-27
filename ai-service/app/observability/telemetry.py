@@ -132,7 +132,7 @@ class _ToolSpan:
     def __exit__(self, exc_type, exc, tb):
         if self.span is not None:
             try:
-                self.span.end(output={"error": str(exc)} if exc else self.output)
+                self.span.end(output={"error": "span_failed"} if exc else self.output)
             except Exception:
                 pass
         return False
@@ -165,16 +165,18 @@ def observe_retrieval(name: str = "rag::search"):
                 if isinstance(result, dict):
                     span.end(output={
                         "total": result.get("total", 0),
-                        "hits": result.get("hits", []),
+                        "hit_count": len(result.get("hits") or []),
                         "metric": "hits",
                     })
+                elif isinstance(result, (list, tuple)):
+                    span.end(output={"result_type": "sequence", "result_count": len(result)})
                 else:
-                    span.end(output={"result": result})
+                    span.end(output={"result_type": "none" if result is None else "object"})
                 return result
             except Exception as e:
                 if span is not None:
                     try:
-                        span.end(output={"error": str(e)})
+                        span.end(output={"error": "span_failed"})
                     except Exception:
                         pass
                 raise
@@ -185,6 +187,9 @@ def observe_retrieval(name: str = "rag::search"):
 def span_ctx(name: str, **kw):
     """普通 span 上下文管理器（装饰器无法覆盖处兜底）。"""
     class _Ctx:
+        def __init__(self):
+            self.output = kw.get("output")
+
         def __enter__(self):
             trace = _trace()
             self.span = trace.span(name=name, **kw) if trace else None
@@ -193,10 +198,13 @@ def span_ctx(name: str, **kw):
         def __exit__(self, exc_type, exc, tb):
             if self.span is not None:
                 try:
-                    self.span.end(output={"error": str(exc)} if exc else kw.get("output"))
+                    self.span.end(output={"error": "span_failed"} if exc else self.output)
                 except Exception:
                     pass
             return False
+
+        def complete(self, output=None):
+            self.output = output
 
     return _Ctx()
 

@@ -31,12 +31,14 @@ class InternalKbControllerVersionTest {
 
     private final KbDocMapper docMapper = mock(KbDocMapper.class);
     private final KbChunkMapper chunkMapper = mock(KbChunkMapper.class);
-    private final InternalKbController controller = new InternalKbController(docMapper, chunkMapper);
+    private final Bm25Retriever bm25Retriever = mock(Bm25Retriever.class);
+    private final InternalKbController controller = new InternalKbController(docMapper, chunkMapper, bm25Retriever);
 
     @Test
     void keywordSearchRestrictsChunksToTheCurrentDocumentVersion() {
         InternalKbController.SearchBody body = new InternalKbController.SearchBody();
         body.setQuery("退货政策");
+        when(docMapper.selectList(any())).thenReturn(List.of(doc(1L, "ACTIVE", 2, "退货政策")));
         when(chunkMapper.selectList(any())).thenReturn(List.of());
 
         controller.search(body);

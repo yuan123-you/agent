@@ -4,32 +4,11 @@ from pydantic import ValidationError
 
 from app.config import Settings
 from app.rag.ingest import split_text
-from app.tools.tools import _rrf_content
 
 
 def _hit(content: str, doc_id: int = 1) -> dict:
     return {"content": content, "doc_id": doc_id, "score": 0.5}
 
-
-class TestRrfContent:
-    def test_dual_hit_ranked_first(self):
-        a = _hit("退换货政策：七天无理由")
-        b = _hit("保修期一年")
-        merged = _rrf_content([[a, b], [a]], top_k=4)
-        assert merged[0]["content"] == a["content"]
-
-    def test_single_source_preserved(self):
-        merged = _rrf_content([[_hit("仅向量命中")], [_hit("仅关键词命中")]], top_k=4)
-        contents = {m["content"] for m in merged}
-        assert contents == {"仅向量命中", "仅关键词命中"}
-
-    def test_top_k_limits(self):
-        hits = [[_hit(f"片段{i}", i) for i in range(5)], [_hit(f"片段{i}", i) for i in range(5)]]
-        merged = _rrf_content(hits, top_k=3)
-        assert len(merged) == 3
-
-    def test_empty_inputs(self):
-        assert _rrf_content([[], []], top_k=4) == []
 
 
 class TestSplitText:
@@ -77,7 +56,7 @@ class TestChunkSettings:
 
 
 
-def test_generated_corpus_splits_each_formal_document_into_useful_chunks():
+def test_generated_formal_corpus_has_about_one_thousand_useful_chunks():
     import json
     from pathlib import Path
 
@@ -96,28 +75,4 @@ def test_generated_corpus_splits_each_formal_document_into_useful_chunks():
         chunk_counts.append(len(chunks))
 
     assert all(30 <= count <= 70 for count in chunk_counts)
-@pytest.mark.asyncio
-async def test_kb_search_reranks_fused_candidates(monkeypatch):
-    from unittest.mock import AsyncMock
-    from app.tools import tools
-
-    vector_hits = [
-        {"chunk_id": 1, "content": "low"},
-        {"chunk_id": 2, "content": "high"},
-    ]
-    monkeypatch.setattr(tools, "_observe_kb", AsyncMock(return_value={"hits": vector_hits}))
-    monkeypatch.setattr(
-        tools.backend_client,
-        "kb_keyword_search",
-        AsyncMock(return_value={"hits": []}),
-    )
-
-    class FakeReranker:
-        async def rerank(self, query, hits, top_n):
-            assert query == "退款"
-            assert len(hits) == 2
-            return [{**hits[1], "rerank_score": 0.9}]
-
-    monkeypatch.setattr(tools, "get_reranker", lambda: FakeReranker(), raising=False)
-    result = await tools.kb_search.coroutine(query="退款", top_k=1)
-    assert [hit["chunk_id"] for hit in result["hits"]] == [2]
+    assert 650 <= sum(chunk_counts) <= 800

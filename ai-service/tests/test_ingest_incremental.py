@@ -26,7 +26,8 @@ class ExistingAwareStore:
     def __init__(self):
         self.rows = []
 
-    async def existing_ids(self, ids):
+    async def existing_ids(self, ids, include_legacy=True):
+        assert include_legacy is True
         return {ids[0]}
 
     async def insert(self, rows):
@@ -37,7 +38,7 @@ class ExistingAwareStore:
 
 
 @pytest.mark.asyncio
-async def test_ingest_does_not_reembed_chunk_ids_present_in_current_collection(monkeypatch):
+async def test_ingest_does_not_reembed_chunk_ids_present_in_current_or_legacy_collections(monkeypatch):
     embeddings = RecordingEmbeddings()
     store = ExistingAwareStore()
     monkeypatch.setattr(ingest, "get_embeddings", lambda: embeddings)
