@@ -292,4 +292,4 @@ python backend/scripts/generate_kb_dataset.py
 
 ## 许可证
 
-当前仓库尚未声明开源许可证。除非项目所有者另行授权，否则保留所有权利。
+本项目采用 [Apache License 2.0](LICENSE)。
