@@ -25,18 +25,45 @@
       <span v-else class="hint">确认后才会正式创建订单</span>
 
       <div v-if="canDecide" class="action-buttons">
-        <el-button :disabled="action.status === 'CONFIRMING'" @click="emit('cancel', action.actionId)">取消</el-button>
+        <el-button :disabled="isDeciding" @click="requestCancel">取消</el-button>
         <el-button
           type="primary"
           :loading="action.status === 'CONFIRMING'"
-          :disabled="action.status === 'CONFIRMING'"
-          @click="emit('confirm', action.actionId)"
-        >确认下单</el-button>
+          :disabled="isDeciding"
+          @click="openReview"
+        >核对并确认</el-button>
       </div>
       <el-button v-else-if="action.status === 'CONFIRMED'" type="primary" plain @click="emit('view-order', action.orderId)">
         查看订单
       </el-button>
     </footer>
+
+    <el-dialog v-model="showReview" title="确认收货信息" width="min(92vw, 480px)" append-to-body>
+      <el-form ref="approvalFormRef" :model="approvalForm" :rules="approvalRules" label-position="top">
+        <el-form-item label="收货人" prop="receiverName">
+          <el-input v-model="approvalForm.receiverName" maxlength="50" placeholder="请输入收货人姓名" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="receiverPhone">
+          <el-input v-model="approvalForm.receiverPhone" maxlength="11" placeholder="请输入11位手机号" />
+        </el-form-item>
+        <el-form-item label="详细地址" prop="receiverAddress">
+          <el-input
+            v-model="approvalForm.receiverAddress"
+            type="textarea"
+            :rows="3"
+            maxlength="255"
+            show-word-limit
+            placeholder="请输入完整收货地址"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showReview = false">返回</el-button>
+        <el-button type="primary" :loading="action.status === 'CONFIRMING'" @click="submitApproval">
+          确认创建订单
+        </el-button>
+      </template>
+    </el-dialog>
   </section>
 
   <div v-else-if="card" class="tool-card" :class="{ running: card.status === 'running' }">
@@ -55,13 +82,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { CircleCheck, Link, Loading, Search, ShoppingCart, Tickets, User, Goods, Document } from '@element-plus/icons-vue'
-import type { OrderAction, ToolCard } from '@/types/api'
+import { ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import type { OrderAction, OrderApprovalForm, ToolCard } from '@/types/api'
 
 const props = defineProps<{ card?: ToolCard; action?: OrderAction }>()
 const emit = defineEmits<{
-  confirm: [actionId: string]
+  confirm: [actionId: string, approval: OrderApprovalForm]
   cancel: [actionId: string]
   'view-order': [orderId?: number]
 }>()
@@ -79,9 +107,22 @@ const META: Record<string, { label: string; icon: unknown }> = {
 const label = computed(() => props.card ? (META[props.card.tool]?.label || props.card.tool) : '')
 const icon = computed(() => props.card ? ((META[props.card.tool]?.icon as any) || Search) : Search)
 const canDecide = computed(() => props.action?.status === 'PENDING' || props.action?.status === 'FAILED')
+const isDeciding = computed(() => props.action?.status === 'CONFIRMING' || props.action?.status === 'CANCELLING')
+const showReview = ref(false)
+const approvalFormRef = ref<FormInstance>()
+const approvalForm = reactive<OrderApprovalForm>({ receiverName: '', receiverPhone: '', receiverAddress: '' })
+const approvalRules: FormRules<OrderApprovalForm> = {
+  receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
+  receiverPhone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1\d{10}$/, message: '请输入正确的11位手机号', trigger: 'blur' },
+  ],
+  receiverAddress: [{ required: true, message: '请输入详细收货地址', trigger: 'blur' }],
+}
 const statusMeta = computed(() => {
   switch (props.action?.status) {
     case 'CONFIRMING': return { label: '创建中', type: 'warning' as const }
+    case 'CANCELLING': return { label: '取消中', type: 'warning' as const }
     case 'CONFIRMED': return { label: '已创建订单', type: 'success' as const }
     case 'CANCELLED': return { label: '已取消', type: 'info' as const }
     case 'EXPIRED': return { label: '已过期', type: 'info' as const }
@@ -89,6 +130,34 @@ const statusMeta = computed(() => {
     default: return { label: '请核对', type: 'warning' as const }
   }
 })
+
+function openReview() {
+  if (!props.action) return
+  Object.assign(approvalForm, {
+    receiverName: props.action.receiverName,
+    receiverPhone: props.action.receiverPhone,
+    receiverAddress: props.action.receiverAddress,
+  })
+  showReview.value = true
+}
+
+async function submitApproval() {
+  if (!props.action || !await approvalFormRef.value?.validate().catch(() => false)) return
+  emit('confirm', props.action.actionId, { ...approvalForm })
+  showReview.value = false
+}
+
+async function requestCancel() {
+  if (!props.action) return
+  try {
+    await ElMessageBox.confirm('取消后不会创建订单，确定取消本次操作吗？', '取消下单', {
+      type: 'warning', confirmButtonText: '确定取消', cancelButtonText: '返回',
+    })
+    emit('cancel', props.action.actionId)
+  } catch {
+    // 用户返回继续核对。
+  }
+}
 
 function money(value: number) { return Number(value).toFixed(2) }
 function maskPhone(phone: string) { return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') }

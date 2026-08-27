@@ -18,6 +18,7 @@ def _state(intent: str) -> AgentState:
     ("ORDER_CREATE", "agent"),
     ("AFTER_SALE_FAQ", "agent"),
     ("SMALL_TALK", "small_talk"),
+    ("ASSISTANT_META", "small_talk"),
     ("HUMAN_REQUEST", "escalate_node"),
 ])
 def test_route_by_intent(intent, expected):
@@ -66,3 +67,10 @@ async def test_intent_router_node_fallback_on_bad_json(monkeypatch):
                        web_search_enabled=False)
     out = await nodes.intent_router_node(state)
     assert out["intent"] == "PRODUCT_CONSULT"
+
+def test_intent_prompt_explicitly_routes_identity_and_capability_questions():
+    from app.agent.prompts import INTENT_SYSTEM_PROMPT
+
+    assert "ASSISTANT_META" in INTENT_SYSTEM_PROMPT
+    assert "你是谁" in INTENT_SYSTEM_PROMPT
+    assert "你能帮我做什么" in INTENT_SYSTEM_PROMPT

@@ -63,6 +63,7 @@ app:
     bucket: ${MINIO_BUCKET:aimall-files}
   chat:
     rate-limit: ${CHAT_RATE_LIMIT:20}
+    human-wait-timeout-seconds: ${HUMAN_WAIT_TIMEOUT_SECONDS:60}
   seed:
     password: ${SEED_PASSWORD:123456}
     knowledge-base:
@@ -75,7 +76,3 @@ app:
 logging:
   level:
     com.aimall.backend: INFO
-
-
-
-

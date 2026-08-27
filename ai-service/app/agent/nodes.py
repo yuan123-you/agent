@@ -59,7 +59,7 @@ async def intent_router_node(state: AgentState) -> dict:
 
 def route_by_intent(state: AgentState) -> str:
     intent = state.get("intent")
-    if intent == "SMALL_TALK":
+    if intent in {"SMALL_TALK", "ASSISTANT_META"}:
         return "small_talk"
     if intent == "HUMAN_REQUEST":
         return "escalate_node"

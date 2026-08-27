@@ -111,6 +111,59 @@ class AgentOrderActionServiceTest {
         verify(orderService).create(eq(1L), any(), eq("AI"), eq(20L));
     }
 
+    @Test void confirmUsesDeliveryDataApprovedByTheBuyer() throws Exception {
+        AgentAction action = pendingAction(1L, "2026-08-23T08:10:00Z");
+        action.setPayload(new ObjectMapper().writeValueAsString(request(1L, 20L, 10L, 2)));
+        when(actionMapper.selectForUpdate("act-edited")).thenReturn(action);
+        when(productMapper.selectById(10L)).thenReturn(product("120.00", 5));
+        when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
+        OrderInfo order = new OrderInfo(); order.setId(89L); order.setUserId(1L); order.setTotalAmount(new BigDecimal("240.00"));
+        when(orderService.create(eq(1L), any(), eq("AI"), eq(20L))).thenReturn(order);
+        when(actionMapper.markConfirmed("act-edited", 89L, new BigDecimal("240.00"))).thenReturn(1);
+
+        service.confirm(1L, "act-edited", new AgentOrderActionService.ApprovalRequest(
+                "李四", "13900139000", "浙江省杭州市西湖区文三路90号"));
+
+        var requestCaptor = org.mockito.ArgumentCaptor.forClass(com.aimall.backend.order.OrderDtos.CreateOrderRequest.class);
+        verify(orderService).create(eq(1L), requestCaptor.capture(), eq("AI"), eq(20L));
+        assertEquals("李四", requestCaptor.getValue().getReceiverName());
+        assertEquals("13900139000", requestCaptor.getValue().getReceiverPhone());
+        assertEquals("浙江省杭州市西湖区文三路90号", requestCaptor.getValue().getReceiverAddress());
+    }
+
+    @Test void confirmRejectsInvalidApprovedPhoneWithoutCreatingOrder() throws Exception {
+        AgentAction action = pendingAction(1L, "2026-08-23T08:10:00Z");
+        action.setPayload(new ObjectMapper().writeValueAsString(request(1L, 20L, 10L, 2)));
+        when(actionMapper.selectForUpdate("act-invalid-phone")).thenReturn(action);
+
+        BizException error = assertThrows(BizException.class, () -> service.confirm(1L, "act-invalid-phone",
+                new AgentOrderActionService.ApprovalRequest("李四", "123", "杭州文三路90号")));
+
+        assertEquals(2001, error.getCode());
+        verifyNoInteractions(orderService);
+    }
+
+    @Test void statusReturnsThePersistedHumanDecision() {
+        AgentAction action = pendingAction(1L, "2026-08-23T08:10:00Z");
+        action.setStatus("CANCELLED");
+        when(actionMapper.selectById("act-status")).thenReturn(action);
+
+        var result = service.status(1L, "act-status");
+
+        assertEquals("CANCELLED", result.status());
+        assertNull(result.orderId());
+    }
+
+    @Test void cancelPersistsTheHumanDecisionWithoutCreatingAnOrder() {
+        AgentAction action = pendingAction(1L, "2026-08-23T08:10:00Z");
+        when(actionMapper.selectForUpdate("act-cancel")).thenReturn(action);
+        when(actionMapper.markCancelled("act-cancel")).thenReturn(1);
+
+        service.cancel(1L, "act-cancel");
+
+        verify(actionMapper).markCancelled("act-cancel");
+        verifyNoInteractions(orderService);
+    }
     private AgentOrderActionService.PrepareRequest request(Long userId, Long conversationId, Long productId, int quantity) {
         return new AgentOrderActionService.PrepareRequest(userId, conversationId, productId, quantity,
                 "张三", "13800138000", "上海市测试路1号");
@@ -125,7 +178,3 @@ class AgentOrderActionServiceTest {
         a.setStatus("PENDING"); a.setConversationId(20L); a.setExpiresAt(Instant.parse(expiresAt)); return a;
     }
 }
-
-
-
-

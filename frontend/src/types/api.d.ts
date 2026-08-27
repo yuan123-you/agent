@@ -44,6 +44,11 @@ export interface ProductVO {
   description?: string
   sellingPoints?: string
   specs?: string
+  material?: string
+  origin?: string
+  shipFrom?: string
+  productionDate?: string
+  sales?: number
   status?: string
   createdAt?: string
 }
@@ -86,6 +91,7 @@ export interface ConversationVO {
   messageCount?: number
   createdAt?: string
   updatedAt?: string
+  humanWaitExpiresAt?: string
   userNickname?: string
 }
 
@@ -99,6 +105,12 @@ export interface ToolCard {
   status: 'running' | 'done'
 }
 
+export interface OrderApprovalForm {
+  receiverName: string
+  receiverPhone: string
+  receiverAddress: string
+}
+
 export interface OrderAction {
   type: 'ORDER_CREATE'
   actionId: string
@@ -110,7 +122,7 @@ export interface OrderAction {
   receiverPhone: string
   receiverAddress: string
   expiresAt: string
-  status?: 'PENDING' | 'CONFIRMING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
+  status?: 'PENDING' | 'CONFIRMING' | 'CANCELLING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
   orderId?: number
   orderNo?: string
   orderStatus?: string

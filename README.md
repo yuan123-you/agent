@@ -34,7 +34,7 @@
                                                       ├── MinIO（对象存储：知识库源文件）
                                                       └── WebClient(SSE) ──> ai-service(FastAPI:8000，不对外)
                                                                                 ├── LLM(OpenAI兼容 API)
-                                                                                ├── Milvus 2.5(向量库)
+                                                                                ├── Milvus 2.4.9（向量库）
                                                                                 └── 工具回调 backend /internal/tools/**
 ```
 
@@ -80,30 +80,61 @@ AI-ServiceDesk/
 │       ├── rag/              # Milvus 封装 + 文档摄取链路
 │       ├── clients/          # LLM 工厂 + 后端回调客户端
 │       └── api/              # chat(SSE) / kb / health
-├── docker-compose.yml        # 九服务编排（mysql/redis/minio/milvus/ai-service/backend/frontend/langfuse-db/langfuse，ai-service 不对外映射）
+├── docker-compose.yml        # 本地基础设施（MySQL/Redis/MinIO/Milvus；Langfuse 可选）
 └── docs/                     # 8 份设计文档（v2.0）
 ```
 
-## 快速启动（Docker Compose 一键）
+## 本地开发（基础设施容器化，应用宿主机运行）
 
-前置：Docker Desktop（含 Compose v2）。
+日常开发只将**有状态或第三方基础设施**放入 Docker；前端、后端和 AI 服务在宿主机运行，以获得热更新、断点调试和直接访问本机 Ollama 的体验。三个应用目录中的 `Dockerfile` 仅保留给 CI 或部署使用，不参与本地 Compose 编排。
 
-```bash
-# 1. 配置环境变量（密钥）
-cp ai-service/.env.example ai-service/.env
-# 编辑 ai-service/.env，必填：
-#   LLM_API_BASE / LLM_API_KEY / LLM_CHAT_MODEL / LLM_INTENT_MODEL
-#   OLLAMA_BASE_URL / EMBEDDING_MODEL / EMBEDDING_DIM
-#   INTERNAL_TOKEN（与下方 compose 环境保持一致）
+前置环境：Docker Desktop（Compose v2）、JDK 17 + Maven、Python 3.13、Node.js 20+，以及可选的本机 Ollama。
 
-# 2. 一键启动（可自定义 MYSQL_ROOT_PASSWORD / JWT_SECRET / INTERNAL_TOKEN / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD / MINIO_BUCKET）
-docker compose up -d --build
+```powershell
+# 1. 启动核心基础设施：MySQL、Redis、MinIO、Milvus
+# 默认不会启动 Langfuse，也不会构建三个应用镜像
+docker compose up -d
 
-# 3. 查看状态（全部 healthy 即成功）
 docker compose ps
+
+# 可选：同时启动 Langfuse 及其 PostgreSQL
+# docker compose --profile observability up -d
 ```
 
-访问 http://localhost ，演示账号（密码均为 `123456`，启动时自动重置）：
+首次配置 AI 服务：
+
+```powershell
+Copy-Item ai-service/.env.example ai-service/.env
+# 编辑 ai-service/.env，至少配置 LLM_API_BASE、LLM_API_KEY 和模型。
+# 本地进程使用 localhost 访问 Milvus、backend、Ollama 和可选的 Langfuse。
+# INTERNAL_TOKEN 必须与 backend 使用的值一致；本地默认值为 dev-internal-token。
+```
+
+分别打开三个终端启动应用：
+
+```powershell
+# 终端 1：AI 服务（http://localhost:8000）
+Set-Location ai-service
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+```powershell
+# 终端 2：后端（http://localhost:8080）
+Set-Location backend
+$env:MYSQL_PORT = "3307"  # Docker MySQL 映射到 3307，避开宿主机已有的 3306
+$env:MYSQL_PASSWORD = "root123456"
+mvn spring-boot:run
+```
+
+```powershell
+# 终端 3：前端（http://localhost:5173，/api 代理至 backend）
+Set-Location frontend
+npm install
+npm run dev
+```
+
+访问 http://localhost:5173 ，演示账号密码均为 `123456`：
 
 | 账号 | 角色 | 入口 |
 |------|------|------|
@@ -111,37 +142,13 @@ docker compose ps
 | agent01 | 人工客服 | `/workbench` 工作台 |
 | admin | 管理员 | `/admin/*` 商品/订单/知识库/用户/统计 |
 
-> 首次启动 MySQL 会自动执行 `V1__init.sql`（8 张表 + 5 件种子商品）。
-
+> 首次启动 backend 时，Flyway 会自动初始化 MySQL 数据库。停止基础设施使用 `docker compose down`；该命令不会删除数据卷。
 ## 账号、卖家与管理员运营约定
 
 - 注册页将**买家注册**与**卖家注册**分开：买家使用 `POST /api/v1/auth/register/customer`；卖家使用 `POST /api/v1/auth/register/merchant`，并且必须填写店铺名称；两种注册均可选填手机号。技术接口和令牌中的卖家角色字面量为 `MERCHANT`，所有面向用户的页面文案统一显示为“卖家”。
 - 管理员的用户管理按“买家 / 卖家 / 客服”三个标签筛选，标签中不显示管理员；管理员只能在“客服”标签创建人工客服，并且只能启用或禁用用户，**不提供角色转换**。
 - 管理后台默认入口为 `/admin/dashboard`。看板以 `Asia/Shanghai` 为“今日”口径；应用 Clock、backend JVM 与 MySQL 默认时区均统一为该时区。看板集中展示平台用户、卖家、在售商品、今日订单/GMV/会话、近 7 日订单与 GMV、订单状态、待人工会话、AI 回复质量、热门问题和工具调用排行。
 - 管理员商品管理仅支持新建、列表查询及上/下架，不提供商品编辑；卖家仍可在自己的商品管理页创建、编辑、上/下架或删除自有商品。
-
-## 本地开发（前后端分离，基础设施容器化）
-
-```bash
-# ① 只起中间件（Milvus 镜像内置 etcd/MinIO，无需单独起）
-docker compose up -d mysql redis minio milvus langfuse-db langfuse
-
-# ② AI 推理服务
-cd ai-service
-cp .env.example .env    # MILVUS_URI 默认 localhost:19530，BACKEND_BASE_URL 默认 localhost:8080
-pip install -r requirements.txt   # 或 uv venv && uv pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# ③ 后端（dev 默认连 localhost）
-cd backend
-mvn spring-boot:run     # JWT_SECRET/INTERNAL_TOKEN 可用默认 dev 值
-
-# ④ 前端（Vite proxy /api → localhost:8080）
-cd frontend
-npm install
-npm run dev             # http://localhost:5173
-```
-
 ## 验证清单（核心链路）
 
 1. admin 登录 → 知识库 → 上传 `退换货政策.md`（类型 POLICY）→ 状态变为「已生效」
@@ -173,14 +180,14 @@ D:\Ollama\ollama.exe pull dengcao/Qwen3-Reranker-4B:Q4_K_M
 ```
 
 - `qwen3-embedding:4b` 当前官方 4B 标签本身就是 **Q4_K_M**，原始输出 2560 维；项目通过 Ollama `dimensions` 参数使用 **1024 维**。
-- Windows Ollama 必须监听 `0.0.0.0:11434`，容器通过 `http://host.docker.internal:11434` 访问。
+- AI 服务在宿主机运行时通过 `http://localhost:11434` 访问 Windows Ollama；通常无需将 Ollama 暴露到局域网。
 - Reranker 对 RRF 候选做二阶段排序；模型不可用或评分失败时自动保留原 RRF 顺序，不影响基本检索。
-## 大规模合成知识库（Agent + RAG 压力测试）
+## 大规模真实业务知识库（Agent + RAG 检索验证）
 
-项目额外内置一套**合成测试数据**，不代表 AI Mall 或任何真实电商平台的服务承诺：
+项目额外内置 15 篇面向真实电商服务流程编写的纯文本业务文档；内容用于 AI Mall 演示业务，不代表其他平台的服务承诺：
 
-- **规模**：15 份分层抽样文档，约 30.9 万字符；保持 `chunk_size=600`、`chunk_overlap=90`，实测生成 **970 个 chunks**
-- **类型**：FAQ 6、INTRO 5、POLICY 4；格式包括 MD 12、TXT 2、PDF 1，覆盖 15 个不同电商主题
+- **规模**：15 篇大型文档，共 27.8 万字符，单篇 1.83–1.89 万字符；保持 `chunk_size=600`、`chunk_overlap=90`，实测生成 **715 个 chunks**
+- **类型**：POLICY 8、FAQ 4、INTRO 3；全部为便于版本管理和标题感知分块的 Markdown 纯文本，覆盖 15 个电商主题
 - **场景**：平台/商家政策、支付发票、会员营销、普通/跨境/冷链/大件物流、售后维权、账户风控及 16 类商品知识
 - **检索难例**：口语改写、近义规则、条件与例外、地区/渠道/版本差异、多跳问题和硬负样本
 - **受控摄取**：默认每批 2 份、最多 4 份同时处于 PROCESSING；失败或超过 900 秒的任务会自动续跑，不会在启动时瞬间提交全部文档
@@ -192,7 +199,7 @@ D:\Ollama\ollama.exe pull dengcao/Qwen3-Reranker-4B:Q4_K_M
 python backend/scripts/generate_kb_dataset.py
 ```
 
-生成清单位于 `backend/src/main/resources/kbseed/generated/manifest.json`，检索标注集位于 `eval/dataset/kb_large_rag.jsonl`。完整摄取会调用约 970 个 chunk 的 Embedding，请先确认模型配额；不需要压力数据时设置 `KB_BULK_SEED_ENABLED=false`。
+生成清单位于 `backend/src/main/resources/kbseed/generated/manifest.json`，检索标注集位于 `eval/dataset/kb_large_rag.jsonl`。完整摄取会调用约 715 个 chunk 的 Embedding，请先确认模型配额；不需要压力数据时设置 `KB_BULK_SEED_ENABLED=false`。
 
 关键配置：
 
@@ -207,8 +214,8 @@ python backend/scripts/generate_kb_dataset.py
 
 | 症状 | 原因 | 处理 |
 |------|------|------|
-| AI 回答报 5001/5002 | ai-service 未就绪或 INTERNAL_TOKEN 两端不一致 | `docker compose logs ai-service`；对比 ai-service/.env 与 compose 环境变量 |
-| 知识库文档一直「处理中」 | 摄取失败（LLM Key 无 embedding 权限等） | `docker compose logs ai-service` 查 ingest 报错；确认 EMBEDDING_MODEL/DIM |
+| AI 回答报 5001/5002 | ai-service 未就绪或 INTERNAL_TOKEN 两端不一致 | 查看运行 Uvicorn 的终端日志；确认 backend 与 ai-service/.env 的 INTERNAL_TOKEN 一致 |
+| 知识库文档一直「处理中」 | 摄取失败（LLM Key 无 embedding 权限等） | 查看运行 Uvicorn 的终端日志；确认 EMBEDDING_MODEL/DIM |
 | 对话无输出/整段一起出 | Nginx 缓冲 | nginx.conf 已设 `proxy_buffering off`；自建代理需同样配置 |
 | 登录 1001 | 密码错误 | 种子密码 123456；或查 `SEED_PASSWORD` 环境变量 |
 | 商品链接点击 404 | 商品被下架/删除 | 属预期兜底（路由守卫跳 404） |
@@ -219,7 +226,7 @@ python backend/scripts/generate_kb_dataset.py
 |----|------|
 | 前端 | Vue 3.5 / TypeScript 5 / Vite 6 / Element-Plus 2.9 / Pinia 2 / Vue-Router 4 / marked 12 + DOMPurify |
 | 后端 | SpringBoot 3.3.x / JDK 17 / Spring Security 6 + JWT(jjwt 0.12) / MyBatis-Plus 3.5.7 / MySQL 8 / Redis 7 / Resilience4j |
-| AI 服务 | Python 3.13 / FastAPI / LangChain 1.x / LangGraph 1.x / pymilvus 2.5 / pypdf |
-| 部署 | Docker Compose v2（frontend:80 / backend:8080 对外，ai-service 仅内网） |
+| AI 服务 | Python 3.13 / FastAPI / LangChain 1.x / LangGraph 1.x / pymilvus 2.4.15 / pypdf |
+| 本地运行 | Docker Compose v2（基础设施）+ Vite / Spring Boot / Uvicorn（宿主机应用） |
 
 设计文档见 `docs/`（8 份，v2.0 电商版）。

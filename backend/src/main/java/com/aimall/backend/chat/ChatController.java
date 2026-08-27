@@ -71,6 +71,11 @@ public class ChatController {
         return ApiResponse.ok(chatService.statusVo(userId, id));
     }
 
+    @PostMapping("/conversations/{id}/cancel-human")
+    public ApiResponse<Void> cancelHuman(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+        chatService.cancelHuman(userId, id);
+        return ApiResponse.ok();
+    }
     @PostMapping("/conversations/{id}/close")
     public ApiResponse<Void> close(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
         chatService.close(userId, id);
@@ -108,6 +113,7 @@ public class ChatController {
         vo.put("messageCount", conv.getMessageCount());
         vo.put("createdAt", conv.getCreatedAt());
         vo.put("updatedAt", conv.getUpdatedAt());
+        vo.put("humanWaitExpiresAt", chatService.humanWaitExpiresAt(conv));
         return vo;
     }
 }

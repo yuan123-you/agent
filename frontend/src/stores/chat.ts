@@ -3,11 +3,11 @@ import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import {
   apiCloseConversation, apiConversationDetail, apiConversationStatus, apiConversations,
-  apiCreateConversation, apiHumanMessage, apiMessages, apiMessagesAfter, apiSatisfaction, apiConfirmOrderAction,
+  apiCreateConversation, apiHumanMessage, apiCancelHuman, apiMessages, apiMessagesAfter, apiSatisfaction, apiConfirmOrderAction, apiCancelOrderAction, apiOrderActionStatus,
 } from '@/api'
 import { streamChat, type SseStream } from '@/composables/useSseChat'
 import { StreamBuffer } from '@/components/mall/StreamBuffer'
-import type { ChatMessage, ConversationVO, OrderAction, ToolCard } from '@/types/api'
+import type { ChatMessage, ConversationVO, OrderAction, OrderApprovalForm, ToolCard } from '@/types/api'
 
 /** 单个会话的后台流式状态（切换会话/更换页面后恢复渲染用） */
 interface PendingStream {
@@ -54,6 +54,14 @@ export const useChatStore = defineStore('chat', {
       this.messages = page.records.slice().reverse().map((m) => ({
         ...m,
         toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }),
+        actions: parseOrderActions(m as unknown as { toolCalls?: unknown }),
+      }))
+      await Promise.all(this.messages.flatMap((message) => message.actions || []).map(async (action) => {
+        try {
+          Object.assign(action, await apiOrderActionStatus(action.actionId))
+        } catch {
+          if (Date.parse(action.expiresAt) <= Date.now()) action.status = 'EXPIRED'
+        }
       }))
       // 恢复该会话后台未完成的流式 AI 消息（切走会话/页面后返回继续渲染）
       const pending = this.pendingByConv[id]
@@ -78,13 +86,19 @@ export const useChatStore = defineStore('chat', {
       if (lastId > 0) {
         const fresh = await apiMessagesAfter(convId, lastId)
         for (const m of fresh) {
-          this.messages.push({ ...m, toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }) })
+          this.messages.push({
+            ...m,
+            toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }),
+            actions: parseOrderActions(m as unknown as { toolCalls?: unknown }),
+          })
         }
       }
       // 状态轮询：客服接入(SERVICING)/买家或客服结束(CLOSED) 时刷新会话详情
       const st = await apiConversationStatus(convId)
       if (st.status !== this.current.status) {
         this.current = await apiConversationDetail(convId)
+      } else {
+        this.current.humanWaitExpiresAt = st.humanWaitExpiresAt
       }
     },
 
@@ -168,6 +182,13 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    async cancelHumanHandoff(): Promise<void> {
+      if (!this.current || this.current.status !== 'PENDING_HUMAN') return
+      const conversationId = this.current.conversationId
+      await apiCancelHuman(conversationId)
+      this.current = await apiConversationDetail(conversationId)
+      await this.loadConversations()
+    },
     /** 人工客服服务中：买家消息直达客服（不经过 AI） */
     async sendHumanMessage(content: string): Promise<void> {
       if (!this.current || !content.trim()) return
@@ -205,16 +226,21 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    /** 本地取消 prepare action；prepare 阶段没有订单，因此无需后端请求。 */
-    cancelOrderAction(actionId: string) {
+    /** 持久化买家的拒绝决定；只有后端接受后才进入 CANCELLED 终态。 */
+    async cancelOrderAction(actionId: string) {
       const action = findOrderAction(this.messages, actionId)
-      if (action?.status === 'PENDING' || action?.status === 'FAILED') {
+      if (!action || (action.status !== 'PENDING' && action.status !== 'FAILED')) return
+      action.status = 'CANCELLING'
+      try {
+        await apiCancelOrderAction(actionId)
         action.status = 'CANCELLED'
+      } catch {
+        action.status = Date.parse(action.expiresAt) <= Date.now() ? 'EXPIRED' : 'FAILED'
       }
     },
 
-    /** 直接确认 action。同步锁定状态，使双击与并发调用最多发出一个请求。 */
-    async confirmOrderAction(actionId: string) {
+    /** 提交买家核对后的表单。同步锁定状态，使双击与并发调用最多发出一个请求。 */
+    async confirmOrderAction(actionId: string, approval?: OrderApprovalForm) {
       const action = findOrderAction(this.messages, actionId)
       if (!action || (action.status !== 'PENDING' && action.status !== 'FAILED')) return
       if (Date.parse(action.expiresAt) <= Date.now()) {
@@ -222,10 +248,15 @@ export const useChatStore = defineStore('chat', {
         return
       }
 
+      const approved = approval || {
+        receiverName: action.receiverName,
+        receiverPhone: action.receiverPhone,
+        receiverAddress: action.receiverAddress,
+      }
       action.status = 'CONFIRMING'
       try {
-        const order = await apiConfirmOrderAction(actionId)
-        Object.assign(action, {
+        const order = await apiConfirmOrderAction(actionId, approved)
+        Object.assign(action, approved, {
           status: 'CONFIRMED',
           orderId: order.orderId,
           orderNo: order.orderNo,
@@ -275,7 +306,7 @@ function parseToolCalls(msg: { toolCalls?: unknown }): ToolCard[] {
     if (!Array.isArray(arr)) return []
     const cards: ToolCard[] = []
     for (const t of arr) {
-      if (!t || typeof t !== 'object') continue
+      if (!t || typeof t !== 'object' || t.type === 'ORDER_CREATE') continue
       const callId = String(t.callId || `${t.tool}-${cards.length}`)
       const exists = cards.find((c) => c.callId === callId)
       if (t.result !== undefined) {
@@ -292,6 +323,21 @@ function parseToolCalls(msg: { toolCalls?: unknown }): ToolCard[] {
       }
     }
     return cards
+  } catch {
+    return []
+  }
+}
+
+
+/** 从历史消息保存的 SSE 事件中恢复待人工决策动作。 */
+function parseOrderActions(msg: { toolCalls?: unknown }): OrderAction[] {
+  if (!msg.toolCalls) return []
+  try {
+    const events = typeof msg.toolCalls === 'string' ? JSON.parse(msg.toolCalls) : msg.toolCalls
+    if (!Array.isArray(events)) return []
+    return events
+      .filter((event): event is OrderAction => event?.type === 'ORDER_CREATE' && typeof event.actionId === 'string')
+      .map((event) => ({ ...event, status: event.status || 'PENDING' }))
   } catch {
     return []
   }

@@ -17,6 +17,9 @@ public interface AgentActionMapper extends BaseMapper<AgentAction> {
     int markConfirmed(@Param("actionId") String actionId, @Param("orderId") Long orderId,
                       @Param("amount") BigDecimal amount);
 
+    @Update("UPDATE agent_action SET status = 'CANCELLED', updated_at = NOW(3) " +
+            "WHERE action_id = #{actionId} AND status = 'PENDING'")
+    int markCancelled(@Param("actionId") String actionId);
     @Update("UPDATE agent_action SET status = 'EXPIRED', updated_at = NOW(3) " +
             "WHERE status = 'PENDING' AND expires_at <= #{now}")
     int expirePending(@Param("now") Instant now);

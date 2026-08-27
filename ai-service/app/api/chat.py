@@ -63,6 +63,14 @@ def build_state(req: ChatRequest) -> AgentState:
     )
 
 
+TIMEOUT_FALLBACK_TEXT = "本次查询耗时较长，暂未能生成完整结果。请稍后重试，或转接人工客服。"
+
+
+def _timeout_fallback(content: str, timed_out: bool) -> str:
+    """仅在超时且没有任何可用内容时提供非空降级回复。"""
+    return content or (TIMEOUT_FALLBACK_TEXT if timed_out else "")
+
+
 def _short(obj, limit: int = 500) -> str:
     try:
         s = obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False, default=str)
@@ -225,6 +233,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                         if getattr(m, "type", "") == "ai" and isinstance(content, str) and content:
                             final_text = content
                             break
+            final_text = _timeout_fallback(final_text, timed_out)
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})

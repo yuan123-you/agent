@@ -1,6 +1,7 @@
 package com.aimall.backend.workbench;
 
 import com.aimall.backend.common.BizException;
+import com.aimall.backend.chat.HumanHandoffService;
 import com.aimall.backend.entity.Conversation;
 import com.aimall.backend.entity.Message;
 import com.aimall.backend.entity.User;
@@ -26,9 +27,11 @@ public class WorkbenchService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final UserMapper userMapper;
+    private final HumanHandoffService humanHandoffService;
 
     /** SLA 看板指标 */
     public Map<String, Object> sla() {
+        humanHandoffService.expireAll();
         LocalDate today = LocalDate.now();
         Map<String, Object> vo = new HashMap<>();
         vo.put("pendingCount", conversationMapper.countByStatus("PENDING_HUMAN"));
@@ -41,6 +44,7 @@ public class WorkbenchService {
     }
 
     public List<Conversation> pending() {
+        humanHandoffService.expireAll();
         return conversationMapper.selectList(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getStatus, "PENDING_HUMAN")
                 .orderByAsc(Conversation::getUpdatedAt));
@@ -55,9 +59,7 @@ public class WorkbenchService {
 
     /** 抢占式接管：仅 PENDING_HUMAN 可接（防双客服同接） */
     public void claim(Long agentId, Long conversationId) {
-        if (conversationMapper.claim(conversationId, agentId) != 1) {
-            throw new BizException(2004, "会话已被其他客服接入或状态已变更");
-        }
+        humanHandoffService.claim(agentId, conversationId);
     }
 
     public void sendMessage(Long agentId, Long conversationId, String content) {

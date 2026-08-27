@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page">
     <h3 class="page-title">商品评论（{{ total }}）</h3>
 
     <div class="list">
@@ -32,7 +28,8 @@
 
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && reviews.length > 0" class="load-state">— 没有更多了 —</div>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -90,9 +87,9 @@ onMounted(load)
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .page {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   box-sizing: border-box;
   max-width: 860px;
 }

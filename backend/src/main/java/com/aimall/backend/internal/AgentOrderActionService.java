@@ -45,6 +45,8 @@ public class AgentOrderActionService {
 
     public record PrepareRequest(Long userId, Long conversationId, Long productId, Integer quantity,
                                  String receiverName, String receiverPhone, String receiverAddress) {}
+    public record ApprovalRequest(String receiverName, String receiverPhone, String receiverAddress) {}
+    public record ActionStatusResult(String status, Long orderId, String orderNo) {}
     public record PrepareResult(String actionId, String productName, Integer quantity,
                                 BigDecimal unitPrice, BigDecimal amount, String receiverName,
                                 String receiverPhone, String receiverAddress, Instant expiresAt) {}
@@ -76,6 +78,11 @@ public class AgentOrderActionService {
 
     @Transactional
     public OrderInfo confirm(Long userId, String actionId) {
+        return confirm(userId, actionId, null);
+    }
+
+    @Transactional
+    public OrderInfo confirm(Long userId, String actionId, ApprovalRequest approval) {
         if (userId == null || actionId == null || actionId.isBlank()) {
             throw new BizException(2001, "缺少 userId 或 actionId");
         }
@@ -99,6 +106,11 @@ public class AgentOrderActionService {
         }
 
         PrepareRequest request = readPayload(action.getPayload());
+        if (approval != null) {
+            request = new PrepareRequest(request.userId(), request.conversationId(), request.productId(), request.quantity(),
+                    approval.receiverName(), approval.receiverPhone(), approval.receiverAddress());
+        }
+        validateRequest(request);
         if (!userId.equals(request.userId()) || !action.getConversationId().equals(request.conversationId())) {
             throw new BizException(2003, "操作快照归属校验失败");
         }
@@ -106,7 +118,7 @@ public class AgentOrderActionService {
         Product current = requireAvailableProduct(request.productId(), request.quantity());
         BigDecimal currentAmount = current.getPrice().multiply(BigDecimal.valueOf(request.quantity()));
 
-String idempotencyKey = idempotencyKey(request.conversationId(), request.productId());
+        String idempotencyKey = idempotencyKey(request.conversationId(), request.productId());
         try {
             String existingId = redisTemplate.opsForValue().get(idempotencyKey);
             if (existingId != null) {
@@ -142,6 +154,44 @@ String idempotencyKey = idempotencyKey(request.conversationId(), request.product
         return order;
     }
 
+    @Transactional(readOnly = true)
+    public ActionStatusResult status(Long userId, String actionId) {
+        if (userId == null || actionId == null || actionId.isBlank()) {
+            throw new BizException(2001, "缺少 userId 或 actionId");
+        }
+        AgentAction action = actionMapper.selectById(actionId);
+        if (action == null || !ORDER_CREATE.equals(action.getType())) {
+            throw new BizException(2010, "待确认操作不存在");
+        }
+        if (!action.getUserId().equals(userId)) {
+            throw new BizException(2003, "无权查看该操作");
+        }
+        String status = "PENDING".equals(action.getStatus()) && !action.getExpiresAt().isAfter(clock.instant())
+                ? "EXPIRED" : action.getStatus();
+        OrderInfo order = action.getOrderId() == null ? null : orderInfoMapper.selectById(action.getOrderId());
+        return new ActionStatusResult(status, order == null ? null : order.getId(),
+                order == null ? null : order.getOrderNo());
+    }
+
+    @Transactional
+    public void cancel(Long userId, String actionId) {
+        if (userId == null || actionId == null || actionId.isBlank()) {
+            throw new BizException(2001, "缺少 userId 或 actionId");
+        }
+        AgentAction action = actionMapper.selectForUpdate(actionId);
+        if (action == null || !ORDER_CREATE.equals(action.getType())) {
+            throw new BizException(2010, "待确认操作不存在");
+        }
+        if (!action.getUserId().equals(userId)) {
+            throw new BizException(2003, "无权取消该操作");
+        }
+        if ("CANCELLED".equals(action.getStatus())) {
+            return;
+        }
+        if (!"PENDING".equals(action.getStatus()) || actionMapper.markCancelled(actionId) != 1) {
+            throw new BizException(2012, "该操作当前不可取消");
+        }
+    }
     @Scheduled(fixedDelayString = "${agent.action.expire-interval-ms:60000}")
     public void expirePendingActions() {
         actionMapper.expirePending(clock.instant());
@@ -172,6 +222,12 @@ String idempotencyKey = idempotencyKey(request.conversationId(), request.product
         }
         if (blank(request.receiverName()) || blank(request.receiverPhone()) || blank(request.receiverAddress())) {
             throw new BizException(2001, "缺少收货信息（姓名/电话/地址）");
+        }
+        if (request.receiverName().trim().length() > 50 || request.receiverAddress().trim().length() > 255) {
+            throw new BizException(2001, "收货信息长度超出限制");
+        }
+        if (!request.receiverPhone().trim().matches("^1\\d{10}$")) {
+            throw new BizException(2001, "请填写正确的手机号码");
         }
     }
 
@@ -208,6 +264,3 @@ String idempotencyKey = idempotencyKey(request.conversationId(), request.product
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
 }
-
-
-

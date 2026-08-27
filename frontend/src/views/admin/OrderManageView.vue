@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="page"
-    v-infinite-scroll="loadMore"
-    :infinite-scroll-disabled="loading || finished"
-    :infinite-scroll-distance="60"
-  >
+  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
+    <div class="page">
     <div class="toolbar">
       <h3 class="page-title">订单管理（{{ total }}）</h3>
       <el-select v-model="status" style="width: 140px" @change="reload">
@@ -63,7 +59,8 @@
         <el-button type="primary" @click="confirmShip">确认发货</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -152,9 +149,9 @@ onMounted(load)
 </script>
 
 <style scoped>
+.page-scroll { height: 100%; }
 .page {
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   box-sizing: border-box;
 }
 
