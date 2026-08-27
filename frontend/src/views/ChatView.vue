@@ -13,7 +13,12 @@
           :class="{ active: chat.current?.conversationId === c.conversationId }"
           @click="openConv(c.conversationId)"
         >
-          <div class="conv-title">{{ c.title || '新对话' }}</div>
+          <div class="conv-title">
+            <el-icon v-if="isStreaming(c.conversationId)" class="is-loading conv-spinner">
+              <Loading />
+            </el-icon>
+            <span>{{ c.title || '新对话' }}</span>
+          </div>
           <div class="conv-meta">
             <el-tag v-if="c.status !== 'ACTIVE'" size="small" :type="statusTag(c.status)">
               {{ statusText(c.status) }}
@@ -141,7 +146,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Link, Menu, Service } from '@element-plus/icons-vue'
+import { Link, Loading, Menu, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import AiMessage from '@/components/chat/AiMessage.vue'
@@ -290,6 +295,11 @@ function statusText(status: string): string {
   return { ACTIVE: 'AI 服务中', PENDING_HUMAN: '等待人工', SERVICING: '人工服务中', CLOSED: '已结束' }[status] || status
 }
 
+/** 该会话是否正在后台流式生成（用于列表指示） */
+function isStreaming(conversationId: number): boolean {
+  return !!chat.pendingByConv[conversationId]?.streaming
+}
+
 function statusTag(status: string): 'warning' | 'success' | 'info' {
   return { PENDING_HUMAN: 'warning', SERVICING: 'success', CLOSED: 'info' }[status] as never || 'info'
 }
@@ -344,10 +354,23 @@ function shortTime(t?: string): string {
 }
 
 .conv-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 14px;
+}
+
+.conv-title > span {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.conv-spinner {
+  flex-shrink: 0;
+  color: var(--el-color-primary);
 }
 
 .conv-meta {

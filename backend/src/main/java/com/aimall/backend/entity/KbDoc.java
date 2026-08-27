@@ -30,6 +30,9 @@ public class KbDoc {
 
     private Integer chunkCount;
 
+    /** 实际写入 Milvus 的向量数（0 = 未向量化 / 关键词降级模式） */
+    private Integer vectorCount;
+
     private String failReason;
 
     private Integer version;

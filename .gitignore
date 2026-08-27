@@ -37,3 +37,14 @@ backend/.catalog-cache/
 *.warc.gz
 *.tmp
 backend/.venv-product-catalog/
+
+# Root-level local launch notes and machine-specific launcher
+/Docker
+/local
+/start.bat
+/_final_v4.ps1
+/_fix_v3.ps1
+/新建 文本文档.md
+
+# Local experimental catalog generator/output; canonical catalog lives under backend/src/main/resources/product-catalog
+/backend/scripts/china_mall/

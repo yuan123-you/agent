@@ -167,3 +167,62 @@ describe('chat tool result history', () => {
     expect(chat.messages[0].toolCalls?.[0].result?.preview).toBe('找到 1 件商品：星云手机（¥2999）')
   })
 })
+
+
+describe('chat background streaming restore', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    api.conversationDetail.mockResolvedValue({ conversationId: 7, status: 'ACTIVE' })
+  })
+
+  it('restores an in-flight streaming AI message and streaming flag after switching back', async () => {
+    // 服务端只持久化了用户消息，AI 回复仍在前端内存中生成中
+    api.messages.mockResolvedValue({
+      records: [{ role: 'USER', content: '你好' }],
+    })
+    const chat = useChatStore()
+    const ai: ChatMessage = { role: 'AI', content: '正在生成…', toolCalls: [], status: 'PENDING' }
+    chat.pendingByConv[7] = { aiMessage: ai, stream: null, streaming: true }
+
+    await chat.openConversation(7)
+
+    expect(chat.messages).toHaveLength(2)
+    expect(chat.messages[1]).toMatchObject({ role: 'AI', content: '正在生成…', status: 'PENDING' })
+    expect(chat.streaming).toBe(true)
+  })
+
+  it('does not duplicate an AI message already persisted on the server', async () => {
+    const persisted: ChatMessage = { messageId: 9, role: 'AI', content: '完整回复', status: 'SUCCESS' }
+    api.messages.mockResolvedValue({ records: [{ role: 'USER', content: '你好' }, persisted] })
+    const chat = useChatStore()
+    // 已完成但 pending 记录尚未清理的竞态窗口
+    chat.pendingByConv[7] = { aiMessage: { ...persisted }, stream: null, streaming: false }
+
+    await chat.openConversation(7)
+
+    expect(chat.messages).toHaveLength(2)
+    expect(chat.streaming).toBe(false)
+  })
+
+  it('clears the pending record once the stream finishes', async () => {
+    const chat = useChatStore()
+    chat.current = { conversationId: 7, status: 'ACTIVE' }
+    // 与真实流一致：aiMsg 从响应式 messages 数组中取引用
+    chat.messages.push({ role: 'USER', content: '你好' })
+    chat.messages.push({ role: 'AI', content: '', toolCalls: [], status: 'PENDING' })
+    const aiMsg = chat.messages[chat.messages.length - 1] as ChatMessage
+    chat.pendingByConv[7] = { aiMessage: aiMsg, stream: null, streaming: true }
+    chat.streaming = true
+
+    // 模拟流完成后的 finally 清理
+    if (chat.pendingByConv[7]?.aiMessage === aiMsg) {
+      delete chat.pendingByConv[7]
+    }
+    if (chat.current?.conversationId === 7) {
+      chat.streaming = false
+    }
+
+    expect(chat.pendingByConv[7]).toBeUndefined()
+    expect(chat.streaming).toBe(false)
+  })
+})

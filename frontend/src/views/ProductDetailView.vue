@@ -105,8 +105,41 @@
       </div>
     </el-card>
 
+    <!-- 规格与数量选择弹窗 -->
+    <el-dialog v-model="showSpec" title="选择规格与数量" width="420px">
+      <div class="spec-head">
+        <el-image :src="product.imageUrl" fit="cover" class="spec-pic">
+          <template #error>
+            <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
+          </template>
+        </el-image>
+        <div class="spec-info">
+          <div class="spec-name">{{ product.name }}</div>
+          <div class="spec-price">￥{{ product.price }}</div>
+          <div class="spec-stock">库存 {{ product.stock }}</div>
+        </div>
+      </div>
+      <div v-if="specAttrs.length" class="spec-block">
+        <div class="spec-label">规格参数</div>
+        <div class="attr-grid">
+          <div v-for="s in specAttrs" :key="s.k" class="attr-item">
+            <span class="attr-key">{{ s.k }}</span>
+            <span class="attr-val">{{ s.v }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="spec-qty">
+        <span class="qty-t">数量</span>
+        <el-input-number v-model="specQty" :min="1" :max="Math.min(99, product.stock)" />
+      </div>
+      <template #footer>
+        <el-button @click="showSpec = false">取消</el-button>
+        <el-button type="danger" :disabled="product.stock === 0" @click="confirmSpec">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 收货信息 + 下单弹窗 -->
-    <el-dialog v-model="showBuy" title="确认订单（模拟支付）" width="440px">
+    <el-dialog v-model="showBuy" title="确认订单" width="440px">
       <el-form label-width="80px">
         <el-form-item label="商品">
           <span>{{ product.name }} × {{ quantity }}</span>
@@ -114,22 +147,13 @@
         <el-form-item label="合计">
           <span class="total">￥{{ totalAmount }}</span>
         </el-form-item>
-        <el-form-item label="收货地址">
-          <el-select v-if="addresses.length" v-model="selectedAddressId" placeholder="请选择收货地址" style="width: 100%">
-            <el-option v-for="address in addresses" :key="address.addressId"
-              :label="`${address.isDefault ? '[默认] ' : ''}${address.receiverName} ${address.receiverPhone} ${address.receiverAddress}`"
-              :value="address.addressId" />
-          </el-select>
-          <div v-else-if="addressLoading" class="address-state">正在加载地址簿...</div>
-          <div v-else class="address-empty">
-            <span>还没有可用的收货地址</span>
-            <el-button type="primary" link @click="router.push('/addresses')">去新增地址</el-button>
-          </div>
+        <el-form-item label="收货地址" class="addr-form-item">
+          <CheckoutAddressPicker v-model="selectedAddressId" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showBuy = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" :disabled="addressLoading || !selectedAddressId" @click="submitOrder">提交订单</el-button>
+        <el-button type="danger" :loading="submitting" :disabled="!selectedAddressId" @click="submitOrder">立即支付</el-button>
       </template>
     </el-dialog>
   </div>
@@ -140,14 +164,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Star } from '@element-plus/icons-vue'
+import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
 import {
-  apiAddresses, apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
-  apiProductDetail, apiReviewCreate, apiReviews, type ReviewVO,
+  apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
+  apiPayOrder, apiProductDetail, apiReviewCreate, apiReviews, type ReviewVO,
 } from '@/api'
-import { preferredAddress } from '@/components/address/checkoutAddress'
 import { renderMarkdown } from '@/components/mall/link'
 import { categoryName } from '@/constants/categories'
-import type { AddressVO, ProductVO } from '@/types/api'
+import type { ProductVO } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,10 +179,10 @@ const router = useRouter()
 const product = ref<ProductVO | null>(null)
 const quantity = ref(1)
 const favorited = ref(false)
+const showSpec = ref(false)
 const showBuy = ref(false)
+const specQty = ref(1)
 const submitting = ref(false)
-const addressLoading = ref(false)
-const addresses = ref<AddressVO[]>([])
 const selectedAddressId = ref<number>()
 
 // 评论
@@ -180,6 +204,13 @@ const specs = computed(() => {
   } catch {
     return []
   }
+})
+/** 规格弹窗内展示的商品参数 */
+const specAttrs = computed(() => {
+  const attrs = [...specs.value]
+  if (product.value?.material) attrs.push({ k: '材质', v: product.value.material })
+  if (product.value?.origin) attrs.push({ k: '产地', v: product.value.origin })
+  return attrs
 })
 const totalAmount = computed(() => ((product.value?.price || 0) * quantity.value).toFixed(2))
 const descHtml = computed(() => renderMarkdown(product.value?.description || '暂无介绍'))
@@ -228,16 +259,16 @@ async function toggleFavorite() {
 }
 
 async function buyNow() {
-  showBuy.value = true
-  addressLoading.value = true
-  addresses.value = []
+  // 先弹出规格与数量选择，确认后再进入收货地址与支付
+  specQty.value = quantity.value
+  showSpec.value = true
+}
+
+function confirmSpec() {
+  quantity.value = specQty.value
+  showSpec.value = false
   selectedAddressId.value = undefined
-  try {
-    addresses.value = await apiAddresses()
-    selectedAddressId.value = preferredAddress(addresses.value)?.addressId
-  } finally {
-    addressLoading.value = false
-  }
+  showBuy.value = true
 }
 
 async function submitOrder() {
@@ -252,7 +283,9 @@ async function submitOrder() {
       quantity: quantity.value,
       addressId: selectedAddressId.value,
     })
-    ElMessage.success(`下单成功：${order.orderNo}`)
+    // 下单后直接完成支付，无需用户再次确认
+    await apiPayOrder(order.orderId)
+    ElMessage.success(`下单并支付成功：${order.orderNo}`)
     showBuy.value = false
     router.push(`/orders/${order.orderId}`)
   } catch {
@@ -471,6 +504,109 @@ function shortTime(t?: string): string {
   color: var(--el-color-danger);
   font-size: 18px;
   font-weight: 700;
+}
+
+.spec-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.spec-pic {
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.spec-pic .el-image__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #c0c4cc;
+  background: linear-gradient(135deg, #e8f0fe, #f5f7fa);
+}
+
+.spec-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.spec-name {
+  font-weight: 600;
+  font-size: 15px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spec-price {
+  color: var(--el-color-danger);
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.spec-stock {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.spec-block {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #ebeef5;
+}
+
+.spec-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.attr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.attr-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.attr-key {
+  color: #909399;
+  flex-shrink: 0;
+}
+
+.attr-val {
+  color: #303133;
+  text-align: right;
+}
+
+.spec-qty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.qty-t {
+  color: #303133;
+  font-weight: 600;
+}
+
+.addr-form-item :deep(.el-form-item__content) {
+  width: 100%;
 }
 
 @media (max-width: 768px) {

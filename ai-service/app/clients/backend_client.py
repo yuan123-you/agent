@@ -57,11 +57,21 @@ class BackendClient:
         })
 
     async def products_all(self) -> list[dict]:
-        """拉取全量在售商品（商品向量化 job 数据源：含参数/介绍/销量）"""
-        r = await self._post("/internal/tools/products/all", {})
-        if "error" in r:
-            raise RuntimeError(r["error"])
-        return r.get("products") or []
+        """拉取全量在售商品（商品向量化 job 数据源：含参数/介绍/销量）。
+        全量商品响应较大，必须走长超时客户端，避免 3s 默认超时导致同步失败。"""
+        for attempt in range(3):
+            try:
+                r = await self._long_client.post("/internal/tools/products/all", json={})
+                r.raise_for_status()
+                resp = r.json()
+                if resp.get("code") == 0:
+                    return (resp.get("data") or {}).get("products") or []
+                raise RuntimeError(resp.get("message", "backend business error"))
+            except Exception as e:
+                if attempt == 2:
+                    raise RuntimeError(f"后端服务暂时不可用，请稍后再试: {e}") from e
+                await asyncio.sleep(0.3)
+        return []
 
     async def order_query(self, user_id: int, status: str = "ALL") -> dict:
         return await self._post("/internal/tools/order/query", {
@@ -101,11 +111,15 @@ class BackendClient:
             logger.warning("backend long call failed %s: %s", path, e)
             return {"error": str(e)}
 
-    async def kb_result(self, doc_id: int, status: str, chunk_count: int = 0, fail_reason: str | None = None) -> None:
+    async def kb_result(self, doc_id: int, status: str, chunk_count: int = 0,
+                        fail_reason: str | None = None, vector_count: int | None = None) -> None:
         try:
-            await self._long_client.post("/internal/kb/result", json={
+            body = {
                 "docId": doc_id, "status": status, "chunkCount": chunk_count, "failReason": fail_reason,
-            })
+            }
+            if vector_count is not None:
+                body["vectorCount"] = vector_count
+            await self._long_client.post("/internal/kb/result", json=body)
         except Exception as e:
             logger.warning("kb_result callback failed: %s", e)
 

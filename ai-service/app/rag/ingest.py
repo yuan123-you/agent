@@ -116,6 +116,8 @@ async def run_ingest(task: IngestTask) -> None:
         ids = resp["ids"]
 
         # ② 向量化并写入 Milvus（Embedding 不可用时跳过：检索自动降级关键词模式）
+        # vectorized 记录本次实际写入 Milvus 的向量数（0 = 降级，未向量化）
+        vectorized = 0
         try:
             store = get_vectorstore()
             existing = await store.existing_ids(ids)
@@ -133,9 +135,10 @@ async def run_ingest(task: IngestTask) -> None:
                     "content": text[:4000],
                 } for i, (chunk_id, text) in enumerate(pending)]
                 await store.insert(rows)
+                vectorized = len(rows)
             logger.info(
                 "ingest vectors doc=%s embedded=%s skipped_existing=%s",
-                task.doc_id, len(pending), len(existing),
+                task.doc_id, vectorized, len(existing),
             )
             # 重建索引场景：清理旧版本向量
             if task.doc_version > 1:
@@ -144,8 +147,9 @@ async def run_ingest(task: IngestTask) -> None:
             logger.warning(
                 "embedding/milvus unavailable (doc=%s), KB falls back to keyword mode: %s",
                 task.doc_id, e)
+            vectorized = 0
 
-        await backend_client.kb_result(task.doc_id, "ACTIVE", len(chunks))
+        await backend_client.kb_result(task.doc_id, "ACTIVE", len(chunks), vector_count=vectorized)
         logger.info("ingest done doc=%s chunks=%s", task.doc_id, len(chunks))
     except Exception as e:
         logger.error("ingest failed doc=%s: %s", task.doc_id, e)

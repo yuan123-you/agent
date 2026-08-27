@@ -48,7 +48,7 @@ def _verify_with_timestamp_updates(tmp_path: Path, **updates):
     return verify_catalog(manifest, tmp_path / "catalog-report.json")
 
 
-def test_select_catalog_is_order_independent_round_robin_and_assigns_exact_replacement_slots():
+def test_select_catalog_emits_all_valid_products_round_robin_with_sequential_slots():
     items = catalog_inputs()
     shuffled = items[:]
     random.Random(9).shuffle(shuffled)
@@ -56,13 +56,12 @@ def test_select_catalog_is_order_independent_round_robin_and_assigns_exact_repla
     selected = select_catalog(items)
     selected_shuffled = select_catalog(shuffled)
 
-    assert len(selected) == 2512
+    assert len(selected) == len(catalog_inputs())
     assert [row.to_json() for row in selected] == [row.to_json() for row in selected_shuffled]
-    assert [row.replacement_slot for row in selected[:512]] == list(range(1, 513))
-    assert all(row.replacement_slot is None for row in selected[512:])
+    assert [row.replacement_slot for row in selected] == list(range(1, len(selected) + 1))
     assert set(row.raw.category for row in selected[:21]) == set(CATEGORIES)
-    assert len({(row.raw.source_name, row.raw.source_product_id) for row in selected}) == 2512
-    assert len({row.content_hash for row in selected}) == 2512
+    assert len({(row.raw.source_name, row.raw.source_product_id) for row in selected}) == len(selected)
+    assert len({row.content_hash for row in selected}) == len(selected)
 
 
 def test_write_catalog_is_utf8_stable_and_verification_hard_fails_global_constraint_violations(tmp_path: Path):
@@ -74,9 +73,9 @@ def test_write_catalog_is_utf8_stable_and_verification_hard_fails_global_constra
     payload = manifest.read_bytes()
     assert payload.endswith(b"\n")
     assert b"\r\n" not in payload
-    assert len(payload.splitlines()) == 2512
-    assert report.product_count == 2512
-    assert report.replacement_slots == 512
+    assert len(payload.splitlines()) == report.product_count
+    assert report.product_count == len(catalog_inputs())
+    assert report.replacement_slots == len(catalog_inputs())
     assert report.simulated_fields == ["stock", "sales"]
     assert json.loads(json_report.read_text(encoding="utf-8"))["category_counts"] == report.category_counts
     assert "# Catalog report" in markdown_report.read_text(encoding="utf-8")

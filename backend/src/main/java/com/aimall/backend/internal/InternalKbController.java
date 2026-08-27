@@ -48,6 +48,7 @@ public class InternalKbController {
         private Long docId;
         private String status;
         private Integer chunkCount;
+        private Integer vectorCount;
         private String failReason;
     }
 
@@ -94,6 +95,9 @@ public class InternalKbController {
         upd.setStatus(body.getStatus());
         if (body.getChunkCount() != null) {
             upd.setChunkCount(body.getChunkCount());
+        }
+        if (body.getVectorCount() != null) {
+            upd.setVectorCount(body.getVectorCount());
         }
         if (body.getFailReason() != null) {
             upd.setFailReason(body.getFailReason());

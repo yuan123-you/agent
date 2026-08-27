@@ -62,4 +62,4 @@ async def test_ingest_does_not_reembed_chunk_ids_present_in_current_collection(m
 
     assert embeddings.texts == ["new chunk"]
     assert [row["id"] for row in store.rows] == [102]
-    result.assert_awaited_once_with(7, "ACTIVE", 2)
+    result.assert_awaited_once_with(7, "ACTIVE", 2, vector_count=1)

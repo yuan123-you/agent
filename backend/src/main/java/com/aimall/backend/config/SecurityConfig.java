@@ -47,6 +47,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/register/customer",
                                 "/api/v1/auth/register/merchant", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/actuator/**", "/api/v1/product-images/**").permitAll()
+                        // 商品浏览（列表/详情/分类）：游客公开可见
+                        .requestMatchers("/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 内部接口：仅 AI 服务（内部令牌）
                         .requestMatchers("/internal/**").hasRole("INTERNAL")

@@ -136,6 +136,8 @@ export interface KbDocVO {
   fileFormat: string
   status: 'PENDING' | 'PROCESSING' | 'ACTIVE' | 'DISABLED' | 'FAILED'
   chunkCount: number
+  /** 实际写入 Milvus 的向量数（0 = 未向量化/关键词降级） */
+  vectorCount?: number
   failReason?: string
   version: number
   createdAt?: string

@@ -37,27 +37,18 @@
     </div>
 
     <!-- 收货信息弹窗 -->
-    <el-dialog v-model="showCheckout" title="确认订单（模拟支付）" width="440px">
+    <el-dialog v-model="showCheckout" title="确认订单" width="460px">
       <el-form label-width="80px">
         <el-form-item label="商品">
           <span>共 {{ checkedCount }} 件，合计 <b class="amount">￥{{ totalAmount }}</b></span>
         </el-form-item>
-        <el-form-item label="收货地址">
-          <el-select v-if="addresses.length" v-model="selectedAddressId" placeholder="请选择收货地址" style="width: 100%">
-            <el-option v-for="address in addresses" :key="address.addressId"
-              :label="`${address.isDefault ? '[默认] ' : ''}${address.receiverName} ${address.receiverPhone} ${address.receiverAddress}`"
-              :value="address.addressId" />
-          </el-select>
-          <div v-else-if="addressLoading" class="address-state">正在加载地址簿...</div>
-          <div v-else class="address-empty">
-            <span>还没有可用的收货地址</span>
-            <el-button type="primary" link @click="router.push('/addresses')">去新增地址</el-button>
-          </div>
+        <el-form-item label="收货地址" class="addr-form-item">
+          <CheckoutAddressPicker v-model="selectedAddressId" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showCheckout = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" :disabled="addressLoading || !selectedAddressId" @click="submit">提交订单</el-button>
+        <el-button type="danger" :loading="submitting" :disabled="!selectedAddressId" @click="submit">立即支付</el-button>
       </template>
     </el-dialog>
   </div>
@@ -67,11 +58,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
 import {
-  apiAddresses, apiCartCheckAll, apiCartCheckout, apiCartList, apiCartRemove, apiCartUpdate, type CartRow,
+  apiCartCheckAll, apiCartCheckout, apiCartList, apiCartRemove, apiCartUpdate,
+  apiPayOrder, type CartRow,
 } from '@/api'
-import { preferredAddress } from '@/components/address/checkoutAddress'
-import type { AddressVO } from '@/types/api'
 
 const router = useRouter()
 const items = ref<CartRow[]>([])
@@ -80,8 +71,6 @@ const totalAmount = ref(0)
 const checkedCount = ref(0)
 const showCheckout = ref(false)
 const submitting = ref(false)
-const addressLoading = ref(false)
-const addresses = ref<AddressVO[]>([])
 const selectedAddressId = ref<number>()
 
 const allChecked = computed(() => items.value.length > 0 && checkedCount.value === items.value.length)
@@ -119,18 +108,10 @@ async function remove(row: CartRow) {
   load()
 }
 
-/** 打开结算：加载地址簿，默认选中默认地址并预填表单 */
+/** 打开结算：地址簿由 <CheckoutAddressPicker> 自行加载并自动选中默认地址 */
 async function openCheckout() {
   showCheckout.value = true
-  addressLoading.value = true
-  addresses.value = []
   selectedAddressId.value = undefined
-  try {
-    addresses.value = await apiAddresses()
-    selectedAddressId.value = preferredAddress(addresses.value)?.addressId
-  } finally {
-    addressLoading.value = false
-  }
 }
 
 async function submit() {
@@ -141,7 +122,9 @@ async function submit() {
   submitting.value = true
   try {
     const order = await apiCartCheckout({ addressId: selectedAddressId.value })
-    ElMessage.success(`下单成功：${order.orderNo}`)
+    // 结算后直接完成支付，无需用户再次确认
+    await apiPayOrder(order.orderId)
+    ElMessage.success(`下单并支付成功：${order.orderNo}`)
     showCheckout.value = false
     router.push(`/orders/${order.orderId}`)
   } catch {
@@ -263,6 +246,10 @@ onMounted(load)
 
 .amount {
   color: var(--el-color-danger);
+}
+
+.addr-form-item :deep(.el-form-item__content) {
+  width: 100%;
 }
 
 @media (max-width: 768px) {

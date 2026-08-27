@@ -12,7 +12,6 @@ from urllib.parse import urlsplit
 
 from .model import CATEGORIES, CatalogProduct
 
-TARGET_COUNT, REPLACEMENT_COUNT = 2512, 512
 MINIMUM_TIME = datetime(2025, 1, 1, tzinfo=timezone.utc)
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _IMAGE_PATH = re.compile(r"^/api/v1/product-images/catalog/([0-9a-f]{64})\.(jpg|png|webp)$")
@@ -83,7 +82,7 @@ def _row_errors(row: dict[str, Any]) -> list[str]:
             errors.append(f"invalid {field}")
     if not times or max(times) < MINIMUM_TIME: errors.append("stale time")
     slot = row.get("replacement_slot")
-    if slot is not None and (type(slot) is not int or not 1 <= slot <= REPLACEMENT_COUNT): errors.append("invalid replacement slot")
+    if slot is not None and (type(slot) is not int or slot <= 0): errors.append("invalid replacement slot")
     return errors
 
 def _pool(items: Iterable[CatalogProduct]) -> tuple[list[CatalogProduct], Counter[str], Counter[str]]:
@@ -101,17 +100,31 @@ def _pool(items: Iterable[CatalogProduct]) -> tuple[list[CatalogProduct], Counte
         sources.add(source); contents.add(item.content_hash); valid.append(item)
     return valid, rejected, summaries
 
-def select_catalog(items: Iterable[CatalogProduct], total: int = TARGET_COUNT, replacement_count: int = REPLACEMENT_COUNT) -> list[CatalogProduct]:
-    if type(total) is not int or total <= 0 or type(replacement_count) is not int or not 0 <= replacement_count <= total: raise ValueError("invalid catalog size or replacement count")
-    valid, _, _ = _pool(items); queues: dict[str, list[CatalogProduct]] = defaultdict(list)
+def select_catalog(items: Iterable[CatalogProduct], total: int | None = None, replacement_count: int | None = None) -> list[CatalogProduct]:
+    valid, _, _ = _pool(items)
+    if total is None:
+        # No fixed target: emit every valid product (round-robin across
+        # categories), each with a sequential replacement slot, so the size
+        # follows whatever data is available.
+        limit, assign_all_slots = len(valid), True
+    else:
+        if replacement_count is None:
+            replacement_count = total
+        if type(total) is not int or total <= 0 or type(replacement_count) is not int or not 0 <= replacement_count <= total: raise ValueError("invalid catalog size or replacement count")
+        limit, assign_all_slots = total, False
+    queues: dict[str, list[CatalogProduct]] = defaultdict(list)
     for item in valid: queues[item.raw.category or ""].append(item)
     chosen: list[CatalogProduct] = []
-    while len(chosen) < total:
+    while len(chosen) < limit:
         progressed = False
         for category in CATEGORIES:
             if queues[category]: chosen.append(queues[category].pop(0)); progressed = True
-            if len(chosen) == total: break
-        if not progressed: raise ValueError(f"only {len(chosen)} valid products available; need {total}")
+            if len(chosen) == limit: break
+        if not progressed:
+            if assign_all_slots: break
+            raise ValueError(f"only {len(chosen)} valid products available; need {limit}")
+    if assign_all_slots:
+        return [replace(item, replacement_slot=index) for index, item in enumerate(chosen, 1)]
     return [replace(item, replacement_slot=index if index <= replacement_count else None) for index, item in enumerate(chosen, 1)]
 
 def _report(products: list[CatalogProduct], input_count: int, rejected: Counter[str], summaries: Counter[str]) -> CatalogReport:
@@ -140,8 +153,8 @@ def verify_catalog(path: Path | str, report_path: Path | str) -> VerificationRes
         if content in contents: errors.append("duplicate content hash")
         sources.add(source); contents.add(content)
         if type(row.get("replacement_slot")) is int: slots.append(row["replacement_slot"])
-    if len(rows) != TARGET_COUNT: errors.append(f"expected {TARGET_COUNT} products")
-    if sorted(slots) != list(range(1, REPLACEMENT_COUNT + 1)): errors.append(f"expected replacement slots 1-{REPLACEMENT_COUNT}")
+    if len(slots) != len(set(slots)): errors.append("duplicate replacement slots")
+    if any(type(slot) is not int or slot <= 0 for slot in slots): errors.append("invalid replacement slot")
     try:
         report = json.loads(Path(report_path).read_text(encoding="utf-8")); required = set(CatalogReport.__dataclass_fields__)
         if not required.issubset(report): errors.append("incomplete report statistics")

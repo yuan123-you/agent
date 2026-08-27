@@ -169,7 +169,7 @@ def test_initial_import_stages_parameterized_batches_and_cuts_over_once():
     assert all("Real product" not in call[1] for call in batches)
     sql = [call[1] for call in calls if call[0] == "execute"]
     assert next(i for i, value in enumerate(sql) if "CREATE TEMPORARY TABLE" in value) < next(i for i, value in enumerate(sql) if "STAGING_VALIDATION" in value)
-    assert "NOT BETWEEN 1 AND 512" in next(value for value in sql if "STAGING_VALIDATION" in value)
+    assert "replacement_slot <= 0" in next(value for value in sql if "STAGING_VALIDATION" in value)
     lock_index = next(i for i, value in enumerate(sql) if "FOR UPDATE" in value)
     assert lock_index < next(i for i, value in enumerate(sql) if "DATABASE_STATE" in value)
     assert lock_index < next(i for i, value in enumerate(sql) if "SEED_IDENTITY" in value)
@@ -370,7 +370,7 @@ class StatefulCursor:
             rows = self.connection.stage or []
             slots = [row[24] for row in rows if row[24] is not None]
             self._one = (len(rows), len({(row[7], row[9]) for row in rows}), len(slots),
-                         sum(not 1 <= slot <= 512 for slot in slots), 0, 0, 0)
+                         sum(slot <= 0 for slot in slots), 0, 0, 0)
         elif "FOR UPDATE" in normalized:
             self._all = [(row["id"],) for row in self.connection.products]
         elif "DATABASE_STATE" in sql:

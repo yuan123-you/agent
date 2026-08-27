@@ -130,8 +130,8 @@ class CatalogProduct:
                 raise ValueError(f"{field} must be a 64-character hexadecimal hash")
         if self.commerce_values_simulated is not True:
             raise ValueError("commerce_values_simulated must be true")
-        if self.replacement_slot is not None and (type(self.replacement_slot) is not int or not 1 <= self.replacement_slot <= 512):
-            raise ValueError("replacement_slot must be between 1 and 512")
+        if self.replacement_slot is not None and (type(self.replacement_slot) is not int or self.replacement_slot <= 0):
+            raise ValueError("replacement_slot must be a positive integer")
         if type(self.image_original_bytes) is not int or type(self.image_output_bytes) is not int or self.image_original_bytes <= 0 or self.image_output_bytes <= 0 or self.image_output_bytes > self.image_original_bytes:
             raise ValueError("image byte counts must be positive with output no larger than original")
 

@@ -80,6 +80,19 @@ body,
   }
 }
 
+/* ⚠️ 图片统一尺寸：el-image 内部 img 必须填满并受限于容器，
+   避免 el-image__inner 超出盒子导致布局错乱 */
+.el-image {
+  display: block; /* 默认 inline-block + 基线对齐会向下多出空隙，改为块级消除溢出 */
+  overflow: hidden; /* 圆角处裁切，防止图片溢出 */
+}
+.el-image__inner {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  object-fit: cover; /* 已全部使用 fit="cover"，统一裁切填满，normal 兜底 */
+}
+
 /* 页面容器 */
 .page {
   padding: 16px;

@@ -11,12 +11,12 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layouts/ClientLayout.vue'),
       children: [
-        { path: '', component: () => import('@/views/HomeView.vue') },
+        { path: '', component: () => import('@/views/HomeView.vue'), meta: { public: true } },
         { path: 'assistant', component: () => import('@/views/ChatView.vue'), meta: { customer: true } },
         { path: 'chat/:conversationId', redirect: (to) => `/assistant/${to.params.conversationId}` },
         { path: 'assistant/:conversationId', component: () => import('@/views/ChatView.vue'), meta: { customer: true } },
-        { path: 'products', component: () => import('@/views/ProductListView.vue') },
-        { path: 'products/:id', component: () => import('@/views/ProductDetailView.vue') },
+        { path: 'products', component: () => import('@/views/ProductListView.vue'), meta: { public: true } },
+        { path: 'products/:id', component: () => import('@/views/ProductDetailView.vue'), meta: { public: true } },
         { path: 'orders', component: () => import('@/views/MyOrdersView.vue'), meta: { customer: true } },
         { path: 'orders/:id', component: () => import('@/views/OrderDetailView.vue'), meta: { customer: true } },
         { path: 'addresses', component: () => import('@/views/AddressesView.vue'), meta: { customer: true } },
@@ -74,18 +74,18 @@ router.beforeEach((to) => {
     role = ''
   }
 
+  const roleHome = homeRouteForRole(role)
+  if (token && to.path === '/' && roleHome !== '/') {
+    return roleHome
+  }
   if (to.meta.public) {
     if (to.path === '/login' && token) {
-      return homeRouteForRole(role)
+      return roleHome
     }
     return true
   }
   if (!token) {
     return `/login?redirect=${encodeURIComponent(to.fullPath)}`
-  }
-  const roleHome = homeRouteForRole(role)
-  if (to.path === '/' && roleHome !== '/') {
-    return roleHome
   }
   const roles = (to.meta.roles as string[]) || (to.matched.find((r) => r.meta.roles)?.meta.roles as string[])
   if (roles && !roles.includes(role)) {

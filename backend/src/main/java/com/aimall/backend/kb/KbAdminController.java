@@ -98,6 +98,7 @@ public class KbAdminController {
         vo.put("fileFormat", doc.getFileFormat());
         vo.put("status", doc.getStatus());
         vo.put("chunkCount", doc.getChunkCount());
+        vo.put("vectorCount", doc.getVectorCount());
         vo.put("failReason", doc.getFailReason());
         vo.put("version", doc.getVersion());
         vo.put("createdAt", doc.getCreatedAt());

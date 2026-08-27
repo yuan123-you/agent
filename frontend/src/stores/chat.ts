@@ -9,10 +9,19 @@ import { streamChat, type SseStream } from '@/composables/useSseChat'
 import { StreamBuffer } from '@/components/mall/StreamBuffer'
 import type { ChatMessage, ConversationVO, OrderAction, ToolCard } from '@/types/api'
 
+/** 单个会话的后台流式状态（切换会话/更换页面后恢复渲染用） */
+interface PendingStream {
+  aiMessage: ChatMessage
+  stream: SseStream | null
+  streaming: boolean
+}
+
 interface ChatState {
   conversations: ConversationVO[]
   current: ConversationVO | null
   messages: ChatMessage[]
+  /** 各会话的后台流式任务（key=conversationId）：切走会话/页面后继续生成，切回时恢复 */
+  pendingByConv: Record<number, PendingStream>
   streaming: boolean
   webSearchEnabled: boolean
 }
@@ -22,6 +31,7 @@ export const useChatStore = defineStore('chat', {
     conversations: [],
     current: null,
     messages: [],
+    pendingByConv: {},
     streaming: false,
     webSearchEnabled: false,
   }),
@@ -45,6 +55,19 @@ export const useChatStore = defineStore('chat', {
         ...m,
         toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }),
       }))
+      // 恢复该会话后台未完成的流式 AI 消息（切走会话/页面后返回继续渲染）
+      const pending = this.pendingByConv[id]
+      if (pending) {
+        const ai = pending.aiMessage
+        const alreadyLoaded = this.messages.some(
+          (m) => ai.messageId != null && m.messageId === ai.messageId,
+        )
+        // PENDING 说明服务端尚未落库；否则仅在竞态窗口内（已落库但记录未清理）补推
+        if (ai.status === 'PENDING' || !alreadyLoaded) {
+          this.messages.push(ai)
+        }
+      }
+      this.streaming = pending?.streaming ?? false
     },
 
     /** 转人工后轮询：新消息（含 AGENT 消息）+ 会话状态（感知客服接入/服务结束） */
@@ -67,8 +90,10 @@ export const useChatStore = defineStore('chat', {
 
     /** ⭐ 发送消息（SSE 流式）：乐观插入 + StreamBuffer 缓冲渲染 + 工具卡片 */
     async sendMessage(content: string): Promise<void> {
-      if (!this.current || this.streaming || !content.trim()) return
+      if (!this.current) return
       const conversationId = this.current.conversationId
+      // 按会话粒度拦截：仅阻止同一会话的重复发送，允许其他会话后台生成
+      if (this.pendingByConv[conversationId]?.streaming || !content.trim()) return
 
       // 乐观插入用户消息与流式 AI 消息
       this.messages.push({ role: 'USER', content })
@@ -76,6 +101,9 @@ export const useChatStore = defineStore('chat', {
       // ⚡ 必须通过响应式数组重新取引用：直接持有 push 前的原始对象会被 Vue 深响应式
       // 包装成副本，后续对其 content 的修改不会触发视图更新（"要刷新才显示"根因）
       const aiMsg = this.messages[this.messages.length - 1] as ChatMessage
+      // 记录该会话的流式状态：切走会话/页面后后台继续生成，切回时恢复
+      const pending: PendingStream = { aiMessage: aiMsg, stream: null, streaming: true }
+      this.pendingByConv[conversationId] = pending
       this.streaming = true
 
       const buffer = new StreamBuffer()
@@ -117,12 +145,19 @@ export const useChatStore = defineStore('chat', {
             aiMsg.status = 'SUCCESS'
           },
         })
+        pending.stream = stream
         await stream.promise
       } catch {
         aiMsg.status = 'FAILED'
         if (!aiMsg.content) aiMsg.content = '生成中断，请重试'
       } finally {
-        this.streaming = false
+        // 清理流式状态：完成后服务端已落库，切回时走接口加载，不再依赖内存
+        if (this.pendingByConv[conversationId]?.aiMessage === aiMsg) {
+          delete this.pendingByConv[conversationId]
+        }
+        if (this.current?.conversationId === conversationId) {
+          this.streaming = false
+        }
         // 刷新会话列表与状态（可能已转人工/建单）
         this.loadConversations().catch(() => {})
         if (this.current?.conversationId === conversationId) {
@@ -206,7 +241,13 @@ export const useChatStore = defineStore('chat', {
     },
 
     stopStream() {
-      // 中止后 finally 兜底复位 streaming
+      if (!this.current) return
+      const pending = this.pendingByConv[this.current.conversationId]
+      if (pending) {
+        // 真正中断后台 SSE 流；fetch 中止后由 sendMessage 的 catch/finally 兜底复位
+        pending.stream?.stop()
+        pending.streaming = false
+      }
       this.streaming = false
     },
 

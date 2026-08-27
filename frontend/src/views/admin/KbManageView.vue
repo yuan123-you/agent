@@ -25,6 +25,19 @@
       </el-table-column>
       <el-table-column prop="fileFormat" label="格式" width="80" />
       <el-table-column prop="chunkCount" label="分块数" width="90" />
+      <el-table-column label="向量/存储" width="150">
+        <template #default="{ row }">
+          <template v-if="row.status === 'ACTIVE'">
+            <el-tag v-if="(row.vectorCount ?? 0) > 0" size="small" type="success">
+              {{ row.vectorCount }} 向量
+            </el-tag>
+            <el-tooltip v-else content="Embedding/Milvus 不可用时已降级为关键词检索">
+              <el-tag size="small" type="warning">关键词降级</el-tag>
+            </el-tooltip>
+          </template>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="110">
         <template #default="{ row }">
           <el-tag v-if="row.status === 'PROCESSING' || row.status === 'PENDING'" size="small" type="warning">

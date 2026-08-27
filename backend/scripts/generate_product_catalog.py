@@ -310,7 +310,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         except Exception:
             continue
     candidates = normalize.deduplicate(candidates)
-    if len(candidates) < args.target:
+    if args.target is not None and len(candidates) < args.target:
         _error(f"build: only {len(candidates)} valid candidates; need at least {args.target}")
         return 1
     payload = _jsonl({
@@ -398,7 +398,7 @@ def cmd_upload_images(args: argparse.Namespace) -> int:
     products: list[CatalogProduct] = []
     try:
         for candidate in candidates:
-            if len(products) >= args.target:
+            if args.target is not None and len(products) >= args.target:
                 break
             try:
                 products.append(_process_candidate(candidate, session, client, bucket, args.catalog_version))
@@ -406,7 +406,7 @@ def cmd_upload_images(args: argparse.Namespace) -> int:
                 _log(f"upload-images: skipped {candidate.raw.source_name}/{candidate.raw.source_product_id}: {exc}")
     finally:
         session.close()
-    if len(products) < args.target:
+    if args.target is not None and len(products) < args.target:
         _error(f"upload-images: only {len(products)} products with images; need {args.target}")
         return 1
     report = catalog.write_catalog(products, Path(args.output))
@@ -521,11 +521,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_build = sub.add_parser("build", help="normalize, validate, and deduplicate cached candidates")
     _add_shared_options(p_build, suppress_default=True)
-    p_build.add_argument("--target", type=int, default=catalog.TARGET_COUNT)
+    p_build.add_argument("--target", type=int, default=None)
 
     p_upload = sub.add_parser("upload-images", help="download, process, and upload images; write the manifest")
     _add_shared_options(p_upload, suppress_default=True)
-    p_upload.add_argument("--target", type=int, default=catalog.TARGET_COUNT)
+    p_upload.add_argument("--target", type=int, default=None)
     p_upload.add_argument("--bucket")
     p_upload.add_argument("--catalog-version", default=DEFAULT_CATALOG_VERSION)
 
@@ -549,7 +549,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_shared_options(p_all, suppress_default=True)
     p_all.add_argument("--config", default=str(DEFAULT_CONFIG))
     p_all.add_argument("--minimum-candidates", type=int, default=4000)
-    p_all.add_argument("--target", type=int, default=catalog.TARGET_COUNT)
+    p_all.add_argument("--target", type=int, default=None)
     p_all.add_argument("--bucket")
     p_all.add_argument("--catalog-version", default=DEFAULT_CATALOG_VERSION)
     p_all.add_argument("--manifest", default=str(DEFAULT_OUTPUT_DIR / "products.jsonl"))
