@@ -21,6 +21,7 @@ async def test_hybrid_product_search_uses_second_stage_reranker(monkeypatch):
         async def rerank(self, query, hits, top_n):
             return [hits[1]]
 
+    monkeypatch.setattr(product_index.settings, "reranker_enabled", True)
     monkeypatch.setattr(product_index, "get_product_corpus", lambda: Index.corpus)
     monkeypatch.setattr(product_index, "get_product_index", lambda: Index())
     monkeypatch.setattr(product_index, "get_reranker", lambda: Reranker(), raising=False)

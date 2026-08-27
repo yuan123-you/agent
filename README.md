@@ -64,7 +64,7 @@ backend (Spring Boot 3 / Java 17)
 | Docker Desktop / Docker Engine | 支持 Compose v2 |
 | Java | 17 |
 | Maven | 3.9+ |
-| Node.js | 20+ |
+| Node.js | 22.22.2+ |
 | Python | 3.12+ |
 | Ollama | 可选；本地 Embedding/Reranker 使用 |
 
