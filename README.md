@@ -1,232 +1,295 @@
-# AI Mall 智能电商平台（内含 AI Agent）
+# AI Mall 智能电商平台
 
-前后端分离 + AI 微服务的三层架构：**Vue3 前端（frontend） ↔ SpringBoot 后端（backend） ↔ Python AI 推理服务（ai-service）**。
-以传统电商业务为核心（首页轮播/分类导航/楼层推荐/商品/下单/订单，三端响应式），**AI 购物助手作为独立模块**嵌入其中——对话中检索商品/查询订单，回答以**高亮链接**（`mall://` 协议）呈现，点击直达对应页面。
+[![CI](https://github.com/yuan123-you/agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yuan123-you/agent/actions/workflows/ci.yml)
 
-**商品数据**：共 **2,512 件真实商品**（512 件原位替换旧种子 + 2,000 件新增），来自 Apple / Samsung / adidas 等官方公开页面（经 Common Crawl 发现 + 官方页核验），含来源、采集等溯源元数据。**全部列表均为滚动懒加载**（无限加载，无分页器）。
+AI Mall 是一个前后端分离的智能电商项目，由 **Vue 3 前端、Spring Boot 后端和 Python AI Agent 服务**组成。平台覆盖买家、商家、客服和管理员四类角色，并提供商品检索、购物车、地址、下单支付、订单售后、人工接管、知识库 RAG、管理员运营看板和离线评测。
 
-## 真实商品目录（product catalog）
+> 本仓库用于开发与演示。默认账号、默认密码和示例密钥只能用于本地环境，部署前必须全部替换。
 
-商品目录由 `backend/scripts/product_catalog/` 下的 Python 批量管线生成（确定性、可审计、可重跑）：
+## 核心能力
 
-- **数据量**：`products.jsonl` 恰好 2,512 件有效商品；`replacement_slot` 1–512 原位更新旧种子，其余为新增。幂等依赖「来源商品唯一键 + 内容哈希」。
-- **来源与新鲜度**：来源域名、robots 约束与限速见 [product_sources.json](backend/scripts/product_sources.json)；任何来源/采集时间须 ≥ `2025-01-01T00:00:00Z`，单个来源域名失效时跳过、不终止全量。
-- **图片**：最长边 ≤ 1200 px；不透明转 WebP 质量 82、透明转无损 WebP；内容寻址存储（SHA-256 文件名）至 MinIO `aimall-files`，HTTP 访问 `/api/v1/product-images/catalog/{sha}.webp`。
-- **模拟字段**：`stock` / `sales` 为确定性模拟并在记录中标注 `commerce_values_simulated=true`，勿当真实经营数据。
-- **命令**（`backend/scripts/generate_product_catalog.py`）：
-  ```bash
-  python generate_product_catalog.py discover --max-domains N --max-records N   # 发现候选（写 .catalog-cache）
-  python generate_product_catalog.py build                                        # 标准化/校验/去重 → 2512 清单
-  python generate_product_catalog.py upload-images                                # 压缩上传至 MinIO（幂等）
-  python generate_product_catalog.py verify --database --minio                    # 导入前全面核验
-  python generate_product_catalog.py import --dry-run                             # 事务预检（不落库）
-  python generate_product_catalog.py import --apply                               # 单事务：更新512/插入2000
-  ```
-- **缓存与报告**：`.catalog-cache/` 为中间缓存不入库；审计报告见 [catalog-report.json](backend/src/main/resources/product-catalog/catalog-report.json) 与 [catalog-report.md](backend/src/main/resources/product-catalog/catalog-report.md)（来源/分类计数、图片字节前后对比与节省率、WebP 数量）。
-- **恢复**：`import --apply` 单事务执行，任一断言失败整体回滚；重跑幂等，可随时安全重试。
+- **完整电商链路**：商品浏览、收藏、购物车、地址簿、下单、支付、订单状态与评价。
+- **真实商品目录**：2,512 件带来源和采集元数据的商品；512 件替换原种子，2,000 件新增。
+- **多角色后台**：商家商品管理、客服工作台、管理员用户/订单/知识库/统计看板。
+- **AI 购物助手**：LangGraph 工具循环、SSE 流式输出、`mall://` 站内链接和工具调用卡片。
+- **安全业务动作**：取消订单和申请售后必须由买家确认，Agent 不能直接执行高风险动作。
+- **混合 RAG**：Milvus 向量召回 + 后端 BM25 + RRF 融合 + 可选 Qwen Reranker。
+- **证据与降级**：回答置信度判定、引用校验、旧向量去重、当前文档版本校验以及检索故障降级。
+- **人工接管**：转人工、客服抢占接入、等待超时恢复和会话状态同步。
+- **质量评测**：离线基线、答案可回答性校准和可选在线 Agent 评测。
 
-## 架构总览
+## 架构
 
-```
-浏览器 ── HTTPS ──> frontend(nginx:80) ──/api 反代──> backend(SpringBoot:8080)
-                                                      ├── MySQL 8（业务数据唯一写入方）
-                                                      ├── Redis 7（限流/令牌黑名单）
-                                                      ├── MinIO（对象存储：知识库源文件）
-                                                      └── WebClient(SSE) ──> ai-service(FastAPI:8000，不对外)
-                                                                                ├── LLM(OpenAI兼容 API)
-                                                                                ├── Milvus 2.4.9（向量库）
-                                                                                └── 工具回调 backend /internal/tools/**
-```
-
-> **前后端分离**：前端 SPA 仅通过 `/api` 前缀与后端通信（开发期 Vite proxy → localhost:8080，生产期 nginx 反代 → backend:8080），不直连 AI 服务与数据库；backend 与 ai-service 各自独立部署、独立扩容。
-
-核心特性：
-- **LangGraph StateGraph Agent**：意图路由 → 购物助理（工具循环）→ 流式回答（禁止 LangChain 0.x / initialize_agent）
-- **SSE 五类事件**：`token / tool_call / tool_result / error / done`，前端工具卡片 + 打字机流式渲染
-- **AI 高亮链接**：回答中 `[商品名](mall://product/1001)` → 前端白名单渲染为可点击高亮文字 → 跳转商品/订单页；AI 侧 link_guard 后验 + 前端 scheme 白名单双重防护
-- **AI 能力**：商品混合检索、订单查询、AI 下单/取消/售后申请（全部先生成买家确认动作）、知识库 RAG（Milvus）、转人工
-- **安全红线**：前端永不直连 AI 服务；密钥全部环境变量；AI 服务不碰业务库；WebClient 非阻塞代理 SSE
-
-## 目录结构
-
-```
-AI-ServiceDesk/
-├── frontend/                 # Vue 3.5 + TS + Vite6 + Element-Plus + Pinia
-│   ├── src/
-│   │   ├── api/              # axios 封装 + 全量接口
-│   │   ├── stores/           # auth / chat（SSE 流式状态）
-│   │   ├── composables/      # useSseChat（fetch 流式解析）
-│   │   ├── components/
-│   │   │   ├── chat/         # AiMessage / ToolCallCard
-│   │   │   └── mall/         # StreamBuffer / link.ts（高亮链接渲染）
-│   │   ├── views/            # 对话/商品/订单 + admin + workbench
-│   │   └── layouts/
-│   ├── nginx.conf            # SSE 反代（proxy_buffering off）
-│   └── Dockerfile
-├── backend/                  # SpringBoot 3.3 + JDK17 + Security6 + MyBatis-Plus
-│   └── src/main/java/com/aimall/backend/
-│       ├── config/           # JWT/Security/WebClient/熔断/种子密码初始化
-│       ├── common/           # 统一响应体/全局异常
-│       ├── auth/ product/ order/   # 认证 + 电商业务
-│       ├── chat/             # ⭐ SSE 代理（Emitter 管理 + AiClient）
-│       ├── kb/               # 知识库管理
-│       ├── internal/         # ⭐ AI 工具回调（商品/订单/转人工/文件）
-│       ├── workbench/ admin/ # 客服工作台 + 统计/用户管理
-│       └── resources/db/init/V1__init.sql   # 建表 + 种子数据
-├── ai-service/               # Python 3.13 + FastAPI + LangChain 1.x + LangGraph
-│   └── app/
-│       ├── agent/            # state / graph / nodes / prompts / link_guard
-│       ├── tools/            # 6 个工具（身份 ContextVar 注入）
-│       ├── rag/              # Milvus 封装 + 文档摄取链路
-│       ├── clients/          # LLM 工厂 + 后端回调客户端
-│       └── api/              # chat(SSE) / kb / health
-├── docker-compose.yml        # 本地基础设施（MySQL/Redis/MinIO/Milvus；Langfuse 可选）
-└── docs/                     # 8 份设计文档（v2.0）
+```text
+Browser
+  │
+  ▼
+frontend (Vue 3 + Nginx)
+  │ /api
+  ▼
+backend (Spring Boot 3 / Java 17)
+  ├── MySQL 8       业务数据、知识库文档与分块
+  ├── Redis 7       缓存与会话辅助
+  ├── MinIO         文档和商品图片
+  └── SSE ───────────────┐
+                         ▼
+                 ai-service (FastAPI)
+                   ├── LangGraph Agent
+                   ├── Milvus 2.4
+                   ├── Ollama / OpenAI-compatible API
+                   └── Langfuse（可观测性）
 ```
 
-## 本地开发（基础设施容器化，应用宿主机运行）
+业务鉴权由后端负责；AI 服务只通过 `/internal/**` 和共享内部令牌访问后端，不应直接暴露到公网。
 
-日常开发只将**有状态或第三方基础设施**放入 Docker；前端、后端和 AI 服务在宿主机运行，以获得热更新、断点调试和直接访问本机 Ollama 的体验。三个应用目录中的 `Dockerfile` 仅保留给 CI 或部署使用，不参与本地 Compose 编排。
+## 仓库结构
 
-前置环境：Docker Desktop（Compose v2）、JDK 17 + Maven、Python 3.13、Node.js 20+，以及可选的本机 Ollama。
-
-```powershell
-# 1. 启动核心基础设施：MySQL、Redis、MinIO、Milvus
-# 默认不会启动 Langfuse，也不会构建三个应用镜像
-docker compose up -d
-
-docker compose ps
-
-# 可选：同时启动 Langfuse 及其 PostgreSQL
-# docker compose --profile observability up -d
+```text
+.
+├── .github/workflows/ci.yml     # GitHub Actions
+├── frontend/                    # Vue 3、TypeScript、Vite、Vitest
+├── backend/                     # Spring Boot、MyBatis-Plus、Flyway
+├── ai-service/                  # FastAPI、LangGraph、RAG、Agent 工具
+├── eval/                        # 离线/在线评测数据与脚本
+├── docs/                        # 产品、架构、API、部署与测试文档
+├── docker-compose.yml           # 完整本地运行栈
+├── CONTRIBUTING.md              # 贡献与提交规范
+└── README.md
 ```
 
-首次配置 AI 服务：
+## 环境要求
+
+| 工具 | 建议版本 |
+|---|---|
+| Docker Desktop / Docker Engine | 支持 Compose v2 |
+| Java | 17 |
+| Maven | 3.9+ |
+| Node.js | 20+ |
+| Python | 3.12+ |
+| Ollama | 可选；本地 Embedding/Reranker 使用 |
+
+仅使用 Docker 启动时，本机仍需提供可用的 LLM/Embedding 服务，或者把 `ai-service/.env` 配置为云端兼容 API。
+
+## 快速启动：Docker Compose
+
+### 1. 克隆并创建 AI 配置
+
+```bash
+git clone https://github.com/yuan123-you/agent.git
+cd agent
+cp ai-service/.env.example ai-service/.env
+```
+
+PowerShell：
 
 ```powershell
 Copy-Item ai-service/.env.example ai-service/.env
-# 编辑 ai-service/.env，至少配置 LLM_API_BASE、LLM_API_KEY 和模型。
-# 本地进程使用 localhost 访问 Milvus、backend、Ollama 和可选的 Langfuse。
-# INTERNAL_TOKEN 必须与 backend 使用的值一致；本地默认值为 dev-internal-token。
 ```
 
-分别打开三个终端启动应用：
+至少修改 `ai-service/.env` 中的：
+
+```dotenv
+LLM_API_BASE=https://your-provider.example/v1
+LLM_API_KEY=replace-me
+LLM_CHAT_MODEL=your-chat-model
+LLM_INTENT_MODEL=your-intent-model
+```
+
+默认 Embedding 和 Reranker 访问宿主机 Ollama：
+
+```bash
+ollama pull qwen3-embedding:4b
+ollama pull dengcao/Qwen3-Reranker-4B:Q4_K_M
+```
+
+如果不用 Ollama，请同时配置 `EMBEDDING_PROVIDER`、`EMBEDDING_API_BASE`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL` 和正确的 `EMBEDDING_DIM`。
+
+### 2. 设置本地开发密钥并启动
+
+PowerShell 示例：
 
 ```powershell
-# 终端 1：AI 服务（http://localhost:8000）
-Set-Location ai-service
-python -m pip install -r requirements.txt
+$env:MYSQL_ROOT_PASSWORD = "replace-local-mysql-password"
+$env:JWT_SECRET = "replace-with-at-least-64-random-characters"
+$env:INTERNAL_TOKEN = "replace-shared-internal-token"
+$env:MINIO_ROOT_USER = "replace-minio-user"
+$env:MINIO_ROOT_PASSWORD = "replace-minio-password"
+docker compose up -d --build
+```
+
+Bash 示例：
+
+```bash
+export MYSQL_ROOT_PASSWORD='replace-local-mysql-password'
+export JWT_SECRET='replace-with-at-least-64-random-characters'
+export INTERNAL_TOKEN='replace-shared-internal-token'
+export MINIO_ROOT_USER='replace-minio-user'
+export MINIO_ROOT_PASSWORD='replace-minio-password'
+docker compose up -d --build
+```
+
+检查状态：
+
+```bash
+docker compose ps
+docker compose logs -f backend ai-service
+```
+
+默认入口：
+
+| 服务 | 地址 |
+|---|---|
+| Web 前端 | <http://localhost> |
+| 后端 API / Actuator | <http://localhost:8080> |
+| Langfuse | <http://localhost:3000> |
+| MinIO Console | <http://localhost:9001> |
+| Milvus | `localhost:19530` |
+
+停止服务但保留数据：
+
+```bash
+docker compose down
+```
+
+删除本地容器数据需要显式执行 `docker compose down -v`，请谨慎使用。
+
+## 本地开发
+
+### 基础设施
+
+```bash
+docker compose up -d mysql redis minio milvus
+```
+
+本地运行 `ai-service` 时，把 `ai-service/.env` 中的以下地址改为 `localhost`：
+
+```dotenv
+OLLAMA_BASE_URL=http://localhost:11434
+MILVUS_URI=http://localhost:19530
+BACKEND_BASE_URL=http://localhost:8080
+RERANKER_BASE_URL=http://localhost:11434
+```
+
+### AI 服务
+
+```bash
+cd ai-service
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-```powershell
-# 终端 2：后端（http://localhost:8080）
-Set-Location backend
-$env:MYSQL_PORT = "3307"  # Docker MySQL 映射到 3307，避开宿主机已有的 3306
-$env:MYSQL_PASSWORD = "root123456"
+### 后端
+
+```bash
+cd backend
 mvn spring-boot:run
 ```
 
-```powershell
-# 终端 3：前端（http://localhost:5173，/api 代理至 backend）
-Set-Location frontend
-npm install
+常用环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_PASSWORD`、`REDIS_HOST`、`AI_SERVICE_BASE_URL`、`INTERNAL_TOKEN`、`JWT_SECRET` 和 MinIO 相关配置。
+
+### 前端
+
+```bash
+cd frontend
+npm ci
 npm run dev
 ```
 
-访问 http://localhost:5173 ，演示账号密码均为 `123456`：
+开发入口为 <http://localhost:5173>，Vite 会把 `/api` 代理到后端。
 
-| 账号 | 角色 | 入口 |
-|------|------|------|
-| customer01 | 买家 | `/chat` AI 对话、商品、订单 |
-| agent01 | 人工客服 | `/workbench` 工作台 |
-| admin | 管理员 | `/admin/*` 商品/订单/知识库/用户/统计 |
+## 演示账号
 
-> 首次启动 backend 时，Flyway 会自动初始化 MySQL 数据库。停止基础设施使用 `docker compose down`；该命令不会删除数据卷。
-## 账号、卖家与管理员运营约定
+Flyway 初始化后会创建以下本地演示账号，默认密码均为 `123456`：
 
-- 注册页将**买家注册**与**卖家注册**分开：买家使用 `POST /api/v1/auth/register/customer`；卖家使用 `POST /api/v1/auth/register/merchant`，并且必须填写店铺名称；两种注册均可选填手机号。技术接口和令牌中的卖家角色字面量为 `MERCHANT`，所有面向用户的页面文案统一显示为“卖家”。
-- 管理员的用户管理按“买家 / 卖家 / 客服”三个标签筛选，标签中不显示管理员；管理员只能在“客服”标签创建人工客服，并且只能启用或禁用用户，**不提供角色转换**。
-- 管理后台默认入口为 `/admin/dashboard`。看板以 `Asia/Shanghai` 为“今日”口径；应用 Clock、backend JVM 与 MySQL 默认时区均统一为该时区。看板集中展示平台用户、卖家、在售商品、今日订单/GMV/会话、近 7 日订单与 GMV、订单状态、待人工会话、AI 回复质量、热门问题和工具调用排行。
-- 管理员商品管理仅支持新建、列表查询及上/下架，不提供商品编辑；卖家仍可在自己的商品管理页创建、编辑、上/下架或删除自有商品。
-## 验证清单（核心链路）
+| 用户名 | 角色 | 默认入口 |
+|---|---|---|
+| `admin` | 管理员 | `/admin/dashboard` |
+| `agent01` | 客服 | `/workbench` |
+| `customer01` | 买家 | `/` |
+| `merchant01` | 商家 | `/merchant/products` |
 
-1. admin 登录 → 知识库 → 上传 `退换货政策.md`（类型 POLICY）→ 状态变为「已生效」
-2. customer01 登录 → AI 助手 → 发送 **"推荐几款 DIGITAL 给我"**
-   - 应看到工具卡片「检索商品」→ 流式回答中**商品名为高亮链接**（真实商品，如 *20W USB-C Power Adapter*）
-3. 点击高亮商品名 → 跳转商品详情页（真实商品与价格）→ 立即购买 → 填收货信息 → 模拟支付
-4. admin → 订单管理 → 对该订单「发货」（填物流单号）→ 订单变已发货
-5. 回到对话发送 **"我的订单到哪了"** → AI 回答订单状态，**订单号可点击**跳转订单详情
-6. 发送 **"退货政策是什么"** → kb_search 检索知识库 → 回答引用上传文档内容
-7. 发送 **"转人工"** → 会话进入等待人工 → agent01 工作台「接入」→ 双方对话互通
-8. admin → 使用统计 → 今日会话/热门问题/工具调用分布
+生产环境必须关闭或替换种子账号，并设置非默认 `SEED_PASSWORD`。
 
-## 平台知识库（AI 客服大脑）
+## 验证与测试
 
-系统内置《AI Mall 平台服务规则知识库》（[platform-policies.md](backend/src/main/resources/kbseed/platform-policies.md)），涵盖：平台基础说明、商品规则（16 分类特殊规则）、订单与支付、物流配送、**7天无理由/15天换货/质保维修完整退换货条款**、售后维权与平台介入、账户安全、违规处理、24 条高频 FAQ、法律法规依据。
+```bash
+# 后端
+cd backend && mvn -B test
 
-- **自动播种**：backend 启动时自动导入并摄取（清库重建后也自动恢复），管理员可在知识库管理页查看/停用/重建
-- **双路检索**：向量检索（Milvus）优先；本地 Embedding 不可用时**自动降级关键词检索**（MySQL LIKE + 切词 + 命中排序），知识库始终可用
-- **本地 Embedding + Reranker**：默认可使用 Ollama 的 Qwen3 4B Q4_K_M 量化模型；Milvus 使用独立的 1024 维 Qwen3 collection，摄取前查询当前 collection 的 chunk ID，已生成的向量不会重复 Embedding
-- **自愈重试**：摄取异常（FAILED/卡住）每 90 秒自动重试，LLM 配置修复后自动恢复向量模式（也可手动"重建索引"）
+# 前端
+cd frontend && npm ci && npm test && npx tsc --noEmit && npm run build
 
-## Windows Ollama 本地 RAG 模型
+# AI 服务
+cd ai-service && pip install -r requirements.txt -r requirements-dev.txt && pytest -q
 
-模型通过 `D:\Ollama\ollama.exe` 管理，实际模型目录由 `OLLAMA_MODELS` 决定。RTX 3050 4GB 环境使用 Q4_K_M，并把上下文限制为 2048、GPU offload 限制为 10 层，避免默认 40960 上下文启动时内存不足。
+# 商品目录管线
+python -m pytest backend/scripts/tests/product_catalog -q
 
-```powershell
-D:\Ollama\ollama.exe pull qwen3-embedding:4b
-D:\Ollama\ollama.exe pull dengcao/Qwen3-Reranker-4B:Q4_K_M
+# Eval
+python -m pytest eval/tests -q
+python eval/scripts/generate_dataset.py
+python eval/scripts/run_eval.py --json
+
+# Docker 配置
+
+docker compose config --quiet
 ```
 
-- `qwen3-embedding:4b` 当前官方 4B 标签本身就是 **Q4_K_M**，原始输出 2560 维；项目通过 Ollama `dimensions` 参数使用 **1024 维**。
-- AI 服务在宿主机运行时通过 `http://localhost:11434` 访问 Windows Ollama；通常无需将 Ollama 暴露到局域网。
-- Reranker 对 RRF 候选做二阶段排序；模型不可用或评分失败时自动保留原 RRF 顺序，不影响基本检索。
-## 大规模真实业务知识库（Agent + RAG 检索验证）
+GitHub Actions 对 `main` 的 push 和所有 Pull Request 执行后端、前端、AI、Eval 以及 AI 镜像健康检查。
 
-项目额外内置 15 篇面向真实电商服务流程编写的纯文本业务文档；内容用于 AI Mall 演示业务，不代表其他平台的服务承诺：
+## 商品目录
 
-- **规模**：15 篇大型文档，共 27.8 万字符，单篇 1.83–1.89 万字符；保持 `chunk_size=600`、`chunk_overlap=90`，实测生成 **715 个 chunks**
-- **类型**：POLICY 8、FAQ 4、INTRO 3；全部为便于版本管理和标题感知分块的 Markdown 纯文本，覆盖 15 个电商主题
-- **场景**：平台/商家政策、支付发票、会员营销、普通/跨境/冷链/大件物流、售后维权、账户风控及 16 类商品知识
-- **检索难例**：口语改写、近义规则、条件与例外、地区/渠道/版本差异、多跳问题和硬负样本
-- **受控摄取**：默认每批 2 份、最多 4 份同时处于 PROCESSING；失败或超过 900 秒的任务会自动续跑，不会在启动时瞬间提交全部文档
-- **清单同步**：backend 启动时会删除已不在当前 manifest 中的 `seed-synthetic-kb-*` 分块并逻辑删除对应文档，MySQL 与目标数据集保持一致
+正式目录位于 `backend/src/main/resources/product-catalog/`，生成与导入工具位于 `backend/scripts/product_catalog/`。
 
-数据由固定种子的脚本生成，可重复构建：
+```bash
+cd backend/scripts
+pip install -r requirements-product-catalog.txt
+python generate_product_catalog.py verify --database --minio
+python generate_product_catalog.py import --dry-run
+# 完成备份并确认报告后：
+python generate_product_catalog.py import --apply
+```
+
+导入器要求恰好 2,512 条有效记录和 512 个替换槽；使用单事务切换并校验来源键、版本、图片、种子摘要和写入数量。`.catalog-cache`、WARC、虚拟环境与临时输出不会提交。
+
+## 知识库与 RAG
+
+- 正式知识库包含 15 份业务文档，按当前 `600/90` 分块配置约生成 **715 chunks**。
+- 向量候选必须通过后端 ACTIVE 状态和当前文档版本校验，旧 collection 仅用于摄取查重。
+- BM25 在后端对当前有效分块检索；AI 服务执行 RRF、可选重排、置信度判定和引用输出。
+- 任一检索腿或 Reranker 不可用时记录降级原因；证据不足时不允许根据常识补写平台政策。
+
+重新生成确定性知识库资源：
 
 ```bash
 python backend/scripts/generate_kb_dataset.py
 ```
 
-生成清单位于 `backend/src/main/resources/kbseed/generated/manifest.json`，检索标注集位于 `eval/dataset/kb_large_rag.jsonl`。完整摄取会调用约 715 个 chunk 的 Embedding，请先确认模型配额；不需要压力数据时设置 `KB_BULK_SEED_ENABLED=false`。
+评测说明见 [eval/README.md](eval/README.md)。
 
-关键配置：
+## 安全与仓库规范
 
-| 环境变量 | 默认值 | 说明 |
-|---|---:|---|
-| `RAG_CHUNK_SIZE` | 600 | 中文字符分块上限，标题路径计入长度 |
-| `RAG_CHUNK_OVERLAP` | 90 | 相邻正文重叠，约为 15% |
-| `KB_INGEST_BATCH_SIZE` | 2 | 每次调度提交数量 |
-| `KB_INGEST_MAX_CONCURRENT` | 4 | 新鲜 PROCESSING 文档上限 |
-| `KB_INGEST_STUCK_TIMEOUT_SECONDS` | 900 | 卡住任务重试阈值 |
-## 常见问题排查
+- 不提交 `.env`、API Key、访问令牌、数据库导出、日志、缓存、构建产物或本地工作树。
+- `INTERNAL_TOKEN` 必须在 backend 与 ai-service 间一致，并使用随机值。
+- 不在公网暴露 AI 服务、MySQL、Redis、Milvus、MinIO 管理端或 Langfuse 管理端。
+- 默认密码和 Compose 默认值只用于隔离的本地开发环境。
+- 贡献前阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 部署细节见 [部署与运维文档](docs/07-部署与运维文档.md)，测试策略见 [测试方案](docs/08-测试方案.md)。
 
-| 症状 | 原因 | 处理 |
-|------|------|------|
-| AI 回答报 5001/5002 | ai-service 未就绪或 INTERNAL_TOKEN 两端不一致 | 查看运行 Uvicorn 的终端日志；确认 backend 与 ai-service/.env 的 INTERNAL_TOKEN 一致 |
-| 知识库文档一直「处理中」 | 摄取失败（LLM Key 无 embedding 权限等） | 查看运行 Uvicorn 的终端日志；确认 EMBEDDING_MODEL/DIM |
-| 对话无输出/整段一起出 | Nginx 缓冲 | nginx.conf 已设 `proxy_buffering off`；自建代理需同样配置 |
-| 登录 1001 | 密码错误 | 种子密码 123456；或查 `SEED_PASSWORD` 环境变量 |
-| 商品链接点击 404 | 商品被下架/删除 | 属预期兜底（路由守卫跳 404） |
+## 常见问题
 
-## 技术栈版本基线
+| 现象 | 检查项 |
+|---|---|
+| AI 服务启动失败 | `ai-service/.env` 是否存在；LLM/Embedding 模型、Key 和维度是否匹配 |
+| 容器访问不到 Ollama | Ollama 是否监听宿主机；`OLLAMA_BASE_URL` 是否为 `host.docker.internal:11434` |
+| 知识库停在处理中 | 查看 `docker compose logs ai-service backend`；检查 Milvus、Embedding 和内部令牌 |
+| 商品图片 404 | 检查 MinIO bucket、对象路径及 `/api/v1/product-images/**` 公开读取规则 |
+| SSE 中断 | 检查反向代理是否禁用响应缓冲，以及 backend/ai-service 超时设置 |
+| Flyway 启动失败 | 不要手改已执行迁移；确认数据库版本和 `flyway_schema_history` |
 
-| 层 | 组件 |
-|----|------|
-| 前端 | Vue 3.5 / TypeScript 5 / Vite 6 / Element-Plus 2.9 / Pinia 2 / Vue-Router 4 / marked 12 + DOMPurify |
-| 后端 | SpringBoot 3.3.x / JDK 17 / Spring Security 6 + JWT(jjwt 0.12) / MyBatis-Plus 3.5.7 / MySQL 8 / Redis 7 / Resilience4j |
-| AI 服务 | Python 3.13 / FastAPI / LangChain 1.x / LangGraph 1.x / pymilvus 2.4.15 / pypdf |
-| 本地运行 | Docker Compose v2（基础设施）+ Vite / Spring Boot / Uvicorn（宿主机应用） |
+## 许可证
 
-设计文档见 `docs/`（8 份，v2.0 电商版）。
+当前仓库尚未声明开源许可证。除非项目所有者另行授权，否则保留所有权利。
