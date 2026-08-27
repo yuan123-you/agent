@@ -1,0 +1,6 @@
+target/
+.catalog-cache/
+.venv-product-catalog/
+.env
+*.log
+*.tmp
