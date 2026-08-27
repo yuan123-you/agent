@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
       - name: Run pytest
-        run: pytest -q
+        run: python -m pytest -q
 
   # ---------- eval : 生成数据集 + 跑基准线 ----------
   eval:
