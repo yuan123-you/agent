@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Iterable, Mapping, Sequence
 
+TARGET_COUNT = 2512
+REPLACEMENT_COUNT = 512
 BATCH_SIZE = 100
 KNOWN_V1_SEED_DIGEST = "04ba4c06c06868894529f50c0e0c34643697f754bc27f6cc38574d21dfcce34d"
 
@@ -87,7 +89,7 @@ SELECT /* STAGING_VALIDATION */
   COUNT(*),
   COUNT(DISTINCT source_name, source_product_id),
   COUNT(replacement_slot),
-  SUM(CASE WHEN replacement_slot IS NOT NULL AND replacement_slot <= 0 THEN 1 ELSE 0 END),
+  SUM(CASE WHEN replacement_slot IS NOT NULL AND replacement_slot NOT BETWEEN 1 AND 512 THEN 1 ELSE 0 END),
   SUM(CASE WHEN specs IS NULL OR NOT JSON_VALID(specs) THEN 1 ELSE 0 END),
   SUM(CASE WHEN price <= 0 THEN 1 ELSE 0 END),
   SUM(CASE WHEN image_url NOT LIKE '/%' OR image_url LIKE '//%'
@@ -267,8 +269,8 @@ def _stage_row(product: Mapping[str, Any]) -> tuple[Any, ...]:
 def _prepare_products(products: Iterable[Any]) -> tuple[list[tuple[Any, ...]], str]:
     rows = [_stage_row(_as_mapping(product)) for product in products]
     versions = {row[_STAGE_COLUMNS.index("catalog_version")] for row in rows}
-    if len(versions) != 1 or not next(iter(versions), None):
-        raise ImportSafetyError("catalog must have one nonblank catalog version")
+    if len(rows) != TARGET_COUNT or len(versions) != 1 or not next(iter(versions), None):
+        raise ImportSafetyError("catalog must contain 2512 rows with one nonblank catalog version")
     return rows, str(next(iter(versions)))
 
 
@@ -285,7 +287,7 @@ def _verification_from_cursor(cursor: Any) -> DatabaseVerification:
         int(value or 0) for value in row
     )
     return DatabaseVerification(
-        valid=(source_key_count == product_count
+        valid=(product_count == TARGET_COUNT and source_key_count == TARGET_COUNT
                and invalid_specs == nonpositive_prices == invalid_image_urls == 0),
         product_count=product_count,
         source_key_count=source_key_count,
@@ -310,7 +312,7 @@ def import_catalog(
     *,
     refresh_existing_catalog: bool = False,
 ) -> ImportResult:
-    """Stage, validate, and atomically cut over the catalog."""
+    """Stage, validate, and atomically cut over exactly 2,512 products."""
     rows, catalog_version = _prepare_products(products)
     cursor = connection.cursor()
     began = False
@@ -325,22 +327,21 @@ def import_catalog(
 
         cursor.execute(_STAGE_VALIDATION)
         staged = tuple(int(value or 0) for value in cursor.fetchone())
-        row_count, slot_count = staged[0], staged[2]
-        if staged[0] != staged[1] or any(staged[3:]):
+        if staged != (TARGET_COUNT, TARGET_COUNT, REPLACEMENT_COUNT, 0, 0, 0, 0):
             raise ImportSafetyError(f"staging validation failed: {staged}")
 
         cursor.execute(_LOCK_ACTIVE_PRODUCTS)
         cursor.fetchall()
         active_count, source_key_count = _fetch_database_state(cursor)
         if refresh_existing_catalog:
-            if active_count != row_count or source_key_count != row_count:
-                raise ImportSafetyError("refresh requires the active catalog to match the staged catalog with provenance")
+            if (active_count, source_key_count) != (TARGET_COUNT, TARGET_COUNT):
+                raise ImportSafetyError("refresh requires exactly 2512 active products with provenance")
             cursor.execute(_REFRESH_MISMATCHES)
             if int(cursor.fetchone()[0]) != 0:
                 raise ImportSafetyError("refresh catalog identity/version does not match the database")
         else:
-            if source_key_count != 0 or active_count != slot_count:
-                raise ImportSafetyError(f"initial import requires exactly the known {slot_count} active seed products")
+            if (active_count, source_key_count) != (REPLACEMENT_COUNT, 0):
+                raise ImportSafetyError("initial import requires exactly the known 512 active seed products")
             cursor.execute(_SEED_IDENTITY)
             if _seed_digest(cursor.fetchall()) != KNOWN_V1_SEED_DIGEST:
                 raise ImportSafetyError("active products do not match the known V1 seed catalog")
@@ -352,14 +353,14 @@ def import_catalog(
 
         cursor.execute(_UPDATE_REPLACEMENTS)
         updated = int(cursor.rowcount)
-        if not refresh_existing_catalog and updated != slot_count:
-            raise ImportSafetyError(f"replacement update affected {updated}, expected {slot_count}")
+        if not refresh_existing_catalog and updated != REPLACEMENT_COUNT:
+            raise ImportSafetyError(f"replacement update affected {updated}, expected {REPLACEMENT_COUNT}")
 
         cursor.execute(_INSERT_NEW)
         inserted = int(cursor.rowcount)
-        if not refresh_existing_catalog and inserted != row_count - slot_count:
+        if not refresh_existing_catalog and inserted != TARGET_COUNT - REPLACEMENT_COUNT:
             raise ImportSafetyError(
-                f"new-product insert affected {inserted}, expected {row_count - slot_count}"
+                f"new-product insert affected {inserted}, expected {TARGET_COUNT - REPLACEMENT_COUNT}"
             )
 
         deleted_reviews = 0
