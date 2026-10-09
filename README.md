@@ -2,23 +2,66 @@
 
 [![CI](https://github.com/yuan123-you/agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yuan123-you/agent/actions/workflows/ci.yml)
 
-AI Mall 是一个前后端分离的智能电商项目，由 **Vue 3 前端、Spring Boot 后端和 Python AI Agent 服务**组成。平台覆盖买家、商家、客服和管理员四类角色，并提供商品检索、购物车、地址、下单支付、订单售后、人工接管、知识库 RAG、管理员运营看板和离线评测。
+AI Mall 是面向购物与客服场景的智能电商平台，由 **Vue 3 前端、Spring Boot 业务后端与 Python AI Agent 服务**组成。项目将商品检索、购物车、订单与售后流程同 AI 对话助手连接，并通过知识库检索增强生成（RAG）、用户确认与人工接管，建立从咨询到业务处理的协作链路。
 
-> 本仓库用于开发与演示。默认账号、默认密码和示例密钥只能用于本地环境，部署前必须全部替换。
+平台覆盖买家、商家、客服和管理员四类角色。业务权限与交易状态由后端校验，AI 服务负责意图理解、工具编排与证据组织，不替代业务系统的授权与决策。
+
+> 本仓库用于开发与演示。部署前必须替换默认凭据，并使用受控的秘密注入机制。
+
+## 导航
+
+- [核心能力](#核心能力)
+- [技术架构](#技术架构)
+- [环境要求](#环境要求)
+- [快速启动](#快速启动docker-compose)
+- [本地开发](#本地开发)
+- [验证与测试](#验证与测试)
+- [知识库与 RAG](#知识库与-rag)
+- [部署安全](#部署安全)
+- [项目文档](#项目文档)
+- [常见问题](#常见问题)
 
 ## 核心能力
 
 - **完整电商链路**：商品浏览、收藏、购物车、地址簿、下单、支付、订单状态与评价。
-- **真实商品目录**：2,512 件带来源和采集元数据的商品；512 件替换原种子，2,000 件新增。
+- **带来源的商品数据集**：当前 `products.jsonl` 包含 2,512 条记录，保留来源、图片摘要与采集元数据；交易字段包含模拟数据，不代表实时供应商库存与价格。
 - **多角色后台**：商家商品管理、客服工作台、管理员用户/订单/知识库/统计看板。
 - **AI 购物助手**：LangGraph 工具循环、SSE 流式输出、`mall://` 站内链接和工具调用卡片。
-- **安全业务动作**：取消订单和申请售后必须由买家确认，Agent 不能直接执行高风险动作。
+- **显式业务确认**：AI 下单、取消订单与申请售后先生成准备动作，再通过买家确认接口执行；身份与订单归属由后端校验。
 - **混合 RAG**：Milvus 向量召回 + 后端 BM25 + RRF 融合 + 可选 Qwen Reranker。
 - **证据与降级**：回答置信度判定、引用校验、旧向量去重、当前文档版本校验以及检索故障降级。
 - **人工接管**：转人工、客服抢占接入、等待超时恢复和会话状态同步。
 - **质量评测**：离线基线、答案可回答性校准和可选在线 Agent 评测。
 
-## 架构
+### 当前交易与 AI 实现
+
+- `OrderTransition` 定义待支付 → 已支付 / 已取消、已支付 → 已发货、已发货 → 已送达的转换。`OrderService` 按原状态条件更新数据库，取消成功后在事务内回补库存，订单事件在事务提交后发布。
+- `pay` 当前实现为校验归属并更新支付状态与时间，没有在该流程调用第三方支付渠道；不应描述为真实资金扣款或结算。
+- `AgentOrderActionService` 支持 `ORDER_CREATE`、`ORDER_CANCEL`、`AFTER_SALE_APPLY` 的准备与确认；`OrderActionController` 提供买家侧状态查询、确认与撤销接口。
+- LangGraph 图包含意图路由、Agent / 工具循环、闲聊、转人工与强制收敛节点。它是明确的业务工作流，不是任意自主执行交易的通用代理。
+- RAG 源码包含候选融合、可回答性判定和引用组织；最终质量仍需真实模型与业务数据验收。
+
+### 角色与场景
+
+| 角色 | 主要场景 |
+| --- | --- |
+| 买家 | 浏览与检索商品、收藏与购物车、地址管理、下单、订单查询、售后与 AI 咨询 |
+| 商家 | 商品维护与商家运营 |
+| 客服 | 工作台、会话接入、人工接管与问题处理 |
+| 管理员 | 用户、订单、知识库管理与运营统计 |
+
+> 支付能力按当前业务实现理解，不代表已完成第三方支付渠道接入或真实资金结算。离线评测结果也不能直接等同于线上服务质量。
+
+## 技术架构
+
+| 层次 | 技术与职责 |
+| --- | --- |
+| Web 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus；多角色页面与流式交互 |
+| 业务后端 | Java 17、Spring Boot 3.3.5、MyBatis-Plus、Flyway；鉴权、交易状态与数据库迁移 |
+| AI 服务 | Python、FastAPI、LangGraph；意图识别、工具调用、RAG 与流式响应 |
+| 数据与文件 | MySQL 8、Redis 7、MinIO；业务数据、缓存与对象存储 |
+| 检索增强 | Milvus、BM25、RRF、可选 Reranker；混合召回与证据筛选 |
+| 观测与验证 | Langfuse、JUnit、Vitest、pytest、离线 / 在线 Eval |
 
 ```text
 Browser
@@ -31,7 +74,7 @@ backend (Spring Boot 3 / Java 17)
   ├── MySQL 8       业务数据、知识库文档与分块
   ├── Redis 7       缓存与会话辅助
   ├── MinIO         文档和商品图片
-  └── SSE ───────────────┐
+  └── 内部调用 / SSE ───┐
                          ▼
                  ai-service (FastAPI)
                    ├── LangGraph Agent
@@ -40,7 +83,7 @@ backend (Spring Boot 3 / Java 17)
                    └── Langfuse（可观测性）
 ```
 
-业务鉴权由后端负责；AI 服务只通过 `/internal/**` 和共享内部令牌访问后端，不应直接暴露到公网。
+业务鉴权由后端负责；AI 服务只通过 `/internal/**` 和共享内部令牌访问后端，不应直接暴露到公网。取消订单、申请售后等动作先准备，再经买家确认，由业务后端执行。知识库回答须结合当前有效文档与引用；检索失败或证据不足时应明确降级，而不是补写平台规则。
 
 ## 仓库结构
 
@@ -65,7 +108,7 @@ backend (Spring Boot 3 / Java 17)
 | Java | 17 |
 | Maven | 3.9+ |
 | Node.js | 22.22.2+ |
-| Python | 3.12+ |
+| Python | 本地开发建议 3.12+；AI Docker 镜像使用 3.13 |
 | Ollama | 可选；本地 Embedding/Reranker 使用 |
 
 仅使用 Docker 启动时，本机仍需提供可用的 LLM/Embedding 服务，或者把 `ai-service/.env` 配置为云端兼容 API。
@@ -86,11 +129,10 @@ PowerShell：
 Copy-Item ai-service/.env.example ai-service/.env
 ```
 
-至少修改 `ai-service/.env` 中的：
+先在受控环境中配置 `LLM_API_KEY`，并修改 `ai-service/.env` 中的非敏感模型参数：
 
 ```dotenv
 LLM_API_BASE=https://your-provider.example/v1
-LLM_API_KEY=replace-me
 LLM_CHAT_MODEL=your-chat-model
 LLM_INTENT_MODEL=your-intent-model
 ```
@@ -106,25 +148,20 @@ ollama pull dengcao/Qwen3-Reranker-4B:Q4_K_M
 
 ### 2. 设置本地开发密钥并启动
 
+配置分为两层：`ai-service/.env` 保存模型与 AI 参数；仓库根目录 `.env` 或当前 shell 的环境变量用于 Compose 插值。Compose 的 `environment` 会覆盖 AI 配置中的同名变量（例如内部令牌与容器服务地址）。两种运行方式切换时，应重新核对地址和令牌。
+
+启动前，通过受控环境注入 `MYSQL_ROOT_PASSWORD`、`JWT_SECRET`、`INTERNAL_TOKEN`、`MINIO_ROOT_USER` 与 `MINIO_ROOT_PASSWORD`；在 AI 服务环境中配置 `LLM_API_KEY`。首次启动可能触发模型下载、数据库迁移与知识库摄取，容器启动不代表所有 AI 功能已就绪。
+
+
 PowerShell 示例：
 
 ```powershell
-$env:MYSQL_ROOT_PASSWORD = "replace-local-mysql-password"
-$env:JWT_SECRET = "replace-with-at-least-64-random-characters"
-$env:INTERNAL_TOKEN = "replace-shared-internal-token"
-$env:MINIO_ROOT_USER = "replace-minio-user"
-$env:MINIO_ROOT_PASSWORD = "replace-minio-password"
 docker compose up -d --build
 ```
 
 Bash 示例：
 
 ```bash
-export MYSQL_ROOT_PASSWORD='replace-local-mysql-password'
-export JWT_SECRET='replace-with-at-least-64-random-characters'
-export INTERNAL_TOKEN='replace-shared-internal-token'
-export MINIO_ROOT_USER='replace-minio-user'
-export MINIO_ROOT_PASSWORD='replace-minio-password'
 docker compose up -d --build
 ```
 
@@ -161,6 +198,8 @@ docker compose down
 docker compose up -d mysql redis minio milvus
 ```
 
+以下各服务的命令分别从仓库根目录开始，在独立终端中执行。
+
 本地运行 `ai-service` 时，把 `ai-service/.env` 中的以下地址改为 `localhost`：
 
 ```dotenv
@@ -188,7 +227,19 @@ cd backend
 mvn spring-boot:run
 ```
 
-常用环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_PASSWORD`、`REDIS_HOST`、`AI_SERVICE_BASE_URL`、`INTERNAL_TOKEN`、`JWT_SECRET` 和 MinIO 相关配置。
+本机后端不会自动继承 Compose 容器的配置。数据库密码须与启动基础设施时的 `MYSQL_ROOT_PASSWORD` 一致，内部令牌须与本机 AI 服务一致，MinIO 账号也须与容器设置一致。
+
+| 环境变量 | 本地开发用途 |
+| --- | --- |
+| `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DB` | 数据库地址与库名；默认本机 `3306`、`ai_mall` |
+| `MYSQL_USERNAME` / `MYSQL_PASSWORD` | 数据库凭据 |
+| `REDIS_HOST` / `REDIS_PORT` | Redis 地址；默认本机 `6379` |
+| `AI_SERVICE_BASE_URL` | 本机 AI 服务地址，默认 `http://localhost:8000` |
+| `INTERNAL_TOKEN` | backend 与 ai-service 共用的内部令牌 |
+| `JWT_SECRET` | 用户令牌签名密钥 |
+| `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | 文件存储地址与凭据 |
+
+后端配置定义见 `backend/src/main/resources/application.yml`；AI 参数模板见 `ai-service/.env.example`。
 
 ### 前端
 
@@ -200,45 +251,59 @@ npm run dev
 
 开发入口为 <http://localhost:5173>，Vite 会把 `/api` 代理到后端。
 
-## 演示账号
+## 账号与凭据管理
 
-Flyway 初始化后会创建以下本地演示账号，默认密码均为 `123456`：
+账号由授权人员创建、分配或通过受控初始化流程配置。
 
-| 用户名 | 角色 | 默认入口 |
-|---|---|---|
-| `admin` | 管理员 | `/admin/dashboard` |
-| `agent01` | 客服 | `/workbench` |
-| `customer01` | 买家 | `/` |
-| `merchant01` | 商家 | `/merchant/products` |
-
-生产环境必须关闭或替换种子账号，并设置非默认 `SEED_PASSWORD`。
+生产环境必须关闭或替换默认种子凭据。后端与 Compose 支持通过 `SEED_PASSWORD` 显式设置初始化密码。新库存在待初始化种子账号时，未提供该变量会在写入前拒绝初始化；已有账号不随该变量自动重置。数据库、JWT、内部令牌与对象存储凭据不再提供固定兜底值，启动前须通过受控环境配置。
 
 ## 验证与测试
 
+下面每个代码块都从仓库根目录开始执行，避免连续 `cd` 导致路径错误。
+
+**后端（JUnit）**
+
 ```bash
-# 后端
-cd backend && mvn -B test
+cd backend
+mvn -B test
+```
 
-# 前端
-cd frontend && npm ci && npm test && npx tsc --noEmit && npm run build
+**前端（Vitest、类型检查与构建）**
 
-# AI 服务
-cd ai-service && pip install -r requirements.txt -r requirements-dev.txt && pytest -q
+```bash
+cd frontend
+npm ci
+npm test
+npx tsc --noEmit
+npm run build
+```
 
-# 商品目录管线
+**AI 服务（pytest）**
+
+```bash
+cd ai-service
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q
+```
+
+**商品目录与评测工具**
+
+```bash
 python -m pytest backend/scripts/tests/product_catalog -q
-
-# Eval
 python -m pytest eval/tests -q
 python eval/scripts/generate_dataset.py
 python eval/scripts/run_eval.py --json
+```
 
-# Docker 配置
+**容器配置检查**
 
+```bash
 docker compose config --quiet
 ```
 
-GitHub Actions 对 `main` 的 push 和所有 Pull Request 执行后端、前端、AI、Eval 以及 AI 镜像健康检查。
+GitHub Actions 对 `main` / `master` 的 push 和所有 Pull Request 执行后端、前端、AI、Eval 以及 AI 镜像健康检查。具体步骤见 [CI 配置](.github/workflows/ci.yml)。
+
+涉及真实模型、数据库或对象存储的测试，应使用独立的测试配置与数据，避免操作生产数据。
 
 ## 商品目录
 
@@ -257,7 +322,7 @@ python generate_product_catalog.py import --apply
 
 ## 知识库与 RAG
 
-- 正式知识库包含 15 份业务文档，按当前 `600/90` 分块配置约生成 **715 chunks**。
+- 当前知识库种子清单包含 15 份文档。Compose 的默认分块参数为 `600/90`，实际入库分块数以摄取结果为准。
 - 向量候选必须通过后端 ACTIVE 状态和当前文档版本校验，旧 collection 仅用于摄取查重。
 - BM25 在后端对当前有效分块检索；AI 服务执行 RRF、可选重排、置信度判定和引用输出。
 - 任一检索腿或 Reranker 不可用时记录降级原因；证据不足时不允许根据常识补写平台政策。
@@ -270,14 +335,40 @@ python backend/scripts/generate_kb_dataset.py
 
 评测说明见 [eval/README.md](eval/README.md)。
 
-## 安全与仓库规范
+## 部署安全
 
-- 不提交 `.env`、API Key、访问令牌、数据库导出、日志、缓存、构建产物或本地工作树。
 - `INTERNAL_TOKEN` 必须在 backend 与 ai-service 间一致，并使用随机值。
 - 不在公网暴露 AI 服务、MySQL、Redis、Milvus、MinIO 管理端或 Langfuse 管理端。
-- 默认密码和 Compose 默认值只用于隔离的本地开发环境。
-- 贡献前阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 部署前更换默认凭据。
 - 部署细节见 [部署与运维文档](docs/07-部署与运维文档.md)，测试策略见 [测试方案](docs/08-测试方案.md)。
+
+## 源码索引
+
+| 说明 | 当前实现入口 |
+| --- | --- |
+| 订单生命周期 | [OrderService](backend/src/main/java/com/aimall/backend/order/OrderService.java)、[OrderTransition](backend/src/main/java/com/aimall/backend/order/OrderTransition.java) |
+| AI 动作准备与确认 | [AgentOrderActionService](backend/src/main/java/com/aimall/backend/internal/AgentOrderActionService.java)、[OrderActionController](backend/src/main/java/com/aimall/backend/order/OrderActionController.java) |
+| Agent 流程 | [graph.py](ai-service/app/agent/graph.py) |
+| RAG 候选与证据 | [retrieval.py](ai-service/app/rag/retrieval.py)、[citations.py](ai-service/app/rag/citations.py) |
+| 账号种子初始化 | [SeedDataInitializer](backend/src/main/java/com/aimall/backend/config/SeedDataInitializer.java) |
+| 商品资源与知识库清单 | [商品数据集](backend/src/main/resources/product-catalog/products.jsonl)、[知识库 manifest](backend/src/main/resources/kbseed/generated/manifest.json) |
+| 运行配置 | [Compose](docker-compose.yml)、[后端配置](backend/src/main/resources/application.yml)、[AI 配置模板](ai-service/.env.example) |
+
+## 项目文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [产品需求](docs/01-产品需求文档-PRD.md) | 角色、业务场景与功能范围 |
+| [系统架构](docs/02-系统架构设计文档.md) | 服务边界与整体设计 |
+| [数据库设计](docs/03-数据库设计文档.md) | 数据模型与持久化结构 |
+| [API 设计](docs/04-API接口设计文档.md) | 接口与调用约定 |
+| [AI Agent 设计](docs/05-AI-Agent设计文档.md) | 工具编排、知识检索与对话流程 |
+| [前端设计](docs/06-前端设计文档.md) | 页面与交互设计 |
+| [部署与运维](docs/07-部署与运维文档.md) | 环境配置与运行维护 |
+| [测试方案](docs/08-测试方案.md) | 分层测试与验收策略 |
+| [评测说明](eval/README.md) | 数据集、指标与评测命令 |
+| [贡献指南](CONTRIBUTING.md) | 协作与提交规范 |
+
 
 ## 常见问题
 
@@ -293,3 +384,5 @@ python backend/scripts/generate_kb_dataset.py
 ## 许可证
 
 本项目采用 [Apache License 2.0](LICENSE)。
+
+敏感信息回归检查：在仓库根目录运行 `python tests/test_secret_hygiene.py`。该检查不包含已公开 Git 历史的清理，也不意味着既有部署凭据已轮换。

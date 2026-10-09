@@ -9,7 +9,7 @@
         <el-tab-pane label="登录" name="login">
           <el-form :model="loginForm" label-position="top" @keyup.enter="doLogin">
             <el-form-item label="用户名">
-              <el-input v-model="loginForm.username" placeholder="如 customer01" />
+              <el-input v-model="loginForm.username" placeholder="请输入用户名" />
             </el-form-item>
             <el-form-item label="密码">
               <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" />
@@ -43,7 +43,7 @@
         </el-tab-pane>
       </el-tabs>
       <el-alert type="info" :closable="false" class="tips"
-        title="演示账号：customer01 买家 / merchant01 卖家 / agent01 客服 / admin 管理员，密码均为 123456" />
+        title="项目体验环境：请自行注册账号。订单与支付仅用于功能演示，不产生真实扣款；请勿填写真实敏感信息。" />
     </el-card>
   </div>
 </template>

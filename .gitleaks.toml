@@ -1,0 +1,17 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "zhipu-api-key"
+description = "Zhipu credential-shaped literal"
+regex = '\b[a-fA-F0-9]{32}\.[A-Za-z0-9]{16,64}\b'
+
+# Exact public document identifiers, not credentials. Other secrets in these files remain checked.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Known knowledge-base document identifiers"
+condition = "AND"
+regexTarget = "secret"
+paths = ['(?:^|/)(?:backend/src/main/resources/kbseed/generated/manifest\.json|eval/dataset/kb_large_rag\.jsonl)$']
+regexes = ['^(?:platform\-account\-service|order\-change\-cancel|payment\-refund|invoice\-service|membership\-promotions|standard\-delivery|special\-delivery|crossborder\-remote\-delivery|seven\-day\-return|quality\-exchange|warranty\-repair|complaint\-mediation|account\-security\-privacy|digital\-home\-beauty\-aftercare|food\-family\-home\-aftercare)$']

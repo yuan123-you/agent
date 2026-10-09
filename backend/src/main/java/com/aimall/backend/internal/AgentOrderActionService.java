@@ -437,6 +437,9 @@ public class AgentOrderActionService {
         if (product.getStock() == null || product.getStock() < quantity) {
             throw new BizException(2006, "库存不足");
         }
+        if (product.getPrice() == null || product.getPrice().signum() < 0) {
+            throw new BizException(2001, "商品价格无效");
+        }
         return product;
     }
 

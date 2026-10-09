@@ -3,8 +3,11 @@ package com.aimall.backend.common;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -36,6 +39,22 @@ public class GlobalExceptionHandler {
                 .map(f -> f.getField() + " " + f.getDefaultMessage())
                 .findFirst().orElse("参数校验失败");
         return ResponseEntity.badRequest().body(ApiResponse.fail(2001, msg));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException e) {
+        // Parser details can contain raw request values; expose only a stable protocol error.
+        return ResponseEntity.badRequest().body(ApiResponse.fail(2001, "请求体格式错误或字段类型不合法"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLongPathBinding(MethodArgumentTypeMismatchException e) {
+        if (e.getRequiredType() == Long.class
+                && e.getParameter().hasParameterAnnotation(PathVariable.class)) {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(2001, "路径参数必须为合法整数"));
+        }
+        // Do not broaden this proven path fix to query parameters or unrelated binding policies.
+        return handleOther(e);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

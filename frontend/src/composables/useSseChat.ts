@@ -1,3 +1,4 @@
+import { API_BASE } from '@/api/base'
 /**
  * ⭐ SSE 流式对话核心（fetch + ReadableStream 解析，EventSource 不支持 POST+JWT）
  * 事件：token / tool_call / tool_result / action / error / done
@@ -26,7 +27,7 @@ export function streamChat(
 
   const promise = (async () => {
     const token = localStorage.getItem('token') || ''
-    const resp = await fetch('/api/v1/chat/messages', {
+    const resp = await fetch(`${API_BASE}/chat/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

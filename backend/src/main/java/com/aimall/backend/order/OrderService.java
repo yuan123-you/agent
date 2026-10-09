@@ -12,8 +12,11 @@ import com.aimall.backend.mapper.ProductMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,9 +26,10 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 订单服务：下单（行锁防超卖）/支付/取消/查询/发货
+ * 订单服务：事务下单、库存乐观锁与原子订单状态转换
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OrderService {
 
@@ -40,12 +44,17 @@ public class OrderService {
     /** 下单（页面或 AI 工具统一入口）：事务 + 乐观锁防超卖 */
     @Transactional
     public OrderInfo create(Long userId, OrderDtos.CreateOrderRequest req, String source, Long conversationId) {
+        if (req == null) {
+            throw new BizException(2001, "订单请求不能为空");
+        }
+        validateOrderInput(req.getProductId(), req.getQuantity());
         DeliveryInfo delivery = resolveDelivery(userId, req.getAddressId(),
                 req.getReceiverName(), req.getReceiverPhone(), req.getReceiverAddress());
         Product product = productMapper.selectById(req.getProductId());
         if (product == null || !"ON_SALE".equals(product.getStatus())) {
             throw new BizException(2005, "商品已下架");
         }
+        validatePrice(product);
         deductStock(product, req.getQuantity());
 
         // 订单 + 明细（价格名称快照）
@@ -71,44 +80,31 @@ public class OrderService {
         item.setQuantity(req.getQuantity());
         item.setSubtotal(subtotal);
         orderItemMapper.insert(item);
-        orderSseNotifier.publish(order);
+        publishAfterCommit(order);
         return order;
     }
 
     @Transactional
     public void pay(Long userId, Long orderId) {
         OrderInfo order = requireOwned(userId, orderId);
-        if (!"PENDING_PAYMENT".equals(order.getStatus())) {
-            throw new BizException(2004, "当前订单状态不可支付");
-        }
         OrderInfo update = new OrderInfo();
-        update.setId(order.getId());
-        update.setStatus("PAID");
         update.setPaidAt(LocalDateTime.now());
-        orderInfoMapper.updateById(update);
-        order.setStatus("PAID");
-        orderSseNotifier.publish(order);
+        transition(order, OrderTransition.PAY, update);
+        publishAfterCommit(order);
     }
 
     @Transactional
     public void cancel(Long userId, Long orderId) {
         OrderInfo order = requireOwned(userId, orderId);
-        if (!"PENDING_PAYMENT".equals(order.getStatus())) {
-            throw new BizException(2004, "仅待支付订单可取消");
-        }
-        OrderInfo update = new OrderInfo();
-        update.setId(order.getId());
-        update.setStatus("CANCELLED");
-        orderInfoMapper.updateById(update);
-        // 回补库存
+        transition(order, OrderTransition.CANCEL, new OrderInfo());
+        // Only the winning cancellation can restore inventory, in the same transaction.
         for (OrderItem item : itemsOf(order.getId())) {
             Product product = productMapper.selectById(item.getProductId());
             if (product != null) {
                 restock(product, item.getQuantity());
             }
         }
-        order.setStatus("CANCELLED");
-        orderSseNotifier.publish(order);
+        publishAfterCommit(order);
     }
 
     public Page<OrderInfo> myOrders(Long userId, String status, long page, long size) {
@@ -150,17 +146,11 @@ public class OrderService {
         if (order == null) {
             throw new BizException(2002, "订单不存在");
         }
-        if (!"PAID".equals(order.getStatus())) {
-            throw new BizException(2004, "仅已支付订单可发货");
-        }
         OrderInfo update = new OrderInfo();
-        update.setId(order.getId());
-        update.setStatus("SHIPPED");
         update.setLogisticsNo(logisticsNo);
         update.setShippedAt(LocalDateTime.now());
-        orderInfoMapper.updateById(update);
-        order.setStatus("SHIPPED");
-        orderSseNotifier.publish(order);
+        transition(order, OrderTransition.SHIP, update);
+        publishAfterCommit(order);
     }
 
     @Transactional
@@ -169,16 +159,48 @@ public class OrderService {
         if (order == null) {
             throw new BizException(2002, "订单不存在");
         }
-        if (!"SHIPPED".equals(order.getStatus())) {
-            throw new BizException(2004, "仅已发货订单可标记送达");
-        }
         OrderInfo update = new OrderInfo();
-        update.setId(order.getId());
-        update.setStatus("DELIVERED");
         update.setDeliveredAt(LocalDateTime.now());
-        orderInfoMapper.updateById(update);
-        order.setStatus("DELIVERED");
-        orderSseNotifier.publish(order);
+        transition(order, OrderTransition.DELIVER, update);
+        publishAfterCommit(order);
+    }
+
+    private void transition(OrderInfo order, OrderTransition transition, OrderInfo update) {
+        if (!transition.from().equals(order.getStatus())) {
+            throw new BizException(2004, transition.errorMessage());
+        }
+        update.setId(order.getId());
+        update.setStatus(transition.to());
+        if (orderInfoMapper.transition(transition.from(), update) != 1) {
+            throw new BizException(2004, "订单状态已变化，请刷新后重试");
+        }
+        order.setStatus(transition.to());
+    }
+
+    private void publishAfterCommit(OrderInfo order) {
+        // Capture only the fields the existing SSE contract uses, not a mutable entity reference.
+        OrderInfo event = new OrderInfo();
+        event.setId(order.getId());
+        event.setUserId(order.getUserId());
+        event.setOrderNo(order.getOrderNo());
+        event.setStatus(order.getStatus());
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { notifySubscriber(event); }
+            });
+        } else {
+            notifySubscriber(event);
+        }
+    }
+
+    private void notifySubscriber(OrderInfo event) {
+        try {
+            orderSseNotifier.publish(event);
+        } catch (RuntimeException e) {
+            // Committed business is authoritative; a disconnected subscriber must not turn it into failure.
+            log.warn("order notification failed: orderId={}, status={}", event.getId(), event.getStatus(), e);
+        }
     }
 
     /** 购物车结算条目 */
@@ -192,17 +214,21 @@ public class OrderService {
         if (items == null || items.isEmpty()) {
             throw new BizException(2001, "结算商品不能为空");
         }
+        for (CheckoutItem item : items) {
+            if (item == null) {
+                throw new BizException(2001, "结算商品不能为空");
+            }
+            validateOrderInput(item.productId(), item.quantity());
+        }
         DeliveryInfo delivery = resolveDelivery(userId, addressId, receiverName, receiverPhone, receiverAddress);
         BigDecimal total = BigDecimal.ZERO;
         List<OrderItem> pendingItems = new ArrayList<>();
         for (CheckoutItem ci : items) {
-            if (ci.quantity() == null || ci.quantity() <= 0) {
-                throw new BizException(2001, "商品数量无效");
-            }
             Product product = productMapper.selectById(ci.productId());
             if (product == null || !"ON_SALE".equals(product.getStatus())) {
                 throw new BizException(2005, "商品已下架：" + ci.productId());
             }
+            validatePrice(product);
             deductStock(product, ci.quantity());
             BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(ci.quantity()));
             total = total.add(subtotal);
@@ -230,7 +256,7 @@ public class OrderService {
             item.setOrderId(order.getId());
             orderItemMapper.insert(item);
         }
-        orderSseNotifier.publish(order);
+        publishAfterCommit(order);
         return order;
     }
 
@@ -268,6 +294,21 @@ public class OrderService {
         throw new BizException(2006, "操作的人员过多，请重试");
     }
 
+
+    private void validateOrderInput(Long productId, Integer quantity) {
+        if (productId == null) {
+            throw new BizException(2001, "商品不能为空");
+        }
+        if (quantity == null || quantity <= 0) {
+            throw new BizException(2001, "商品数量无效");
+        }
+    }
+
+    private void validatePrice(Product product) {
+        if (product.getPrice() == null || product.getPrice().signum() < 0) {
+            throw new BizException(2001, "商品价格无效");
+        }
+    }
 
     private DeliveryInfo resolveDelivery(Long userId, Long addressId,
                                          String receiverName, String receiverPhone, String receiverAddress) {

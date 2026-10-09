@@ -1,3 +1,4 @@
+import { API_BASE } from '@/api/base'
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
@@ -147,7 +148,7 @@ export function subscribeOrderStatus(onEvent: (o: { orderId: number; orderNo: st
   const token = localStorage.getItem('token') || ''
   const run = async () => {
     try {
-      const resp = await fetch('/api/v1/orders/subscribe', {
+      const resp = await fetch(`${API_BASE}/orders/subscribe`, {
         headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })

@@ -3,7 +3,7 @@ services:
     image: mysql:8.0.42
     container_name: aimall-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD through the environment}
       MYSQL_DATABASE: ai_mall
       TZ: Asia/Shanghai
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+08:00
@@ -38,8 +38,8 @@ services:
     container_name: aimall-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER through the environment}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD through the environment}
       TZ: Asia/Shanghai
     volumes:
       - minio-data:/data
@@ -84,7 +84,7 @@ services:
       TZ: Asia/Shanghai
       MILVUS_URI: http://milvus:19530
       BACKEND_BASE_URL: http://backend:8080
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN through the environment}
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-600}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-90}
       LANGFUSE_HOST: http://langfuse:3000
@@ -116,17 +116,18 @@ services:
       MYSQL_HOST: mysql
       MYSQL_DB: ai_mall
       MYSQL_USERNAME: root
-      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD through the environment}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-in-production-0123456789abcdef0123456789abcdef}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET through the environment}
       AI_SERVICE_BASE_URL: http://ai-service:8000
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN through the environment}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER through the environment}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD through the environment}
       MINIO_BUCKET: ${MINIO_BUCKET:-aimall-files}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
       KB_BULK_SEED_ENABLED: ${KB_BULK_SEED_ENABLED:-true}
       KB_INGEST_BATCH_SIZE: ${KB_INGEST_BATCH_SIZE:-2}
       KB_INGEST_MAX_CONCURRENT: ${KB_INGEST_MAX_CONCURRENT:-4}
@@ -158,7 +159,7 @@ services:
     container_name: aimall-langfuse-db
     environment:
       POSTGRES_USER: ${LANGFUSE_DB_USER:-langfuse}
-      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse1324}
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:?Set LANGFUSE_DB_PASSWORD through the environment}
       POSTGRES_DB: langfuse
     volumes:
       - langfuse-db:/var/lib/postgresql/data
@@ -172,17 +173,17 @@ services:
     image: langfuse/langfuse:2.58.0
     container_name: aimall-langfuse
     environment:
-      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-langfuse1324}@langfuse-db:5432/langfuse
+      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:?Set LANGFUSE_DB_PASSWORD through the environment}@langfuse-db:5432/langfuse
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-secret-please-change-0123456789abcdef}
-      AUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-secret-please-change-0123456789abcdef}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?Set LANGFUSE_NEXTAUTH_SECRET through the environment}
+      AUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?Set LANGFUSE_NEXTAUTH_SECRET through the environment}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
       # 首次启动自动初始化示例项目与密钥（生产请改为 UI 登录后手动创建）
       LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-aimall}
       LANGFUSE_INIT_PUBLIC_KEY: ${LANGFUSE_INIT_PUBLIC_KEY:-pk-lf-aimall-dev}
-      LANGFUSE_INIT_SECRET_KEY: ${LANGFUSE_INIT_SECRET_KEY:-sk-lf-aimall-dev}
+      LANGFUSE_INIT_SECRET_KEY: ${LANGFUSE_INIT_SECRET_KEY:?Set LANGFUSE_INIT_SECRET_KEY through the environment}
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:-admin@aimall.local}
-      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:-admin123456}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:?Set LANGFUSE_ADMIN_PASSWORD through the environment}
       LANGFUSE_INIT_ORG_NAME: "AI Mall"
       LANGFUSE_INIT_PROJECT_NAME: "ai-mall"
     ports:

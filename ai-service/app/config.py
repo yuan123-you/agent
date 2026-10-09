@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     llm_chat_model: str = "gpt-4o-mini"
     llm_intent_model: str = "gpt-4o-mini"
     temperature: float = 0.3
+    llm_reasoning_effort: str | None = None
+    llm_chat_timeout_s: float = Field(default=60, gt=0)
+    llm_intent_timeout_s: float = Field(default=20, gt=0)
 
     # Embedding（可独立配置：对话与向量模型可为不同供应商，如 DeepSeek 对话 + 千问 embedding）
     embedding_api_base: str = ""   # 空 = 复用 llm_api_base
@@ -94,7 +97,7 @@ class Settings(BaseSettings):
         return self
     # 后端
     backend_base_url: str = "http://localhost:8080"
-    internal_token: str = "dev-internal-token"
+    internal_token: str = ""
     tool_callback_timeout_s: int = 3
     max_tool_loops: int = 4
     # Agent 会话：单次请求总超时（秒）与图递归深度上限（防工具循环/异常深递归失控）

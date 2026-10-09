@@ -1,3 +1,4 @@
+import { API_BASE } from '@/api/base'
 /**
  * axios 封装：token 注入 + 401 自动刷新重放 + 统一错误提示
  * （token 直接读写 localStorage，避免与 store 循环依赖）
@@ -6,7 +7,7 @@ import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
-const instance = axios.create({ baseURL: '/api/v1', timeout: 30000 })
+const instance = axios.create({ baseURL: API_BASE, timeout: 30000 })
 
 let unauthorizedHandler: () => void = () => {}
 export function setUnauthorizedHandler(fn: () => void) {
@@ -20,7 +21,7 @@ async function tryRefresh(): Promise<string | null> {
   if (!refreshToken) return null
   if (!refreshing) {
     refreshing = axios
-      .post('/api/v1/auth/refresh', { refreshToken })
+      .post(`${API_BASE}/auth/refresh`, { refreshToken })
       .then((resp) => {
         const body = resp.data
         const token = body?.data?.accessToken as string | undefined

@@ -8,7 +8,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:ai_mall}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
+    password: ${MYSQL_PASSWORD}
     hikari:
       connection-init-sql: "SET time_zone = '+08:00'"
   flyway:
@@ -50,22 +50,22 @@ management:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef0123456789abcdef}
+    secret: ${JWT_SECRET}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:120}
     refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
   ai:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
-    internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+    internal-token: ${INTERNAL_TOKEN}
   storage:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
     bucket: ${MINIO_BUCKET:aimall-files}
   chat:
     rate-limit: ${CHAT_RATE_LIMIT:20}
     human-wait-timeout-seconds: ${HUMAN_WAIT_TIMEOUT_SECONDS:60}
   seed:
-    password: ${SEED_PASSWORD:123456}
+    password: ${SEED_PASSWORD:}
     knowledge-base:
       enabled: ${KB_BULK_SEED_ENABLED:true}
       manifest: ${KB_BULK_SEED_MANIFEST:kbseed/generated/manifest.json}

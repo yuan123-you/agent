@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { homeRouteForRole } from '@/stores/auth'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/login', component: () => import('@/views/LoginView.vue'), meta: { public: true } },
     {

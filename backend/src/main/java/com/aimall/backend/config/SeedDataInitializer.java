@@ -22,20 +22,23 @@ public class SeedDataInitializer {
                                                   PasswordEncoder passwordEncoder,
                                                   AppProperties props) {
         return args -> {
-            User cond = new User();
-            cond.setPassword("SEED_RESET");
-            int count = 0;
-            for (User u : userMapper.selectList(
+            var pending = userMapper.selectList(
                     new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                            .eq(User::getPassword, "SEED_RESET"))) {
+                            .eq(User::getPassword, "SEED_RESET"));
+            String password = props.getSeed().getPassword();
+            if (!pending.isEmpty() && (password == null || password.isBlank())) {
+                throw new IllegalStateException("SEED_PASSWORD must be supplied before initializing seed accounts");
+            }
+            int count = 0;
+            for (User u : pending) {
                 User update = new User();
                 update.setId(u.getId());
-                update.setPassword(passwordEncoder.encode(props.getSeed().getPassword()));
+                update.setPassword(passwordEncoder.encode(password));
                 userMapper.updateById(update);
                 count++;
             }
             if (count > 0) {
-                log.info("seed password reset for {} users (default password: {})", count, props.getSeed().getPassword());
+                log.info("seed password reset for {} users", count);
             }
         };
     }

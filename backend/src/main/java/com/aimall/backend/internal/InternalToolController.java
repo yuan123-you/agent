@@ -1,5 +1,8 @@
 package com.aimall.backend.internal;
 
+import com.aimall.backend.common.ExactNumberDeserializers;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import com.aimall.backend.common.ApiResponse;
 import com.aimall.backend.common.BizException;
 import com.aimall.backend.entity.Conversation;
@@ -35,31 +38,40 @@ public class InternalToolController {
 
     @Data
     public static class ProductSearchBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         private String keyword;
         private String category;
         private BigDecimal minPrice;
         private BigDecimal maxPrice;
+        @JsonDeserialize(using = ExactNumberDeserializers.IntegerValue.class)
         private Integer topK;
     }
 
     @Data
     public static class ProductDetailBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long productId;
     }
 
     @Data
     public static class OrderQueryBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         private String status;
     }
 
     @Data
     public static class OrderCreateBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long conversationId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long productId;
+        @JsonDeserialize(using = ExactNumberDeserializers.IntegerValue.class)
         private Integer quantity;
         private String receiverName;
         private String receiverPhone;
@@ -68,7 +80,9 @@ public class InternalToolController {
 
     @Data
     public static class EscalateBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long conversationId;
         private String reason;
     }
@@ -76,13 +90,27 @@ public class InternalToolController {
     /** 中文类目名 → 类目编码（容错：LLM 可能传"手机"而非 PHONE） */
     @Data
     public static class OrderCancelBody {
-        private Long userId; private Long conversationId; private Long orderId; private String reason;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long userId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long conversationId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long orderId; private String reason;
     }
 
     @Data
     public static class AfterSalePrepareBody {
-        private Long userId; private Long conversationId; private Long orderId; private Long orderItemId;
-        private String serviceType; private String issueCategory; private String reason; private Integer quantity;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long userId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long conversationId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long orderId;
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long orderItemId;
+        private String serviceType; private String issueCategory; private String reason;
+        @JsonDeserialize(using = ExactNumberDeserializers.IntegerValue.class)
+        private Integer quantity;
     }
 
     private static final Map<String, String> CATEGORY_ALIAS = Map.ofEntries(
@@ -250,6 +278,7 @@ public class InternalToolController {
 
     @Data
     public static class OrderConfirmBody {
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         private String actionId;
     }

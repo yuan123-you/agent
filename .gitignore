@@ -51,3 +51,24 @@ backend/.venv-product-catalog/
 
 # Environment-specific live Agent evaluation output
 eval/results/live.json
+
+# Private production handoff and generated deployment evidence
+/deploy/.secrets/
+/deploy/*-patch.tar.gz
+/deploy/*audit.json
+/deploy/*.log
+
+# Sensitive local credentials and handoff material
+.env.*
+!.env.example
+!.env.production.example
+.ssh_key*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.deployment-private/
+.codex-deploy/
+.tmp_ssh/
+*-data-export.sql
+*data-dump*.sql

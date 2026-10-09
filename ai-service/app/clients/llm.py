@@ -24,7 +24,8 @@ def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
         model=settings.llm_chat_model,
         temperature=settings.temperature,
         streaming=streaming,
-        timeout=60,
+        timeout=settings.llm_chat_timeout_s,
+        reasoning_effort=settings.llm_reasoning_effort,
         max_retries=1,
     )
 
@@ -37,7 +38,8 @@ def get_intent_llm() -> ChatOpenAI:
         model=settings.llm_intent_model,
         temperature=0,
         streaming=False,
-        timeout=20,
+        timeout=settings.llm_intent_timeout_s,
+        reasoning_effort=settings.llm_reasoning_effort,
         max_retries=1,
     )
 

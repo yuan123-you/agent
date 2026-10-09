@@ -63,6 +63,6 @@ async def internal_token_guard(request: Request, call_next):
     """服务间鉴权：/v1/** 必须携带正确的 X-Internal-Token"""
     if request.url.path.startswith("/v1"):
         token = request.headers.get("X-Internal-Token")
-        if token != settings.internal_token:
+        if not settings.internal_token or token != settings.internal_token:
             return JSONResponse(status_code=401, content={"code": 1003, "message": "invalid internal token"})
     return await call_next(request)

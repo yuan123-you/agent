@@ -163,7 +163,14 @@ class BackendClient:
         return {int(k): v for k, v in r.items()}
 
     async def download_file(self, url: str) -> bytes:
-        r = await self._long_client.get(url)
+        request = self._long_client.build_request("GET", url)
+        backend_url = self._long_client.base_url
+        if (request.url.scheme, request.url.host, request.url.port) != (
+            backend_url.scheme, backend_url.host, backend_url.port
+        ):
+            # Object storage / external document URLs must not receive backend credentials.
+            request.headers.pop("X-Internal-Token", None)
+        r = await self._long_client.send(request)
         r.raise_for_status()
         return r.content
 

@@ -48,7 +48,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showCheckout = false">取消</el-button>
-        <el-button type="danger" :loading="submitting" :disabled="!selectedAddressId" @click="submit">立即支付</el-button>
+        <el-button type="danger" :loading="submitting" :disabled="!selectedAddressId" @click="submit">模拟支付</el-button>
       </template>
     </el-dialog>
   </div>
@@ -124,7 +124,7 @@ async function submit() {
     const order = await apiCartCheckout({ addressId: selectedAddressId.value })
     // 结算后直接完成支付，无需用户再次确认
     await apiPayOrder(order.orderId)
-    ElMessage.success(`下单并支付成功：${order.orderNo}`)
+    ElMessage.success(`下单并模拟支付成功：${order.orderNo}`)
     showCheckout.value = false
     router.push(`/orders/${order.orderId}`)
   } catch {

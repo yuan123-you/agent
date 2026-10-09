@@ -45,7 +45,7 @@ public class AppProperties {
 
     @Data
     public static class Seed {
-        private String password = "123456";
+        private String password;
         private KnowledgeBase knowledgeBase = new KnowledgeBase();
     }
 

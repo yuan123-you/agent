@@ -81,7 +81,7 @@ Expected: PASS.
 
 ```java
 mockMvc.perform(post("/api/v1/auth/register/merchant").contentType(APPLICATION_JSON)
- .content("""{"username":"seller01","password":"123456","nickname":"店主","shopName":"源选店"}"""))
+ .content("""{"username":"seller01","password":"<通过受控环境提供>","nickname":"店主","shopName":"源选店"}"""))
  .andExpect(status().isOk()).andExpect(jsonPath("$.data.user.role").value("MERCHANT"));
 ```
 
