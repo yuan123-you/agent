@@ -74,6 +74,7 @@ onMounted(async () => {
 }
 
 .shop-name {
+  min-width: 0;
   font-weight: 600;
   font-size: 15px;
 }
@@ -103,8 +104,29 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
+  .merchant-layout {
+    flex-direction: column;
+  }
+
   .aside {
-    width: 64px;
+    width: 100% !important;
+    height: auto;
+    flex-shrink: 0;
+    border-right: 0;
+    border-bottom: 1px solid #e4e7ed;
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    height: 44px;
+  }
+
+  .main {
+    padding: 12px;
   }
 
   .shop-card,
@@ -114,6 +136,8 @@ onMounted(async () => {
 
   :deep(.el-menu-item) {
     padding: 0 16px;
+    flex: 1 0 auto;
+    justify-content: center;
   }
 }
 </style>

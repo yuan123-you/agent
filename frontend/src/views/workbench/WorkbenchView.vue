@@ -142,6 +142,7 @@ onUnmounted(() => {
 }
 
 .conv-card .head {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -152,6 +153,7 @@ onUnmounted(() => {
 }
 
 .title {
+  min-width: 0;
   color: #909399;
   font-size: 13px;
   max-width: 300px;
@@ -174,4 +176,11 @@ onUnmounted(() => {
   font-size: 13px;
   line-height: 1.6;
 }
+
+@media (max-width: 768px) {
+  .sla-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 </style>

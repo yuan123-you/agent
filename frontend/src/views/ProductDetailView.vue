@@ -327,6 +327,7 @@ function shortTime(t?: string): string {
 
 .main {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   background: #fff;
   padding: 20px;
@@ -353,7 +354,7 @@ function shortTime(t?: string): string {
 }
 
 .info {
-  flex: 1;
+  flex: 1 1 300px;
   min-width: 0;
 }
 
@@ -377,6 +378,8 @@ function shortTime(t?: string): string {
 }
 
 .point-tag {
+  line-height: 1.5;
+  padding: 4px 8px;
   margin: 0 8px 6px 0;
 }
 
@@ -393,6 +396,7 @@ function shortTime(t?: string): string {
 
 .qty-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin: 16px 0;
@@ -410,6 +414,7 @@ function shortTime(t?: string): string {
 
 .btn-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -634,4 +639,12 @@ function shortTime(t?: string): string {
     min-width: 140px;
   }
 }
+.point-tag {
+  line-height: 1.5;
+  padding: 4px 8px;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+
 </style>

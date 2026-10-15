@@ -90,6 +90,7 @@ async function logout() {
 }
 
 .welcome {
+  min-width: 0;
   font-size: 14px;
   color: #606266;
 }
@@ -117,11 +118,12 @@ async function logout() {
 
   .menu {
     display: flex;
-    overflow-x: auto;
+    flex-wrap: wrap;
   }
 
   .menu :deep(.el-menu-item) {
-    flex: 0 0 auto;
+    flex: 1 0 auto;
+    justify-content: center;
   }
 
   .main {

@@ -312,6 +312,6 @@ onMounted(load)
 .image-preview, .image-placeholder { width: 112px; height: 112px; border: 1px dashed var(--el-border-color); border-radius: 6px; cursor: pointer; }
 .field-tip { width: 100%; margin-top: 6px; color: #909399; font-size: 12px; }
 .full-width, .custom-info-list { width: 100%; }
-.custom-info-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 8px; margin-bottom: 8px; }
+.custom-info-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; margin-bottom: 8px; }
 .load-state { text-align: center; color: #909399; font-size: 13px; padding: 18px 0 24px; }
 </style>

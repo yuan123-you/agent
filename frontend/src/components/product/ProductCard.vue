@@ -22,6 +22,7 @@ defineProps<{ product: ProductVO }>()
 
 <style scoped>
 .product-card {
+  min-width: 0;
   background: #fff;
   border-radius: 8px;
   padding: 10px;
@@ -74,6 +75,8 @@ defineProps<{ product: ProductVO }>()
 }
 
 .row {
+  flex-wrap: wrap;
+  gap: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;

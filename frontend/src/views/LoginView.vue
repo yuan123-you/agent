@@ -109,6 +109,7 @@ async function doRegister() {
 
 <style scoped>
 .login-page {
+  padding: 12px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -117,7 +118,8 @@ async function doRegister() {
 }
 
 .login-card {
-  width: 400px;
+  width: min(400px, 100%);
+  min-width: 0;
   padding: 8px 12px;
 }
 

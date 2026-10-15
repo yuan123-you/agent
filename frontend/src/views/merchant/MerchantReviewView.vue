@@ -105,6 +105,7 @@ onMounted(load)
 }
 
 .r-head {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -136,6 +137,7 @@ onMounted(load)
 }
 
 .r-actions {
+  flex-wrap: wrap;
   display: flex;
   gap: 8px;
   margin-top: 10px;
@@ -147,4 +149,5 @@ onMounted(load)
   font-size: 13px;
   padding: 18px 0 24px;
 }
+
 </style>

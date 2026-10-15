@@ -7,6 +7,9 @@ html,
 body,
 #app {
   height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   padding: 0;
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
@@ -102,4 +105,74 @@ body,
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 16px;
+}
+
+/* Flex/grid children must be allowed to shrink below their content width. */
+.el-container,
+.el-main,
+.page {
+  min-width: 0;
+}
+
+/* Keep fixed-width dialogs usable on narrow screens without clipping fields. */
+.el-dialog,
+.el-message-box {
+  max-width: calc(100% - 24px);
+}
+
+.el-dialog .el-input-number,
+.el-dialog .el-select,
+.el-dialog .el-cascader {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page .toolbar {
+  flex-wrap: wrap;
+}
+
+.page .toolbar > * {
+  max-width: 100%;
+}
+
+/* Long addresses and Markdown must wrap rather than widen the page. */
+.el-descriptions__table,
+.md-content table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.md-content pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.md-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.el-dialog .el-form-item__content,
+.el-dialog .el-form-item__content > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 520px) {
+  .el-dialog .el-form-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .el-dialog .el-form-item__label {
+    width: auto !important;
+    height: auto;
+    justify-content: flex-start;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+
+  .el-dialog .el-form-item__content {
+    margin-left: 0 !important;
+  }
 }

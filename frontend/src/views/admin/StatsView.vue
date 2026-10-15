@@ -97,4 +97,17 @@ onMounted(async () => {
   font-size: 13px;
   margin-top: 4px;
 }
+
+@media (max-width: 768px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .panels > .el-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-bottom: 16px;
+  }
+}
+
 </style>

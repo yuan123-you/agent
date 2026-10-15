@@ -198,6 +198,7 @@ function statusTextOf(status: string): string {
 }
 
 .item-name {
+  min-width: 0;
   flex: 1;
 }
 
@@ -224,4 +225,21 @@ function statusTextOf(status: string): string {
     height: calc(100% - 20px);
   }
 }
+
+.item-qty,
+.item-price {
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .item-name {
+    flex-basis: 100%;
+  }
+}
+
 </style>

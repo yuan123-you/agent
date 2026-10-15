@@ -631,4 +631,16 @@ function shortTime(t?: string): string {
     flex-direction: column;
   }
 }
+
+.chat-header,
+.input-bar,
+.input-actions {
+  flex-wrap: wrap;
+}
+
+.input-bar :deep(.el-textarea) {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
 </style>

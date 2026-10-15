@@ -66,7 +66,7 @@
       </el-dropdown>
     </header>
 
-    <!-- 分类导航条（横向滚动，仅首页） -->
+    <!-- 分类导航条（自适应换行，仅首页） -->
     <div v-if="isHome" class="category-bar">
       <div class="cat-item" :class="{ active: route.path === '/' }" @click="$router.push('/')">
         推荐
@@ -173,6 +173,7 @@ async function onCommand(cmd: string) {
 }
 
 .search-box {
+  min-width: 0;
   flex: 1;
   max-width: 560px;
 }
@@ -212,12 +213,8 @@ async function onCommand(cmd: string) {
   background: #fff;
   border-bottom: 1px solid #ebeef5;
   padding: 8px 20px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.category-bar::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .cat-item {

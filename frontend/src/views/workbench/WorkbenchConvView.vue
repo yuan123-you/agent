@@ -125,6 +125,7 @@ function avatarText(role: string): string {
 }
 
 .head {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -196,4 +197,9 @@ function avatarText(role: string): string {
 .input-bar .el-button {
   height: 54px;
 }
+
+.input-bar :deep(.el-textarea) {
+  min-width: 0;
+}
+
 </style>

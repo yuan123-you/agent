@@ -106,6 +106,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 }
 
 .status-head {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -143,6 +144,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 }
 
 .item-name {
+  min-width: 0;
   flex: 1;
 }
 
@@ -166,4 +168,27 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
   font-size: 20px;
   font-weight: 700;
 }
+
+.item-qty,
+.item-subtotal {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .detail {
+    margin: 10px;
+    padding: 10px;
+    height: calc(100% - 20px);
+  }
+
+  .item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .item-name {
+    flex-basis: 100%;
+  }
+}
+
 </style>

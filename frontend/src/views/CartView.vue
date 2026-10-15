@@ -225,6 +225,7 @@ onMounted(load)
 }
 
 .checkout-bar {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -271,4 +272,23 @@ onMounted(load)
     gap: 4px;
   }
 }
+
+@media (max-width: 480px) {
+  .cart-item {
+    flex-wrap: wrap;
+  }
+
+  .info {
+    flex-basis: calc(100% - 110px);
+  }
+
+  .ops {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+  }
+}
+
 </style>

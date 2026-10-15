@@ -162,7 +162,7 @@ onMounted(async () => {
 /* 分类宫格：PC 10 列，平板 5 列，手机 5 列（两行） */
 .cat-grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 8px;
   background: #fff;
   border-radius: 12px;
@@ -239,12 +239,12 @@ onMounted(async () => {
 
 .floor-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
 .like-grid {
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .home-footer {
@@ -257,15 +257,15 @@ onMounted(async () => {
 /* 平板 */
 @media (max-width: 1024px) {
   .cat-grid {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .floor-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .like-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .banner {
@@ -289,7 +289,7 @@ onMounted(async () => {
   }
 
   .cat-grid {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     padding: 10px 6px;
   }
 
@@ -299,7 +299,7 @@ onMounted(async () => {
 
   .floor-grid,
   .like-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
