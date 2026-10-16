@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Link, Loading, Menu, Service } from '@element-plus/icons-vue'
@@ -167,6 +167,16 @@ const msgList = ref<HTMLElement>()
 const showRate = ref(false)
 const rateScore = ref(5)
 const waitSeconds = ref(0)
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+function updateMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
+const inputPlaceholder = computed(() => {
+  if (chat.current?.status === 'PENDING_HUMAN') return '正在等待人工客服接入…'
+  const sendHint = isMobile.value ? '' : '（Ctrl+Enter 发送）'
+  if (chat.current?.status === 'SERVICING') return `人工客服服务中，直接输入消息即可${sendHint}`
+  return `描述你的需求，如：推荐一款3000以内拍照好的手机${sendHint}`
+})
 const quickQuestions = ['推荐一款3000以内拍照好的手机', '我的订单到哪了', '支持7天无理由退货吗', '转人工客服']
 
 let pollTimer: number | undefined
@@ -174,6 +184,7 @@ let actionExpiryTimer: number | undefined
 let stickBottom = true
 
 onMounted(async () => {
+  window.addEventListener('resize', updateMobile)
   // 角色防护：非买家（如客服/管理员标签页）不加载会话，避免 /chat 接口 403 刷屏
   if (auth.role !== 'CUSTOMER') {
     ElMessage.warning('请使用买家账号访问 AI 助手')
@@ -216,6 +227,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateMobile)
   if (pollTimer) window.clearInterval(pollTimer)
   if (actionExpiryTimer) window.clearInterval(actionExpiryTimer)
 })
@@ -643,4 +655,36 @@ function shortTime(t?: string): string {
   min-width: 0;
 }
 
+@media (max-width: 768px) {
+  .chat-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .chat-header .title {
+    max-width: 120px;
+    font-size: 14px;
+  }
+
+  .web-search-switch {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .msg-list {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .input-bar {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+
+  .input-bar .el-button {
+    height: 44px;
+  }
+}
 </style>
+
+

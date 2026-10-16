@@ -3,6 +3,9 @@
     <div v-if="product" class="page detail">
     <div class="main">
       <el-image :src="product.imageUrl" fit="cover" class="pic" :preview-src-list="[product.imageUrl]">
+        <template #placeholder>
+          <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
+        </template>
         <template #error>
           <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
         </template>
@@ -102,10 +105,40 @@
       </div>
     </el-card>
 
+    <!-- 移动端底部固定操作栏 -->
+    <div class="mobile-action-bar">
+      <div class="mobile-icon-btn" @click="$router.push('/')">
+        <el-icon :size="18"><HomeFilled /></el-icon>
+        <span>首页</span>
+      </div>
+      <div class="mobile-icon-btn" @click="toggleFavorite">
+        <el-icon :size="18" :class="{ 'is-favorited': favorited }">
+          <StarFilled v-if="favorited" />
+          <Star v-else />
+        </el-icon>
+        <span>{{ favorited ? '已收藏' : '收藏' }}</span>
+      </div>
+      <div class="mobile-icon-btn" @click="$router.push('/cart')">
+        <el-icon :size="18"><ShoppingCart /></el-icon>
+        <span>购物车</span>
+      </div>
+      <div class="mobile-act-btns">
+        <el-button class="m-cart-btn" :disabled="product.stock === 0" @click="addToCart">
+          加入购物车
+        </el-button>
+        <el-button type="danger" class="m-buy-btn" :disabled="product.stock === 0" @click="buyNow">
+          立即购买
+        </el-button>
+      </div>
+    </div>
+
     <!-- 规格与数量选择弹窗 -->
-    <el-dialog v-model="showSpec" title="选择规格与数量" width="420px">
+    <el-dialog v-model="showSpec" title="选择规格与数量" width="min(440px, 94vw)">
       <div class="spec-head">
         <el-image :src="product.imageUrl" fit="cover" class="spec-pic">
+          <template #placeholder>
+            <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
+          </template>
           <template #error>
             <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
           </template>
@@ -136,7 +169,7 @@
     </el-dialog>
 
     <!-- 收货信息 + 下单弹窗 -->
-    <el-dialog v-model="showBuy" title="确认订单" width="440px">
+    <el-dialog v-model="showBuy" title="确认订单" width="min(440px, 94vw)">
       <el-form label-width="80px">
         <el-form-item label="商品">
           <span>{{ product.name }} × {{ quantity }}</span>
@@ -158,10 +191,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Star } from '@element-plus/icons-vue'
+import { HomeFilled, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
 import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
 import {
   apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
@@ -193,7 +226,11 @@ const avgRating = ref(5)
 const myRating = ref(5)
 const myContent = ref('')
 
-const isMobile = ref(window.innerWidth <= 768)
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+function updateMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
+
 const points = computed(() => (product.value?.sellingPoints || '').split(/\s+/).filter(Boolean))
 const specs = computed(() => {
   try {
@@ -214,6 +251,7 @@ const totalAmount = computed(() => ((product.value?.price || 0) * quantity.value
 const descHtml = computed(() => renderMarkdown(product.value?.description || '暂无介绍'))
 
 onMounted(async () => {
+  window.addEventListener('resize', updateMobile)
   const id = Number(route.params.id)
   try {
     product.value = await apiProductDetail(id)
@@ -225,6 +263,10 @@ onMounted(async () => {
   apiFavoriteStatus(id).then((s) => (favorited.value = s.favorited)).catch(() => {})
   apiHistoryRecord(id).catch(() => {})
   loadReviews()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateMobile)
 })
 
 async function loadReviews() {
@@ -612,9 +654,14 @@ function shortTime(t?: string): string {
   width: 100%;
 }
 
+.mobile-action-bar {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .detail {
     padding: 10px;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
   .main {
@@ -638,7 +685,64 @@ function shortTime(t?: string): string {
     flex: 1;
     min-width: 140px;
   }
+
+  .mobile-action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border-top: 1px solid #ebeef5;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    z-index: 100;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .mobile-icon-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 11px;
+    color: #606266;
+    cursor: pointer;
+    min-width: 38px;
+    padding: 2px 4px;
+    user-select: none;
+  }
+
+  .mobile-icon-btn .is-favorited {
+    color: #e6a23c;
+  }
+
+  .mobile-act-btns {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: 4px;
+  }
+
+  .m-cart-btn,
+  .m-buy-btn {
+    flex: 1;
+    height: 40px;
+    margin: 0 !important;
+    font-weight: 600;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+
+  .m-cart-btn {
+    background: #fff0f0;
+    color: var(--el-color-danger);
+    border-color: #ffc2c2;
+  }
 }
+
 .point-tag {
   line-height: 1.5;
   padding: 4px 8px;
@@ -646,5 +750,4 @@ function shortTime(t?: string): string {
   height: auto;
   white-space: normal;
 }
-
 </style>

@@ -66,7 +66,7 @@
       </el-dropdown>
     </header>
 
-    <!-- 分类导航条（自适应换行，仅首页） -->
+    <!-- 分类导航条（PC换行，移动端横向滑动，仅首页） -->
     <div v-if="isHome" class="category-bar">
       <div class="cat-item" :class="{ active: route.path === '/' }" @click="$router.push('/')">
         推荐
@@ -86,8 +86,8 @@
       <router-view />
     </el-main>
 
-    <!-- 移动端底部导航 -->
-    <MobileTabbar />
+    <!-- 移动端底部导航（商品详情页使用专属购买栏，不展示全站通用 Tabbar） -->
+    <MobileTabbar v-if="!isProductDetail" />
   </el-container>
 </template>
 
@@ -106,6 +106,9 @@ const keyword = ref('')
 
 /** 仅首页显示完整顶栏+分类导航；其余页面用简洁子头部 */
 const isHome = computed(() => route.path === '/')
+
+/** 商品详情页隐藏通用 Tabbar，交由商品详情页底部专属操作栏承载 */
+const isProductDetail = computed(() => /^\/products\/\d+/.test(route.path))
 
 const SUB_TITLES: Record<string, string> = {
   '/assistant': 'AI 购物助手',
@@ -286,7 +289,7 @@ async function onCommand(cmd: string) {
   }
 }
 
-/* 移动端：隐藏文字入口（由底部 TabBar 承担），搜索框撑满 */
+/* 移动端：隐藏文字入口（由底部 TabBar 承担），搜索框撑满，分类条横向平滑滚动 */
 @media (max-width: 768px) {
   .header {
     height: 52px;
@@ -302,8 +305,21 @@ async function onCommand(cmd: string) {
     display: none;
   }
 
+  .category-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px;
+    gap: 6px;
+    scrollbar-width: none;
+  }
+
+  .category-bar::-webkit-scrollbar {
+    display: none;
+  }
+
   .main {
-    padding-bottom: 56px; /* 底部 TabBar 高度 */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom)); /* 底部 TabBar 高度及安全区 */
   }
 }
 </style>

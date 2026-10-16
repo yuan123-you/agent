@@ -12,7 +12,7 @@
         <el-button v-if="order.status === 'PENDING_PAYMENT'" type="primary" @click="pay">去支付</el-button>
         <el-button v-if="order.status === 'PENDING_PAYMENT'" @click="cancel">取消订单</el-button>
       </div>
-      <el-steps :active="stepActive" align-center class="steps">
+      <el-steps :active="stepActive" :align-center="!isMobile" class="steps" :direction="isMobile ? 'vertical' : 'horizontal'">
         <el-step title="下单" :description="order.createdAt" />
         <el-step title="支付" :description="order.paidAt" />
         <el-step title="发货" :description="order.shippedAt" />
@@ -35,7 +35,7 @@
     <!-- 收货信息 -->
     <el-card shadow="never" class="card">
       <template #header>收货信息</template>
-      <el-descriptions :column="3">
+      <el-descriptions :column="isMobile ? 1 : 3">
         <el-descriptions-item label="收货人">{{ order.receiverName }}</el-descriptions-item>
         <el-descriptions-item label="电话">{{ order.receiverPhone }}</el-descriptions-item>
         <el-descriptions-item label="地址" :span="2">{{ order.receiverAddress }}</el-descriptions-item>
@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiCancelOrder, apiOrderDetail, apiPayOrder } from '@/api'
@@ -54,6 +54,10 @@ import type { OrderVO } from '@/types/api'
 const route = useRoute()
 const router = useRouter()
 const order = ref<OrderVO | null>(null)
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+function updateMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
 
 const stepActive = computed(() => {
   const map: Record<string, number> = {
@@ -63,6 +67,7 @@ const stepActive = computed(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('resize', updateMobile)
   try {
     order.value = await apiOrderDetail(Number(route.params.id))
   } catch {
@@ -82,6 +87,10 @@ async function cancel() {
   ElMessage.success('订单已取消')
   order.value = await apiOrderDetail(order.value!.orderId)
 }
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateMobile)
+})
 
 function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
   return {
@@ -192,3 +201,4 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 }
 
 </style>
+

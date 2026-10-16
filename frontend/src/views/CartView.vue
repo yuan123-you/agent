@@ -254,6 +254,10 @@ onMounted(load)
 }
 
 @media (max-width: 768px) {
+  .checkout-bar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
   .cart-body {
     padding: 10px;
   }
@@ -292,3 +296,4 @@ onMounted(load)
 }
 
 </style>
+

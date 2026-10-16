@@ -102,7 +102,7 @@ async function logout() {
 
 .entry-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   margin-top: 14px;
 }
@@ -160,5 +160,29 @@ async function logout() {
 .arrow {
   color: #c0c4cc;
 }
+@media (max-width: 600px) {
+  .profile-page {
+    padding: 12px 10px;
+  }
+
+  .entry-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+
+  .entry {
+    padding: 10px 2px;
+    font-size: 11px;
+  }
+
+  .entry .el-icon {
+    font-size: 20px;
+  }
+
+  .user-card {
+    padding: 14px;
+  }
+}
 </style>
+
 
