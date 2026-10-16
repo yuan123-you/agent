@@ -63,4 +63,20 @@ describe('Mobile adaptation and performance optimizations', () => {
     const profileVue = readFileSync(resolve(__dirname, 'views/ProfileView.vue'), 'utf-8')
     expect(profileVue).toContain('repeat(5, 1fr)')
   })
+  it('FavoritesView and HistoryView have lazy loading and placeholder', () => {
+    const favVue = readFileSync(resolve(__dirname, 'views/FavoritesView.vue'), 'utf-8')
+    const hisVue = readFileSync(resolve(__dirname, 'views/HistoryView.vue'), 'utf-8')
+    expect(favVue).toContain('lazy')
+    expect(favVue).toContain('#placeholder')
+    expect(hisVue).toContain('lazy')
+    expect(hisVue).toContain('#placeholder')
+  })
+
+  it('styles.css prevents iOS zoom-on-focus and optimizes mobile dialogs', () => {
+    const css = readFileSync(resolve(__dirname, 'styles.css'), 'utf-8')
+    expect(css).toContain('font-size: 16px !important')
+    expect(css).toContain('touch-action: manipulation')
+    expect(css).toContain('min(520px, calc(100% - 24px))')
+  })
 })
+

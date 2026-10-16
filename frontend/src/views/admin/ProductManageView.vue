@@ -44,7 +44,7 @@
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
 
-    <el-dialog v-model="dialog" title="新建商品" width="560px">
+    <el-dialog v-model="dialog" title="新建商品" width="min(560px, 92vw)">
       <el-form :model="form" label-width="90px">
         <el-form-item label="商品名">
           <el-input v-model="form.name" />
@@ -201,3 +201,4 @@ onMounted(load)
   padding: 18px 0 24px;
 }
 </style>
+

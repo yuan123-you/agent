@@ -176,3 +176,36 @@ body,
     margin-left: 0 !important;
   }
 }
+
+/* 移动端触控与缩放优化 */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.el-button {
+  touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  /* 防止 iOS Safari 在输入框聚焦时自动放大页面 */
+  input,
+  textarea,
+  select,
+  .el-input__inner,
+  .el-textarea__inner {
+    font-size: 16px !important;
+  }
+
+  .el-dialog {
+    width: min(520px, calc(100% - 24px)) !important;
+    margin: 16px auto !important;
+  }
+
+  .el-dialog__body {
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 16px !important;
+  }
+}

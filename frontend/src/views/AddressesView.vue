@@ -9,5 +9,18 @@ import AddressBook from '@/components/address/AddressBook.vue'
 </script>
 
 <style scoped>
-.addresses-page { width: min(760px, calc(100% - 32px)); margin: 16px auto; }
+.addresses-page {
+  width: min(760px, calc(100% - 32px));
+  margin: 16px auto;
+}
+
+@media (max-width: 600px) {
+  .addresses-page {
+    width: 100%;
+    margin: 0 auto;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+}
 </style>
+

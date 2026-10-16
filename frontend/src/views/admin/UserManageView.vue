@@ -40,7 +40,7 @@
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && users.length > 0" class="load-state">— 没有更多了 —</div>
 
-    <el-dialog v-model="createDialog" title="创建客服" width="440px" @closed="resetAgentForm">
+    <el-dialog v-model="createDialog" title="创建客服" width="min(440px, 92vw)" @closed="resetAgentForm">
       <el-form ref="agentFormRef" :model="agentForm" :rules="agentRules" label-width="80px">
         <el-form-item label="用户名" prop="username"><el-input v-model="agentForm.username" /></el-form-item>
         <el-form-item label="密码" prop="password"><el-input v-model="agentForm.password" type="password" show-password /></el-form-item>
@@ -181,3 +181,4 @@ onMounted(load)
   padding: 18px 0 24px;
 }
 </style>
+

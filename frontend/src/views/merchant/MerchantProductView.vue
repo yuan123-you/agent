@@ -51,7 +51,7 @@
     </div>
   </el-scrollbar>
 
-  <el-dialog v-model="dialog" :title="editingId ? '编辑商品' : '按模板上架商品'" width="680px" top="4vh">
+  <el-dialog v-model="dialog" :title="editingId ? '编辑商品' : '按模板上架商品'" width="min(680px, 94vw)" top="4vh">
     <el-scrollbar max-height="62vh">
       <el-form ref="formRef" :model="tpl" label-width="110px" :rules="rules">
         <div class="section-title">基础信息（必填）</div>
@@ -315,3 +315,4 @@ onMounted(load)
 .custom-info-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; margin-bottom: 8px; }
 .load-state { text-align: center; color: #909399; font-size: 13px; padding: 18px 0 24px; }
 </style>
+

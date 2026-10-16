@@ -7,7 +7,10 @@
     </div>
     <div class="list">
       <div v-for="p in products" :key="p.id" class="his-item" @click="$router.push(`/products/${p.id}`)">
-        <el-image :src="p.imageUrl" fit="cover" class="pic">
+        <el-image :src="p.imageUrl" fit="cover" class="pic" lazy>
+          <template #placeholder>
+            <div class="pic-fb">{{ p.name.slice(0, 1) }}</div>
+          </template>
           <template #error>
             <div class="pic-fb">{{ p.name.slice(0, 1) }}</div>
           </template>
@@ -191,3 +194,5 @@ onMounted(load)
   }
 }
 </style>
+
+

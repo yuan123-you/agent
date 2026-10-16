@@ -48,7 +48,7 @@
     <div v-else-if="finished && orders.length > 0" class="load-state">— 没有更多了 —</div>
 
     <!-- 发货弹窗 -->
-    <el-dialog v-model="shipDialog" title="订单发货" width="380px">
+    <el-dialog v-model="shipDialog" title="订单发货" width="min(380px, 92vw)">
       <el-form label-width="80px">
         <el-form-item label="物流单号">
           <el-input v-model="logisticsNo" placeholder="留空自动生成" />
@@ -174,3 +174,4 @@ onMounted(load)
   padding: 18px 0 24px;
 }
 </style>
+

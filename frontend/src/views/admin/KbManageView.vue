@@ -79,7 +79,7 @@
     </el-dialog>
 
     <!-- 上传弹窗 -->
-    <el-dialog v-model="uploadDialog" title="上传知识文档" width="480px">
+    <el-dialog v-model="uploadDialog" title="上传知识文档" width="min(480px, 92vw)">
       <el-form label-width="90px">
         <el-form-item label="文档标题">
           <el-input v-model="uploadForm.title" placeholder="如：退换货政策" />
@@ -325,3 +325,4 @@ onUnmounted(() => {
   padding: 18px 0 24px;
 }
 </style>
+

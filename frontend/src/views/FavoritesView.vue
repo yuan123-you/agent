@@ -4,7 +4,10 @@
     <h3 class="page-title">我的收藏（{{ total }}）</h3>
     <div class="grid">
       <div v-for="p in products" :key="p.id" class="fav-card" @click="$router.push(`/products/${p.id}`)">
-        <el-image :src="p.imageUrl" fit="cover" class="pic">
+        <el-image :src="p.imageUrl" fit="cover" class="pic" lazy>
+          <template #placeholder>
+            <div class="pic-fb">{{ p.name.slice(0, 1) }}</div>
+          </template>
           <template #error>
             <div class="pic-fb">{{ p.name.slice(0, 1) }}</div>
           </template>
@@ -155,3 +158,5 @@ onMounted(load)
   }
 }
 </style>
+
+
