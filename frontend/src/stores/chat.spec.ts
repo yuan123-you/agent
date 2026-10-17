@@ -8,15 +8,17 @@ const api = vi.hoisted(() => ({
   cancelOrderAction: vi.fn(),
   orderActionStatus: vi.fn(),
   conversationDetail: vi.fn(),
+  conversationStatus: vi.fn(),
   conversations: vi.fn(),
   cancelHuman: vi.fn(),
   messages: vi.fn(),
+  streamChat: vi.fn(),
 }))
 
 vi.mock('@/api', () => ({
   apiCloseConversation: vi.fn(),
   apiConversationDetail: api.conversationDetail,
-  apiConversationStatus: vi.fn(),
+  apiConversationStatus: api.conversationStatus,
   apiConversations: api.conversations,
   apiCreateConversation: vi.fn(),
   apiHumanMessage: vi.fn(),
@@ -28,6 +30,8 @@ vi.mock('@/api', () => ({
   apiCancelOrderAction: api.cancelOrderAction,
   apiOrderActionStatus: api.orderActionStatus,
 }))
+
+vi.mock('@/composables/useSseChat', () => ({ streamChat: api.streamChat }))
 
 vi.mock('element-plus', () => ({
   ElMessage: { error: vi.fn(), success: vi.fn() },
@@ -174,7 +178,6 @@ describe('chat order action state', () => {
   })
 })
 
-
 describe('chat tool result history', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -313,5 +316,56 @@ describe('chat background streaming restore', () => {
 
     expect(chat.pendingByConv[7]).toBeUndefined()
     expect(chat.streaming).toBe(false)
+  })
+})
+
+
+describe('handoff status races', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    setActivePinia(createPinia())
+    api.conversations.mockResolvedValue({ records: [] })
+  })
+
+  it('ignores a stream-completion refresh that arrives after cancellation', async () => {
+    const chat = useChatStore()
+    chat.current = { conversationId: 7, status: 'ACTIVE' }
+    api.streamChat.mockReturnValue({ promise: Promise.resolve(), stop: vi.fn() })
+    let resolveDetail!: (value: { conversationId: number, status: string }) => void
+    api.conversationDetail.mockImplementationOnce(() => new Promise(resolve => { resolveDetail = resolve }))
+    await chat.sendMessage('转人工客服')
+    chat.current.status = 'PENDING_HUMAN'
+    api.conversationDetail.mockResolvedValueOnce({ conversationId: 7, status: 'ACTIVE' })
+    await chat.cancelHumanHandoff()
+    resolveDetail({ conversationId: 7, status: 'PENDING_HUMAN' })
+    await Promise.resolve()
+    expect(chat.current.status).toBe('ACTIVE')
+  })
+
+  it('ignores a pending status response started before cancellation completed', async () => {
+    const chat = useChatStore()
+    chat.current = { conversationId: 7, status: 'PENDING_HUMAN' }
+    let resolveStatus!: (value: { status: string }) => void
+    api.conversationStatus.mockImplementation(() => new Promise(resolve => { resolveStatus = resolve }))
+    const polling = chat.pollNewMessages()
+    api.conversationDetail.mockResolvedValueOnce({ conversationId: 7, status: 'ACTIVE' })
+    await chat.cancelHumanHandoff()
+    api.conversationDetail.mockResolvedValue({ conversationId: 7, status: 'PENDING_HUMAN' })
+    resolveStatus({ status: 'PENDING_HUMAN' })
+    await polling
+    expect(chat.current.status).toBe('ACTIVE')
+  })
+
+  it('does not replace a newly selected conversation with an old polling response', async () => {
+    const chat = useChatStore()
+    chat.current = { conversationId: 7, status: 'PENDING_HUMAN' }
+    let resolveStatus!: (value: { status: string }) => void
+    api.conversationStatus.mockImplementation(() => new Promise(resolve => { resolveStatus = resolve }))
+    api.conversationDetail.mockResolvedValue({ conversationId: 7, status: 'SERVICING' })
+    const polling = chat.pollNewMessages()
+    chat.current = { conversationId: 8, status: 'ACTIVE' }
+    resolveStatus({ status: 'SERVICING' })
+    await polling
+    expect(chat.current).toMatchObject({ conversationId: 8, status: 'ACTIVE' })
   })
 })

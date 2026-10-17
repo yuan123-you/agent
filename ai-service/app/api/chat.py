@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from app.agent.graph import checkpointer, graph
-from app.agent.link_guard import collect_known_ids, guard_links
+from app.agent.link_guard import collect_known_ids, ensure_product_links, guard_links
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
@@ -208,14 +208,16 @@ async def chat_stream(req: ChatRequest, request: Request):
         eval_enabled = req.options.get("include_eval_metadata") is True
         # 工具上下文：身份由服务端注入（越权防护红线），同时注入会话级实体记忆
         initial_state = build_state(req, checkpointer=checkpointer)
-        ctx = {"user_id": str(req.user_id), "conversation_id": str(req.conversation_id),
+        ctx = {"latest_user_text": req.message, "user_id": str(req.user_id), "conversation_id": str(req.conversation_id),
                "degraded": False, "escalated": False,
                "active_entities": dict(initial_state.get("active_entities") or {})}
         set_tool_ctx(ctx)
         parts: list[str] = []
         usage: dict = {}
         known_ids: set[str] = set()
+        product_result: dict | None = None
         rag_started = False
+        product_links_needed = True
         # 可观测：开启本会话 trace（session=conversation_id）
         traced = start_trace(conversation_id=req.conversation_id, user_id=req.user_id,
                              metadata={"message": _short(req.message, 200), "trace_id": ""})
@@ -271,8 +273,18 @@ async def chat_stream(req: ChatRequest, request: Request):
                             if ev.get("name") == "kb_search" and not rag_started:
                                 parts.clear()
                                 rag_started = True
+                            if ev.get("name") in {"order_create", "order_query", "order_cancel_prepare", "after_sale_prepare", "escalate_to_human"}:
+                                product_links_needed = False
                             out = ev["data"].get("output")
-                            known_ids.update(collect_known_ids(_short(out, 4000)))
+                            raw_result = getattr(out, "content", out)
+                            if isinstance(raw_result, str):
+                                try:
+                                    raw_result = json.loads(raw_result)
+                                except (ValueError, TypeError):
+                                    raw_result = None
+                            if ev.get("name") == "product_search" and isinstance(raw_result, dict):
+                                product_result = raw_result
+                            known_ids.update(collect_known_ids(json.dumps(raw_result, ensure_ascii=False, default=str)))
                             # 可观测：工具结束
                             if traced and ev.get("run_id") in tool_spans:
                                 span = tool_spans.pop(ev["run_id"])
@@ -318,6 +330,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                 )
                 final_text = validation.content
                 citations = validation.citations
+            if not rag_used and product_links_needed:
+                final_text = ensure_product_links(final_text, product_result)
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})

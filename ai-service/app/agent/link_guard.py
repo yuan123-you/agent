@@ -33,3 +33,30 @@ def guard_links(text: str, known_ids: set[str]) -> str:
         return m.group(1)  # 降级为纯文本
 
     return LINK_RE.sub(repl, text)
+
+
+def ensure_product_links(text: str, result: dict | None) -> str:
+    """Fallback for unlinked recommendations using only actual product-search links."""
+    if result is None:
+        return text
+    if result.get("error"):
+        return "商品检索暂时不可用，请稍后重试。"
+    products = result.get("products")
+    if not isinstance(products, list):
+        return text
+    if not products:
+        return "暂未找到符合条件的在售商品，您可以调整预算或筛选条件后再试。"
+    valid = [p for p in products if isinstance(p, dict) and p.get("name")
+             and re.fullmatch(r"mall://product/\d+", str(p.get("link", "")))]
+    urls = {p["link"] for p in valid}
+    has_placeholder = re.search(r"\[(?:产品|商品)链接\]", text)
+    if not has_placeholder and any(m.group(2) in urls for m in LINK_RE.finditer(text)):
+        return text
+    if not valid:
+        return "已检索到商品，但商品链接暂时不可用，请稍后重试。"
+    rows = []
+    for p in valid[:5]:
+        name = re.sub(r"([\\\[\]])", r"\\\1", str(p["name"]))
+        price = f"，¥{p['price']}" if p.get("price") is not None else ""
+        rows.append(f"{len(rows) + 1}. [{name}]({p['link']}){price}")
+    return "为您找到以下在售商品：\n" + "\n".join(rows) + "\n点击商品名可查看详情。"

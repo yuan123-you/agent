@@ -59,6 +59,7 @@
             type="warning"
             plain
             size="small"
+            :loading="cancellingHuman"
             @click="onCancelHuman"
           >
             取消转人工（{{ waitSeconds }}秒）
@@ -114,11 +115,12 @@
           />
           <div class="input-actions">
             <!-- 人工客服入口：触发 AI escalate 链路，客服工作台接入 -->
-            <el-tooltip content="转接人工客服（工作时间 9:00-22:00）" placement="top">
+            <el-tooltip :content="chat.current.status === 'PENDING_HUMAN' ? '取消转人工，返回 AI 客服' : '转接人工客服（工作时间 9:00-22:00）'" placement="top">
               <el-button
                 circle
                 :type="chat.current.status !== 'ACTIVE' ? 'success' : 'default'"
-                :disabled="chat.streaming"
+                :disabled="cancellingHuman || (chat.streaming && chat.current.status !== 'PENDING_HUMAN')"
+                :aria-label="chat.current.status === 'PENDING_HUMAN' ? '取消转人工' : '转接人工客服'"
                 @click="transferHuman"
               >
                 <el-icon><Service /></el-icon>
@@ -167,6 +169,7 @@ const msgList = ref<HTMLElement>()
 const showRate = ref(false)
 const rateScore = ref(5)
 const waitSeconds = ref(0)
+const cancellingHuman = ref(false)
 const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
 function updateMobile() {
   isMobile.value = window.innerWidth <= 768
@@ -275,6 +278,10 @@ async function send(content: string) {
 
 /** 转人工客服：直接发送"转人工"消息，AI 调用 escalate 工具后会话进入 PENDING_HUMAN，客服工作台接入 */
 function transferHuman() {
+  if (chat.current?.status === 'PENDING_HUMAN') {
+    void onCancelHuman()
+    return
+  }
   if (chat.streaming) return
   // 已转人工/服务中/已结束时给用户提示
   if (chat.current && chat.current.status !== 'ACTIVE') {
@@ -307,11 +314,15 @@ function updateHumanWaitCountdown() {
 }
 
 async function onCancelHuman() {
+  if (cancellingHuman.value || chat.current?.status !== 'PENDING_HUMAN') return
+  cancellingHuman.value = true
   try {
     await chat.cancelHumanHandoff()
     ElMessage.success('已取消转人工，恢复 AI 客服')
   } catch {
     await chat.pollNewMessages().catch(() => {})
+  } finally {
+    cancellingHuman.value = false
   }
 }
 async function onClose() {

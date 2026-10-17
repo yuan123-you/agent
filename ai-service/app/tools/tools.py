@@ -7,6 +7,7 @@ from dataclasses import asdict
 from langchain_core.tools import tool
 
 from app.rag import retrieval
+from app.request_policy import requests_human
 from app.clients.backend_client import backend_client
 from app.observability.telemetry import observe_retrieval
 from app.rag.product_index import hybrid_product_search
@@ -103,6 +104,18 @@ def normalize_category(category: str | None) -> str | None:
     return CATEGORY_MAP.get(raw, category.strip().upper())
 
 
+def category_from_user_text(text: str) -> str | None:
+    """Only unambiguous category words from the buyer, never assistant examples."""
+    matches = set()
+    for alias, category in CATEGORY_MAP.items():
+        if len(alias) < 2:
+            continue
+        pattern = rf"\b{re.escape(alias)}\b" if alias.isascii() else re.escape(alias)
+        if re.search(pattern, text, re.IGNORECASE):
+            matches.add(category)
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
 def clean_search_keyword(keyword: str | None) -> str | None:
     if not keyword:
         return None
@@ -145,8 +158,14 @@ async def product_search(keyword: str | None = None, category: str | None = None
     keyword 填商品特性词或短语，如"拍照""夜拍""游戏本""轻薄"。"""
     ctx = get_tool_ctx()
     entities = ctx.setdefault("active_entities", {})
-    norm_category = normalize_category(category)
+    norm_category = ctx.get("requested_category") or normalize_category(category)
     cleaned_keyword = clean_search_keyword(keyword)
+    keyword_category = category_from_user_text(cleaned_keyword or "")
+    if ctx.get("requested_category") and keyword_category and keyword_category != norm_category:
+        cleaned_keyword = None
+    budget = ctx.get("requested_budget") or {}
+    if budget:
+        min_price, max_price = budget.get("min_price"), budget.get("max_price")
 
     # 若未显式指定品类，先判断 keyword 本身是否是一个新类目（如上一轮看电脑，本轮买家说"看下手机"）
     if not norm_category and cleaned_keyword:
@@ -164,7 +183,7 @@ async def product_search(keyword: str | None = None, category: str | None = None
         if result is not None:
             if norm_category:
                 entities["last_category"] = norm_category
-            if isinstance(result, dict) and result.get("products"):
+            if isinstance(result, dict) and isinstance(result.get("products"), list):
                 entities["last_products"] = [
                     {"id": p.get("productId"), "name": p.get("name"), "price": p.get("price")}
                     for p in result["products"][:5] if p.get("productId")
@@ -173,12 +192,12 @@ async def product_search(keyword: str | None = None, category: str | None = None
     except Exception as e:
         logger.warning("hybrid product search failed, fallback to SQL: %s", e)
     res = await backend_client.product_search(
-        user_id=int(ctx.get("user_id", 0)), keyword=cleaned_keyword or keyword, category=norm_category,
+        user_id=int(ctx.get("user_id", 0)), keyword=cleaned_keyword, category=norm_category,
         min_price=min_price, max_price=max_price, top_k=top_k,
     )
     if norm_category:
         entities["last_category"] = norm_category
-    if isinstance(res, dict) and res.get("products"):
+    if isinstance(res, dict) and isinstance(res.get("products"), list):
         entities["last_products"] = [
             {"id": p.get("productId"), "name": p.get("name"), "price": p.get("price")}
             for p in res["products"][:5] if p.get("productId")
@@ -324,14 +343,17 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
 
 @tool
 async def escalate_to_human(reason: str = "") -> dict:
-    """转接人工客服。用户明确要求转人工/投诉，或你无法解决用户问题时调用。"""
+    """转接人工客服。仅在用户明确要求转人工/投诉时调用，不得因无法解答擅自转接。"""
     ctx = get_tool_ctx()
-    ctx["escalated"] = True
-    return await backend_client.escalate(
+    if not requests_human(ctx.get("latest_user_text", "")):
+        return {"error": "买家未要求转人工，请继续回答当前问题，不得擅自转接"}
+    result = await backend_client.escalate(
         user_id=int(ctx.get("user_id", 0)),
         conversation_id=int(ctx.get("conversation_id", 0)),
         reason=reason[:200],
     )
+    ctx["escalated"] = "error" not in result
+    return result
 
 
 ALL_TOOLS = [product_search, product_detail, order_query, order_create, order_cancel_prepare,

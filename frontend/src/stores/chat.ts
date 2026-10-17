@@ -81,10 +81,12 @@ export const useChatStore = defineStore('chat', {
     /** 转人工后轮询：新消息（含 AGENT 消息）+ 会话状态（感知客服接入/服务结束） */
     async pollNewMessages() {
       if (!this.current) return
-      const convId = this.current.conversationId
+      const conversation = this.current
+      const convId = conversation.conversationId
       const lastId = this.messages.reduce((max, m) => Math.max(max, m.messageId || m.id || 0), 0)
       if (lastId > 0) {
         const fresh = await apiMessagesAfter(convId, lastId)
+        if (this.current !== conversation) return
         for (const m of fresh) {
           this.messages.push({
             ...m,
@@ -95,10 +97,13 @@ export const useChatStore = defineStore('chat', {
       }
       // 状态轮询：客服接入(SERVICING)/买家或客服结束(CLOSED) 时刷新会话详情
       const st = await apiConversationStatus(convId)
-      if (st.status !== this.current.status) {
-        this.current = await apiConversationDetail(convId)
+      // 取消或切换会话后，丢弃旧轮询，避免恢复已经失效的等待状态。
+      if (this.current !== conversation) return
+      if (st.status !== conversation.status) {
+        const detail = await apiConversationDetail(convId)
+        if (this.current === conversation) this.current = detail
       } else {
-        this.current.humanWaitExpiresAt = st.humanWaitExpiresAt
+        conversation.humanWaitExpiresAt = st.humanWaitExpiresAt
       }
     },
 
@@ -175,8 +180,9 @@ export const useChatStore = defineStore('chat', {
         // 刷新会话列表与状态（可能已转人工/建单）
         this.loadConversations().catch(() => {})
         if (this.current?.conversationId === conversationId) {
+          const conversation = this.current
           apiConversationDetail(conversationId)
-            .then((c) => (this.current = c))
+            .then((c) => { if (this.current === conversation) this.current = c })
             .catch(() => {})
         }
       }

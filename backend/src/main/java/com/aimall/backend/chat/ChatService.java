@@ -176,15 +176,7 @@ public class ChatService {
                     boolean degraded = node != null && node.path("degraded").asBoolean(false);
                     Message ai = saveAiMessage(conv, content, toolCalls, node, start,
                             degraded ? "DEGRADED" : "SUCCESS");
-                    // 转人工工具检测 → 会话进入人工队列
-                    boolean escalated = toolCalls.stream()
-                            .anyMatch(t -> String.valueOf(t.get("tool")).contains("escalate"));
-                    if (escalated) {
-                        Conversation c = new Conversation();
-                        c.setId(conv.getId());
-                        c.setStatus("PENDING_HUMAN");
-                        conversationMapper.updateById(c);
-                    }
+                    // 转人工状态由 /internal/tools/escalate 更新；流结束不得覆盖取消、接入或关闭状态。
                     sendEvent(emitter, "done", JsonUtil.putField(data, "messageId", ai.getId()));
                     finished.set(true);
                     completeQuietly(emitter);

@@ -17,9 +17,11 @@ from app.agent.state import AgentState
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
+from app.request_policy import asks_assistant_identity, budget_from_text, requests_human
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
+    category_from_user_text,
     get_tool_ctx,
     after_sale_prepare,
     escalate_to_human,
@@ -67,18 +69,25 @@ def parse_intent_json(content: str) -> dict:
 def fallback_intent_by_rules(user_text: str) -> str:
     """当模型未能输出标准 JSON 时，基于规则启发式兜底，避免全部误判为 PRODUCT_CONSULT"""
     t = (user_text or "").strip().lower()
-    if any(w in t for w in ["转人工", "人工客服", "找人工", "投诉", "人工服务", "找真人", "联系人工"]):
+    if requests_human(t):
         return "HUMAN_REQUEST"
-    if any(w in t for w in ["你是谁", "你能做什么", "介绍你自己", "你有什么功能", "你叫什么", "介绍下你自己"]):
+    if asks_assistant_identity(t):
         return "ASSISTANT_META"
-    if any(w in t for w in ["你好", "您好", "早上好", "晚上好", "嗨", "hello", "hi", "谢谢", "多谢", "再见", "在吗"]):
-        return "SMALL_TALK"
+    if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
+        return "AFTER_SALE_FAQ"
     if any(w in t for w in ["订单", "物流", "发货没", "发货没有", "快递", "到哪了", "待支付"]):
         return "ORDER_QUERY"
     if any(w in t for w in ["退货", "退换", "退款", "保修", "售后", "运费", "三包", "坏了", "换货", "发票", "送货", "自提", "七天"]):
         return "AFTER_SALE_FAQ"
+    # Buying an unspecified category is selection, not authorization to order.
+    if category_from_user_text(t) and not any(w in t for w in ["下单", "确认购买", "买这个", "买它", "买第"]):
+        return "PRODUCT_CONSULT"
     if any(w in t for w in ["帮我买", "下单", "拍下", "立刻购买", "我要买", "买第", "买这个", "买它", "帮我下单", "确认购买"]):
         return "ORDER_CREATE"
+    if any(w in t for w in ["你好", "您好", "早上好", "晚上好", "嗨", "hello", "谢谢", "多谢", "再见", "在吗"]):
+        return "SMALL_TALK"
+    if re.search(r"不(?:要|用|需要|想).*(?:人工|真人)|取消.*(?:人工|转接)", t):
+        return "SMALL_TALK"
     return "PRODUCT_CONSULT"
 
 
@@ -87,9 +96,14 @@ async def intent_router_node(state: AgentState) -> dict:
     llm = get_intent_llm()
     last = state["messages"][-1] if state["messages"] else None
     user_text = getattr(last, "content", "") if last else ""
-    history_text = "\n".join(
-        f'{m.get("role", "USER")}: {m.get("content", "")}' for m in (state.get("history") or [])[-6:]
-    )
+    # Checkpoint messages are the source of truth; backend history may be empty.
+    conversation = [m for m in state["messages"][:-1]
+                    if isinstance(m, HumanMessage) or (isinstance(m, AIMessage) and not m.tool_calls)]
+    history_text = "\n".join(f"{m.type}: {m.content}" for m in conversation[-6:])
+    if not history_text:
+        history_text = "\n".join(
+            f'{m.get("role", "USER")}: {m.get("content", "")}' for m in (state.get("history") or [])[-6:]
+        )
     prompt = f"历史对话:\n{history_text or '(无)'}\n\n用户最新消息: {user_text}"
     try:
         result = await llm.ainvoke([SystemMessage(content=INTENT_SYSTEM_PROMPT), HumanMessage(content=prompt)])
@@ -98,6 +112,12 @@ async def intent_router_node(state: AgentState) -> dict:
         intent = data.get("intent")
         if intent not in KNOWN_INTENTS:
             intent = fallback_intent_by_rules(user_text)
+        # Never let an erroneous classifier trigger a side effect the buyer did not request.
+        rule_intent = fallback_intent_by_rules(user_text)
+        if requests_human(user_text) or asks_assistant_identity(user_text) or intent == "HUMAN_REQUEST":
+            intent = rule_intent
+        elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and category_from_user_text(user_text):
+            intent = rule_intent
         confidence = data.get("confidence")
         logger.info("intent=%s confidence=%s", intent, confidence)
         # 可观测：意图节点打点
@@ -114,6 +134,7 @@ async def intent_router_node(state: AgentState) -> dict:
             input_data={"user_text": user_text}, usage={"intent": intent, "error": str(e)},
             tags=["intent"],
         )
+    get_tool_ctx()["latest_user_text"] = user_text
     return {"intent": intent}
 
 
@@ -158,7 +179,38 @@ async def agent_node(state: AgentState) -> dict:
     """购物助理：LLM + 意图聚焦工具循环（ReAct）"""
     intent = state.get("intent")
     tools = get_tools_for_intent(intent, state.get("web_search_enabled", False))
-    llm = get_chat_llm().bind_tools(tools)
+    ctx = get_tool_ctx()
+    entities = dict(state.get("active_entities") or ctx.get("active_entities") or {})
+    requested_category = None
+    for message in reversed(state["messages"]):
+        if isinstance(message, HumanMessage):
+            requested_category = category_from_user_text(str(message.content))
+            if requested_category:
+                break
+    requested_category = requested_category or entities.get("last_category")
+    ctx["requested_category"] = requested_category
+    latest_text = next((str(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+    ctx["latest_user_text"] = latest_text
+    budget = budget_from_text(latest_text)
+    if requested_category:
+        if entities.get("last_category") != requested_category:
+            entities.pop("last_products", None)
+            entities.pop("budget", None)
+        entities["last_category"] = requested_category
+    if budget:
+        entities["budget"] = budget
+    ctx["requested_budget"] = entities.get("budget") or {}
+    ctx["active_entities"] = entities
+
+    # Require a real lookup before first recommendations, including vague "buy me a phone".
+    latest_user = max((i for i, m in enumerate(state["messages"]) if isinstance(m, HumanMessage)), default=-1)
+    searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") in {"product_search", "product_detail"}
+                   for m in state["messages"][latest_user + 1:])
+    budget_changed = bool(budget)
+    must_search = (intent in {"PRODUCT_CONSULT", "ORDER_CREATE"}
+                   and bool(requested_category) and (not entities.get("last_products") or budget_changed) and not searched
+                   and not state.get("tool_loop_count"))
+    llm = get_chat_llm().bind_tools(tools, **({"tool_choice": "product_search"} if must_search else {}))
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")
     # 动态追加意图强化指令，消除答非所问
@@ -175,11 +227,12 @@ async def agent_node(state: AgentState) -> dict:
         system_text += "\n\n## 当前模式：联网搜索已开启\n涉及资讯/新品/价格/平台外问题时，优先调用 web_search 搜索网络内容，再结合站内商品一起回答。"
 
     # 会话级实体记忆提示（跨轮次商品/订单上下文）
-    entities = state.get("active_entities") or {}
     if entities.get("last_products"):
         prods = [f"{p['name']}(ID:{p['id']})" for p in entities["last_products"][:4] if p.get("name")]
         if prods:
             system_text += f"\n\n## 会话实体记忆（前序轮次推荐过的商品）：\n{'、'.join(prods)}\n买家提及“这款”、“第一款”或“第二个”时，请优先关联上述对应商品。"
+    if entities.get("budget"):
+        system_text += f"\n买家明确预算（元，必须作为搜索过滤条件）：{entities['budget']}"
     if entities.get("last_category"):
         system_text += f"\n当前会话正在关注的品类：{entities['last_category']}"
 
@@ -292,6 +345,8 @@ async def escalate_node(state: AgentState) -> dict:
     ctx_user = state.get("user_id", "0")
     ctx_conv = state.get("conversation_id", "0")
     reason = str(state["messages"][-1].content)[:200] if state["messages"] else ""
+    if not requests_human(reason):
+        return {"messages": [AIMessage(content="我可以继续为您服务；需要转人工时请明确告诉我。")], "escalated": False}
     try:
         result = await backend_client.escalate(
             user_id=int(ctx_user), conversation_id=int(ctx_conv), reason=reason,
@@ -299,7 +354,7 @@ async def escalate_node(state: AgentState) -> dict:
         text = ESCALATE_OK_TEXT if "error" not in result else ESCALATE_FAIL_TEXT
     except Exception:
         text = ESCALATE_FAIL_TEXT
-    return {"messages": [AIMessage(content=text)], "escalated": True}
+    return {"messages": [AIMessage(content=text)], "escalated": text == ESCALATE_OK_TEXT}
 
 
 END_FLAG = "__end__"
