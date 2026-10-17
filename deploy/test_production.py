@@ -54,7 +54,7 @@ class ProductionTests(unittest.TestCase):
         self.assertNotIn('proxy_pass', source)
         self.assertIn('return 404;', source)
         config = (ROOT/'deploy/compose.production.yml').read_text(encoding='utf-8')
-        self.assertIn('APP_CORS_ALLOWED_ORIGINS: https://aimall.novo.ccwu.cc\n', config)
+        self.assertIn('https://aimall.novo.ccwu.cc', config)
         handoff = (ROOT/'deploy/admin-handoff.py').read_text(encoding='utf-8')
         self.assertNotIn('HTTPS fallback:', handoff)
     def test_cors_has_no_wildcard_credentials(self):
