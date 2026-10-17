@@ -26,8 +26,33 @@ from app.tools.tools import ALL_TOOLS
 
 logger = logging.getLogger("ai-service.agent")
 
+import asyncio
+
 try:
     from langgraph.checkpoint.sqlite import SqliteSaver
+
+    class HybridSqliteSaver(SqliteSaver):
+        """异步与同步双兼容的 SQLite Checkpointer：桥接 aget_tuple/aput/aput_writes，
+        支持 async astream_events 与同步 get 调用，并在本地 SQLite 文件中持久化会话。"""
+        async def aget_tuple(self, config):
+            return await asyncio.to_thread(self.get_tuple, config)
+
+        async def aput(self, config, checkpoint, metadata, new_versions):
+            return await asyncio.to_thread(self.put, config, checkpoint, metadata, new_versions)
+
+        async def aput_writes(self, config, writes, task_id, task_path=""):
+            return await asyncio.to_thread(self.put_writes, config, writes, task_id, task_path)
+
+        async def alist(self, config=None, *, filter=None, before=None, limit=None):
+            def _get_list():
+                return list(self.list(config, filter=filter, before=before, limit=limit))
+            items = await asyncio.to_thread(_get_list)
+            for item in items:
+                yield item
+
+        async def adelete_thread(self, thread_id: str):
+            return await asyncio.to_thread(self.delete_thread, thread_id)
+
     _HAS_SQLITE_SAVER = True
 except ImportError:
     _HAS_SQLITE_SAVER = False
@@ -47,9 +72,9 @@ def init_checkpointer():
             db_path = root / path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        saver = SqliteSaver(conn)
+        saver = HybridSqliteSaver(conn)
         saver.setup()
-        logger.info("Initialized SqliteSaver checkpointer at %s", db_path)
+        logger.info("Initialized HybridSqliteSaver checkpointer at %s", db_path)
         return saver
     except Exception as e:
         logger.warning("SqliteSaver init failed, fallback to MemorySaver: %s", e)
