@@ -43,8 +43,13 @@ def tokenize(text: str) -> list[str]:
 
 
 def _match(p: dict, category: str | None, min_price: float | None, max_price: float | None) -> bool:
-    if category and p.get("category") != category:
-        return False
+    if category:
+        cat = category.strip().upper()
+        p_cat = (p.get("category") or "").strip().upper()
+        if (cat == "LAPTOP" and p_cat == "COMPUTER") or (cat == "COMPUTER" and p_cat == "LAPTOP"):
+            pass
+        elif cat != p_cat:
+            return False
     price = float(p.get("price") or 0)
     if min_price is not None and price < min_price:
         return False
@@ -175,7 +180,11 @@ class ProductIndex:
     def _filter_expr(self, category, min_price, max_price) -> str:
         parts: list[str] = []
         if category:
-            parts.append(f'category == "{category}"')
+            cat = category.strip().upper()
+            if cat in ("LAPTOP", "COMPUTER"):
+                parts.append('(category == "COMPUTER" or category == "LAPTOP")')
+            else:
+                parts.append(f'category == "{category}"')
         if min_price is not None:
             parts.append(f"price >= {min_price}")
         if max_price is not None:
@@ -264,6 +273,10 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
         vec = []
     bm = corpus.bm25_recall(kw, category, min_price, max_price, top_k * 4)
     rrf = _rrf([vec, bm])
+    if not rrf and category and kw:
+        # 当限定品类无召回结果时，放宽品类限制全库召回，避免因品类错选导致答非所问
+        bm = corpus.bm25_recall(kw, None, min_price, max_price, top_k * 4)
+        rrf = _rrf([bm])
     if not rrf:
         return {"products": [], "total": 0} if vector_available else None
 

@@ -2,14 +2,16 @@
 import asyncio
 import json
 import logging
+import re
 import time
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
-from app.agent.graph import graph
+from app.agent.graph import checkpointer, graph
 from app.agent.link_guard import collect_known_ids, guard_links
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
@@ -45,12 +47,24 @@ class SummarizeRequest(BaseModel):
     messages: list[ChatMessage]
 
 
-def build_state(req: ChatRequest) -> AgentState:
-    """history（后端传入）+ 本轮用户消息 → 初始 messages"""
-    msgs = []
-    for h in req.history[-10:]:
-        msgs.append(HumanMessage(content=h.content) if h.role == "USER" else AIMessage(content=h.content))
-    msgs.append(HumanMessage(content=req.message))
+def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
+    """history（后端传入）+ 本轮用户消息 → 初始 messages。
+    若 checkpointer 中已有该会话的历史快照，则本轮只传入新增的 HumanMessage，
+    由 LangGraph 的 add_messages 自动做流式累加，避免会话记忆重复；
+    同时继承已有快照中的 active_entities，保持跨轮次实体记忆连续。"""
+    config = {"configurable": {"thread_id": f"conv_{req.conversation_id}"}}
+    existing_ckpt = checkpointer.get(config) if checkpointer else None
+
+    saved_entities = {}
+    if existing_ckpt:
+        msgs = [HumanMessage(content=req.message)]
+        saved_entities = existing_ckpt.get("channel_values", {}).get("active_entities") or {}
+    else:
+        msgs = []
+        for h in req.history[-10:]:
+            msgs.append(HumanMessage(content=h.content) if h.role == "USER" else AIMessage(content=h.content))
+        msgs.append(HumanMessage(content=req.message))
+
     return AgentState(
         messages=msgs,
         intent=None,
@@ -61,6 +75,7 @@ def build_state(req: ChatRequest) -> AgentState:
         history=[h.model_dump() for h in req.history],
         summary=req.summary,
         web_search_enabled=req.web_search_enabled,
+        active_entities=dict(saved_entities),
     )
 
 
@@ -191,9 +206,11 @@ async def chat_stream(req: ChatRequest, request: Request):
     async def gen():
         start = time.time()
         eval_enabled = req.options.get("include_eval_metadata") is True
-        # 工具上下文：身份由服务端注入（越权防护红线）
+        # 工具上下文：身份由服务端注入（越权防护红线），同时注入会话级实体记忆
+        initial_state = build_state(req, checkpointer=checkpointer)
         ctx = {"user_id": str(req.user_id), "conversation_id": str(req.conversation_id),
-               "degraded": False, "escalated": False}
+               "degraded": False, "escalated": False,
+               "active_entities": dict(initial_state.get("active_entities") or {})}
         set_tool_ctx(ctx)
         parts: list[str] = []
         usage: dict = {}
@@ -210,8 +227,11 @@ async def chat_stream(req: ChatRequest, request: Request):
                 # 总请求超时保护：超过 chat_timeout_s 秒强制终止图运行；recursion_limit 限制图递归深度
                 async with asyncio.timeout(settings.chat_timeout_s):
                     async for ev in graph.astream_events(
-                        build_state(req),
-                        config={"recursion_limit": settings.agent_recursion_limit},
+                        initial_state,
+                        config={
+                            "recursion_limit": settings.agent_recursion_limit,
+                            "configurable": {"thread_id": f"conv_{req.conversation_id}"},
+                        },
                         version="v2",
                     ):
                         # 客户端断连：取消剩余图执行，停止产出
@@ -288,8 +308,10 @@ async def chat_stream(req: ChatRequest, request: Request):
             citations: tuple[dict, ...] = ()
             rag_used = bool(ctx.get("rag_used") or rag_started)
             if rag_used:
+                normalized_text = re.sub(r"[【（(](S[0-9]+)[】）)]", r"[\1]", final_text)
+                normalized_text = re.sub(r"\[s([0-9]+)\]", r"[S\1]", normalized_text)
                 validation = validate_citations(
-                    final_text,
+                    normalized_text,
                     allowed=ctx.get("rag_allowed_citations") or {},
                     answerable=bool(ctx.get("rag_answerable")),
                     rag_reason=ctx.get("rag_reason"),

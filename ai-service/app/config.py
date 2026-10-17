@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     chat_timeout_s: int = 60
     agent_recursion_limit: int = 20
 
+    # 会话 Checkpointer 持久化配置（默认保存到本地 SQLite；设为 :memory: 或空则使用内存）
+    checkpoint_sqlite_path: str = "data/checkpoints.db"
+
     # 链接后验校验
     link_guard_enabled: bool = True
 

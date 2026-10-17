@@ -72,3 +72,8 @@ id_ed25519*
 .tmp_ssh/
 *-data-export.sql
 *data-dump*.sql
+
+# SQLite 数据库文件
+*.db
+*.sqlite
+*.sqlite3
