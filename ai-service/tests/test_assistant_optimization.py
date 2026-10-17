@@ -222,3 +222,31 @@ def test_sqlite_saver_persistence_across_restart(tmp_path):
     assert st2["active_entities"]["last_category"] == "COMPUTER"
     assert st2["active_entities"]["last_order_id"] == 9999
     conn2.close()
+
+
+@pytest.mark.asyncio
+async def test_agent_node_runs_without_name_error(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.agent.nodes import agent_node, finalize_without_tools
+    from app.tools.tools import set_tool_ctx
+
+    set_tool_ctx({"active_entities": {"last_category": "COMPUTER"}})
+    mock_llm = MagicMock()
+    mock_llm.bind_tools.return_value = mock_llm
+    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="推荐了商品"))
+
+    monkeypatch.setattr("app.agent.nodes.get_chat_llm", lambda *a, **kw: mock_llm)
+
+    state = {
+        "messages": [HumanMessage(content="推荐电脑")],
+        "intent": "PRODUCT_CONSULT",
+        "tool_loop_count": 0,
+        "active_entities": {"last_category": "COMPUTER"},
+    }
+    ret = await agent_node(state)
+    assert ret["messages"][0].content == "推荐了商品"
+    assert ret.get("active_entities") == {"last_category": "COMPUTER"}
+
+    ret_finalize = await finalize_without_tools(state)
+    assert ret_finalize["messages"][0].content == "推荐了商品"
+    assert ret_finalize.get("active_entities") == {"last_category": "COMPUTER"}

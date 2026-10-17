@@ -20,6 +20,7 @@ from app.config import settings
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
+    get_tool_ctx,
     after_sale_prepare,
     escalate_to_human,
     kb_search,
