@@ -244,7 +244,8 @@ async def test_agent_node_runs_without_name_error(monkeypatch):
         "active_entities": {"last_category": "COMPUTER"},
     }
     ret = await agent_node(state)
-    assert ret["messages"][0].content == "推荐了商品"
+    assert ret["messages"][0].tool_calls[0]["name"] == "product_search"
+    assert ret["messages"][0].tool_calls[0]["args"]["category"] == "COMPUTER"
     assert ret.get("active_entities") == {"last_category": "COMPUTER"}
 
     ret_finalize = await finalize_without_tools(state)

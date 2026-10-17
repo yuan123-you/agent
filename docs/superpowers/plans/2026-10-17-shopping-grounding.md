@@ -32,3 +32,9 @@ Goal: Keep explicit shopping categories authoritative and return usable product 
 - Frontend: Vitest — 23 files, 152 tests passed; Vite production build passed. Used installed Node 24.19.0 because default Node 20.20.2 cannot run the existing jsdom/undici dependencies (package engine requires >=22.22.2). Build reports existing dependency annotation warnings.
 - Backend: `mvn -q -Dtest=ChatServiceHandoffTest test` — 4 passed, no failures/errors/skips.
 - `git diff --check` passed; Windows line-ending notices only.
+
+### Live deployment follow-up
+
+- The existing production Qwen 2.5 1.5B model silently ignored named tool choice during the real conversation replay. Added red/green tests reproducing a model that returns placeholder prose despite mandatory lookup.
+- Mandatory first/budget/preference product lookups now schedule a read-only tool call directly in the graph using buyer-grounded category, query, and budget. The model can no longer skip these lookups. Current-turn tool results still prevent duplicate forced searches.
+- The locally updated cloud LLM key was tested privately against its configured provider and rejected with HTTP 401. It was not activated in production, and the rejected staging file was removed. Existing production provider/embedding settings remain unchanged.

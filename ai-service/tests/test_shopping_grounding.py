@@ -27,7 +27,7 @@ async def test_phone_request_overrides_computer_memory_and_requires_search(monke
         'messages': [HumanMessage(content='推荐笔记本电脑'), AIMessage(content='游戏本、轻薄本'), HumanMessage(content='帮我买一个拍照好看的手机')],
         'active_entities': {'last_category': 'COMPUTER', 'last_products': [{'id': 9, 'name': '游戏本'}]},
     })
-    assert llm.choice == 'product_search'
+    assert result['messages'][0].tool_calls[0]['name'] == 'product_search'
     assert result['active_entities']['last_category'] == 'PHONE'
     assert not result['active_entities'].get('last_products')
 
@@ -103,10 +103,10 @@ async def test_valid_linked_answer_is_preserved(monkeypatch):
 async def test_new_budget_forces_fresh_lookup_even_with_previous_products(monkeypatch):
     llm = LLM()
     monkeypatch.setattr(nodes, 'get_chat_llm', lambda: llm)
-    await nodes.agent_node({'intent': 'PRODUCT_CONSULT', 'messages': [
+    result = await nodes.agent_node({'intent': 'PRODUCT_CONSULT', 'messages': [
         HumanMessage(content='拍照好的手机'), AIMessage(content='先看看这款'), HumanMessage(content='3000左右')],
         'active_entities': {'last_category': 'PHONE', 'last_products': [{'id': 1, 'name': '昂贵手机'}]}})
-    assert llm.choice == 'product_search'
+    assert result['messages'][0].tool_calls[0]['name'] == 'product_search'
 
 @pytest.mark.asyncio
 async def test_search_does_not_overwrite_order_confirmation(monkeypatch):
@@ -148,3 +148,39 @@ async def test_search_is_not_forced_again_after_current_turn_tool_result(monkeyp
         AIMessage(content='', tool_calls=[{'name': 'product_search', 'args': {'category': 'PHONE'}, 'id': 's1'}]),
         ToolMessage(content='{"products": []}', tool_call_id='s1', name='product_search')], 'tool_loop_count': 1})
     assert llm.choice is None
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('latest,previous_products', [
+    ('帮我买一个拍照好看的手机', []),
+    ('性价比高的', [{'id': 101, 'name': '旧手机'}]),
+])
+async def test_required_search_is_executed_even_if_model_ignores_tool_choice(monkeypatch, latest, previous_products):
+    class IgnoresTools:
+        def bind_tools(self, *args, **kwargs):
+            return self
+        async def ainvoke(self, messages):
+            return AIMessage(content='推荐一款手机：[商品链接]。')
+    monkeypatch.setattr(nodes, 'get_chat_llm', lambda: IgnoresTools())
+    state = {'intent': 'PRODUCT_CONSULT', 'messages': [HumanMessage(content='拍照好的手机'), HumanMessage(content=latest)],
+             'active_entities': {'last_category': 'PHONE', 'last_products': previous_products}}
+    result = await nodes.agent_node(state)
+    calls = result['messages'][-1].tool_calls
+    assert len(calls) == 1
+    assert calls[0]['name'] == 'product_search'
+    assert calls[0]['args']['category'] == 'PHONE'
+    assert '拍照' in calls[0]['args']['keyword']
+    assert result['tool_loop_count'] == 1
+
+@pytest.mark.asyncio
+async def test_forced_lookup_is_not_repeated_after_real_tool_result(monkeypatch):
+    class Answer:
+        def bind_tools(self, *args, **kwargs):
+            return self
+        async def ainvoke(self, messages):
+            return AIMessage(content='推荐 [拍照手机](mall://product/101)。')
+    monkeypatch.setattr(nodes, 'get_chat_llm', lambda: Answer())
+    result = await nodes.agent_node({'intent': 'PRODUCT_CONSULT', 'tool_loop_count': 1,
+        'messages': [HumanMessage(content='推荐拍照手机'),
+            AIMessage(content='', tool_calls=[{'name': 'product_search', 'args': {'category': 'PHONE'}, 'id': 's1'}]),
+            ToolMessage(content='{"products":[]}', tool_call_id='s1', name='product_search')]})
+    assert not result['messages'][-1].tool_calls

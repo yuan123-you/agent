@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -22,6 +23,7 @@ from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
     category_from_user_text,
+    clean_search_keyword,
     get_tool_ctx,
     after_sale_prepare,
     escalate_to_human,
@@ -182,10 +184,12 @@ async def agent_node(state: AgentState) -> dict:
     ctx = get_tool_ctx()
     entities = dict(state.get("active_entities") or ctx.get("active_entities") or {})
     requested_category = None
+    category_text = ""
     for message in reversed(state["messages"]):
         if isinstance(message, HumanMessage):
             requested_category = category_from_user_text(str(message.content))
             if requested_category:
+                category_text = str(message.content)
                 break
     requested_category = requested_category or entities.get("last_category")
     ctx["requested_category"] = requested_category
@@ -207,10 +211,25 @@ async def agent_node(state: AgentState) -> dict:
     searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") in {"product_search", "product_detail"}
                    for m in state["messages"][latest_user + 1:])
     budget_changed = bool(budget)
+    preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
     must_search = (intent in {"PRODUCT_CONSULT", "ORDER_CREATE"}
-                   and bool(requested_category) and (not entities.get("last_products") or budget_changed) and not searched
-                   and not state.get("tool_loop_count"))
-    llm = get_chat_llm().bind_tools(tools, **({"tool_choice": "product_search"} if must_search else {}))
+                   and bool(requested_category)
+                   and (not entities.get("last_products") or budget_changed or preferences_changed)
+                   and not searched and not state.get("tool_loop_count"))
+    if must_search:
+        # Some compatible models silently ignore tool_choice. Schedule the read-only
+        # lookup in the graph itself rather than trusting a generated recommendation.
+        query = category_text or latest_text
+        if preferences_changed and latest_text != category_text:
+            query += " " + latest_text
+        response = AIMessage(content="", tool_calls=[{
+            "name": "product_search", "id": f"search_{uuid4().hex}",
+            "args": {"category": requested_category, "keyword": clean_search_keyword(query),
+                     **ctx["requested_budget"]},
+        }])
+        return {"messages": [response], "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+                "active_entities": entities}
+    llm = get_chat_llm().bind_tools(tools)
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")
     # 动态追加意图强化指令，消除答非所问
