@@ -107,3 +107,13 @@ def test_should_execute_tool_again_when_arguments_change():
     changed = _ToolCallMessage("product_search", {"category": "PHONE", "max_price": 3000})
 
     assert should_continue(_tool_loop_state([first, _ToolResultMessage(), changed])) == "tools"
+
+def test_new_turn_can_repeat_previous_turn_search():
+    from langchain_core.messages import HumanMessage
+    from app.agent.nodes import should_continue
+    first = _ToolCallMessage('product_search', {'category': 'PHONE'})
+    repeated = _ToolCallMessage('product_search', {'category': 'PHONE'})
+    state = _tool_loop_state([HumanMessage(content='拍照手机'), first, _ToolResultMessage(),
+                              HumanMessage(content='再推荐一次'), repeated])
+    state['tool_loop_count'] = 1
+    assert should_continue(state) == 'tools'

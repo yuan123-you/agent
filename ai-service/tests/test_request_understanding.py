@@ -171,3 +171,10 @@ def test_natural_explicit_handoff_phrasing_is_supported(text):
 ])
 def test_budget_extraction_respects_bounds_and_ignores_model_numbers(text, expected):
     assert nodes.budget_from_text(text) == expected
+
+@pytest.mark.asyncio
+async def test_budget_reply_is_not_purchase_authorization(monkeypatch):
+    monkeypatch.setattr(nodes, 'get_intent_llm', lambda: IntentLLM('ORDER_CREATE'))
+    result = await nodes.intent_router_node({'messages': [HumanMessage(content='拍照手机'),
+        AIMessage(content='您预算多少？'), HumanMessage(content='3000左右')]})
+    assert result['intent'] == 'PRODUCT_CONSULT'

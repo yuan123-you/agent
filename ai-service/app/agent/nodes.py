@@ -118,7 +118,7 @@ async def intent_router_node(state: AgentState) -> dict:
         rule_intent = fallback_intent_by_rules(user_text)
         if requests_human(user_text) or asks_assistant_identity(user_text) or intent == "HUMAN_REQUEST":
             intent = rule_intent
-        elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and category_from_user_text(user_text):
+        elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and (category_from_user_text(user_text) or budget_from_text(user_text)):
             intent = rule_intent
         confidence = data.get("confidence")
         logger.info("intent=%s confidence=%s", intent, confidence)
@@ -286,7 +286,9 @@ def _all_tool_calls_repeated(messages: list) -> bool:
     latest = getattr(messages[-1], "tool_calls", None) or []
     if not latest:
         return False
-    previous = {_tool_call_signature(call) for message in messages[:-1]
+    turn_start = max((i for i, message in enumerate(messages)
+                      if isinstance(message, HumanMessage)), default=-1)
+    previous = {_tool_call_signature(call) for message in messages[turn_start + 1:-1]
                 for call in (getattr(message, "tool_calls", None) or [])}
     return bool(previous) and all(_tool_call_signature(call) in previous for call in latest)
 
