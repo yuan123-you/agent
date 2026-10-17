@@ -1,5 +1,6 @@
 <template>
   <div class="login-page">
+    <el-button class="back-button" :icon="ArrowLeft" @click="goBack">返回</el-button>
     <el-card class="login-card">
       <div class="brand">
         <h2>AI Mall</h2>
@@ -29,12 +30,6 @@
             <el-form-item label="密码">
               <el-input v-model="regForm.password" type="password" show-password placeholder="6~32位" />
             </el-form-item>
-            <el-form-item label="昵称">
-              <el-input v-model="regForm.nickname" placeholder="昵称" />
-            </el-form-item>
-            <el-form-item label="手机号（可选）">
-              <el-input v-model="regForm.phone" placeholder="手机号" />
-            </el-form-item>
             <el-form-item v-if="registrationKind === 'MERCHANT'" label="店铺名称">
               <el-input v-model="regForm.shopName" placeholder="店铺名称" />
             </el-form-item>
@@ -52,6 +47,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { buildRegistrationPayload, type RegistrationKind, validateRegistration } from './auth/registration'
 
@@ -63,7 +59,15 @@ const tab = ref('login')
 const loading = ref(false)
 const loginForm = reactive({ username: '', password: '' })
 const registrationKind = ref<RegistrationKind>('CUSTOMER')
-const regForm = reactive({ username: '', password: '', nickname: '', phone: '', shopName: '' })
+const regForm = reactive({ username: '', password: '', shopName: '' })
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.replace('/')
+  }
+}
 
 async function doLogin() {
   if (!loginForm.username || !loginForm.password) {
@@ -109,12 +113,20 @@ async function doRegister() {
 
 <style scoped>
 .login-page {
-  padding: 12px;
+  position: relative;
+  padding: 64px 12px 12px;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #e0eaff 0%, #f5f7fa 100%);
+}
+
+.back-button {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  min-height: 40px;
 }
 
 .login-card {

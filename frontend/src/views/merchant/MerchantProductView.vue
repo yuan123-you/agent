@@ -14,7 +14,7 @@
       <el-table v-loading="loading && products.length === 0" :data="products" border stripe>
         <el-table-column label="图片" width="80">
           <template #default="{ row }">
-            <el-image :src="row.imageUrl" fit="cover" class="product-thumb">
+            <el-image :src="row.imageUrl" fit="cover" class="product-thumb" lazy decoding="async">
               <template #error><div class="mini-fb">{{ (row.name || '?').slice(0, 1) }}</div></template>
             </el-image>
           </template>
@@ -75,7 +75,7 @@
             :before-upload="beforeImageUpload"
             :http-request="uploadImage"
           >
-            <el-image v-if="tpl.imageUrl" :src="tpl.imageUrl" fit="cover" class="image-preview">
+            <el-image v-if="tpl.imageUrl" :src="tpl.imageUrl" fit="cover" class="image-preview" lazy decoding="async">
               <template #error><div class="image-placeholder">重新选择图片</div></template>
             </el-image>
             <div v-else v-loading="uploading" class="image-placeholder">选择图片上传</div>

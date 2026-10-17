@@ -5,7 +5,7 @@
       <div class="list">
         <div v-for="row in items" :key="row.cartItemId" class="cart-item">
           <el-checkbox :model-value="row.checked === 1" @change="toggleCheck(row)" />
-          <el-image :src="row.imageUrl" fit="cover" class="pic" @click="goDetail(row.productId)">
+          <el-image :src="row.imageUrl" fit="cover" class="pic" @click="goDetail(row.productId)" lazy decoding="async">
             <template #error>
               <div class="pic-fb">{{ row.name.slice(0, 1) }}</div>
             </template>

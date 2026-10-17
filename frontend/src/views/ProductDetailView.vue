@@ -2,7 +2,7 @@
   <el-scrollbar class="page-scroll" :distance="30" @end-reached="direction => direction === 'bottom' && loadReviews()">
     <div v-if="product" class="page detail">
     <div class="main">
-      <el-image :src="product.imageUrl" fit="cover" class="pic" :preview-src-list="[product.imageUrl]">
+      <el-image :src="product.imageUrl" fit="cover" class="pic" fetchpriority="high" decoding="async" :preview-src-list="[product.imageUrl]">
         <template #placeholder>
           <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
         </template>
@@ -135,7 +135,7 @@
     <!-- 规格与数量选择弹窗 -->
     <el-dialog v-model="showSpec" title="选择规格与数量" width="min(440px, 94vw)">
       <div class="spec-head">
-        <el-image :src="product.imageUrl" fit="cover" class="spec-pic">
+        <el-image :src="product.imageUrl" fit="cover" class="spec-pic" lazy decoding="async">
           <template #placeholder>
             <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
           </template>
