@@ -1,42 +1,83 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
-    <div class="page product-list">
-    <div class="filter-bar">
-      <div class="filters">
-        <el-input v-model="keyword" placeholder="搜索商品/品牌/卖点" clearable style="width: 220px"
-          @keyup.enter="reload" @clear="reload" />
-        <el-input-number v-model="maxPrice" :min="0" :step="500" placeholder="价格上限" style="width: 140px" />
-        <el-select v-model="brandId" placeholder="全部品牌" clearable style="width: 150px" @change="reload">
-          <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
-        </el-select>
-        <el-select v-model="sort" style="width: 150px" @change="reload">
-          <el-option label="最新上架" value="created_desc" />
-          <el-option label="价格从低到高" value="price_asc" />
-          <el-option label="价格从高到低" value="price_desc" />
-        </el-select>
-        <el-button type="primary" @click="reload">搜索</el-button>
+    <div class="product-list">
+      <!-- 面包屑 -->
+      <div class="crumbs">
+        <span @click="$router.push('/')">首页</span>
+        <span class="sep">›</span>
+        <span class="cur">{{ listTitle }}</span>
       </div>
-      <div class="result-meta">共 {{ total }} 件商品</div>
-    </div>
 
-    <div class="grid">
-      <ProductCard v-for="p in products" :key="p.id" :product="p" />
-    </div>
-    <el-empty v-if="!loading && products.length === 0" description="没有找到相关商品" />
+      <div class="list-body">
+        <!-- ============ 左侧筛选侧栏（桌面） ============ -->
+        <aside class="filter-side desktop-side">
+          <div class="fs-block">
+            <div class="fs-title">商品分类</div>
+            <div v-for="c in sideCats" :key="c.key" class="fs-item"
+              :class="{ active: isActiveCat(c) }" @click="pickCat(c)">
+              <span class="fs-icon">{{ c.icon || '🛍️' }}</span>{{ c.name }}
+            </div>
+          </div>
+          <div class="fs-block">
+            <div class="fs-title">品牌</div>
+            <div v-for="b in brands.slice(0, 12)" :key="b.id" class="fs-item"
+              :class="{ active: brandId === b.id }" @click="pickBrand(b.id)">
+              {{ b.name }}
+            </div>
+            <div v-if="brandId" class="fs-item fs-clear" @click="pickBrand(undefined)">清除品牌筛选</div>
+          </div>
+          <div class="fs-block">
+            <div class="fs-title">价格区间</div>
+            <div class="fs-price">
+              <el-input-number v-model="minPrice" :min="0" :controls="false" placeholder="￥低" size="small" />
+              <span class="dash">—</span>
+              <el-input-number v-model="maxPrice" :min="0" :controls="false" placeholder="￥高" size="small" />
+            </div>
+            <el-button size="small" type="primary" plain class="fs-apply" @click="applyPrice">确定</el-button>
+          </div>
+        </aside>
 
-    <!-- 懒加载状态 -->
-    <div v-if="loading" class="load-state">加载中...</div>
-    <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
+        <!-- ============ 右侧主区 ============ -->
+        <div class="list-main">
+          <!-- 移动端分类横滑 chips -->
+          <div class="mobile-cats">
+            <span v-for="c in sideCats" :key="c.key" class="m-cat"
+              :class="{ active: isActiveCat(c) }" @click="pickCat(c)">{{ c.name }}</span>
+          </div>
+
+          <!-- 排序条 -->
+          <div class="sort-bar">
+            <span class="sort-item" :class="{ active: sort === 'created_desc' }" @click="setSort('created_desc')">综合</span>
+            <span class="sort-item" :class="{ active: sort === 'sales_desc' }" @click="setSort('sales_desc')">销量</span>
+            <span class="sort-item" :class="{ active: sort === 'price_asc' || sort === 'price_desc' }" @click="togglePrice">
+              价格 <i class="arr" :class="{ up: sort === 'price_asc' }">{{ sort === 'price_asc' ? '↑' : '↓' }}</i>
+            </span>
+            <span class="sort-item" :class="{ active: sort === 'newest' }" @click="setSort('newest')">新品</span>
+            <span class="sort-meta">共 {{ total }} 件商品</span>
+          </div>
+
+          <!-- 商品栅格 -->
+          <div class="grid">
+            <ProductCard v-for="p in products" :key="p.id" :product="p" />
+          </div>
+          <el-empty v-if="!loading && products.length === 0" description="没有找到相关商品" />
+
+          <!-- 懒加载状态 -->
+          <div v-if="loading" class="load-state">加载中...</div>
+          <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
+        </div>
+      </div>
     </div>
   </el-scrollbar>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { apiCatalogBrands, apiProducts } from '@/api'
+import { apiCatalogBrands, apiCatalogCategories, apiProducts } from '@/api'
 import ProductCard from '@/components/product/ProductCard.vue'
-import type { BrandVO, ProductVO } from '@/types/api'
+import { CATEGORIES, categoryName } from '@/constants/categories'
+import type { BrandVO, CategoryVO, ProductVO } from '@/types/api'
 
 const route = useRoute()
 
@@ -52,10 +93,76 @@ const brandId = ref<number | undefined>(
   route.query.brandId ? Number(route.query.brandId) : undefined,
 )
 const brands = ref<BrandVO[]>([])
+const minPrice = ref<number | undefined>()
 const maxPrice = ref<number | undefined>()
+const appliedMinPrice = ref<number | undefined>()
+const appliedMaxPrice = ref<number | undefined>()
 const sort = ref('created_desc')
 const page = ref(1)
 const total = ref(0)
+
+// 侧栏分类：商城目录优先，为空时回落内置常量
+interface SideCat { key: string; name: string; icon: string; query: Record<string, string> }
+const sideCats = ref<SideCat[]>(
+  CATEGORIES.map((c) => ({
+    key: c.code,
+    name: c.name,
+    icon: c.icon,
+    query: { category: c.code },
+  })),
+)
+
+const listTitle = computed(() => {
+  if (keyword.value) return `“${keyword.value}” 的搜索结果`
+  const cat = sideCats.value.find((c) => isActiveCat(c))
+  return cat ? cat.name : '全部商品'
+})
+
+function isActiveCat(c: SideCat): boolean {
+  if ('categoryId' in c.query) return route.query.categoryId === c.query.categoryId
+  return route.query.category === c.query.category
+}
+
+function pickCat(c: SideCat) {
+  routerReplace({ ...c.query })
+}
+
+function pickBrand(id?: number) {
+  const cur = new URLSearchParams(
+    Object.entries(route.query).map(([k, v]) => [k, String(v)]),
+  )
+  if (id) cur.set('brandId', String(id))
+  else cur.delete('brandId')
+  routerReplace(Object.fromEntries(cur.entries()))
+}
+
+function applyPrice() {
+  appliedMinPrice.value = minPrice.value
+  appliedMaxPrice.value = maxPrice.value
+  reload()
+}
+
+function setSort(s: string) {
+  sort.value = s === 'newest' ? 'created_desc' : s
+  reload()
+}
+
+function togglePrice() {
+  sort.value = sort.value === 'price_asc' ? 'price_desc' : 'price_asc'
+  reload()
+}
+
+function routerReplace(query: Record<string, string>) {
+  useSafeReplace(query)
+}
+
+import { useRouter } from 'vue-router'
+const router = useRouter()
+
+function useSafeReplace(query: Record<string, string>) {
+  const cleaned = Object.fromEntries(Object.entries(query).filter(([, v]) => v !== ''))
+  router.push({ path: '/products', query: cleaned })
+}
 
 /** 顶部分类导航/搜索框切换时重置并重载 */
 watch(
@@ -86,7 +193,8 @@ async function load() {
     if (categoryId.value) params.categoryId = categoryId.value
     if (brandId.value) params.brandId = brandId.value
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
-    if (maxPrice.value) params.maxPrice = maxPrice.value
+    if (appliedMinPrice.value) params.minPrice = appliedMinPrice.value
+    if (appliedMaxPrice.value) params.maxPrice = appliedMaxPrice.value
     const result = await apiProducts(params)
     products.value.push(...result.records)
     total.value = result.total
@@ -106,45 +214,198 @@ function loadMore() {
 
 onMounted(() => {
   apiCatalogBrands().then((list) => (brands.value = list || [])).catch(() => {})
+  apiCatalogCategories()
+    .then((tree) => {
+      if (tree && tree.length) {
+        sideCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
+          key: String(c.id),
+          name: categoryName(c.name),
+          icon: c.icon || '',
+          query: { categoryId: String(c.id) },
+        }))
+      }
+    })
+    .catch(() => {})
   load()
 })
 </script>
 
 <style scoped>
 .page-scroll { height: 100%; }
+
 .product-list {
-  max-width: 1200px;
+  max-width: var(--mall-container, 1200px);
   margin: 0 auto;
   width: 100%;
   min-height: 100%;
-  padding: 16px;
+  padding: 14px 16px 24px;
   box-sizing: border-box;
 }
 
-.filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.filters {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.result-meta {
+/* 面包屑 */
+.crumbs {
   font-size: 13px;
+  color: var(--el-text-color-secondary, #909399);
+  margin-bottom: 10px;
+}
+
+.crumbs span:first-child {
+  cursor: pointer;
+}
+
+.crumbs span:first-child:hover {
+  color: var(--el-color-primary);
+}
+
+.crumbs .sep {
+  margin: 0 6px;
+}
+
+.crumbs .cur {
+  color: var(--el-text-color-primary, #303133);
+}
+
+/* 双栏 */
+.list-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+/* ============ 侧栏 ============ */
+.filter-side {
+  width: 190px;
+  flex-shrink: 0;
+  background: var(--mall-surface, #fff);
+  border-radius: var(--mall-radius, 8px);
+  box-shadow: var(--mall-shadow-card);
+  padding: 8px 0 12px;
+}
+
+.fs-block {
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--el-border-color-lighter, #ebeef5);
+}
+
+.fs-block:last-child {
+  border-bottom: 0;
+}
+
+.fs-title {
+  font-weight: 700;
+  font-size: 14px;
+  padding: 0 16px 6px;
+}
+
+.fs-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+  color: var(--el-text-color-regular, #606266);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.12s;
+}
+
+.fs-item:hover {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.fs-item.active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+  background: var(--el-color-primary-light-9);
+}
+
+.fs-clear {
   color: var(--el-text-color-secondary, #909399);
 }
 
+.fs-price {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 16px 8px;
+}
+
+.fs-price :deep(.el-input-number) {
+  width: 62px;
+}
+
+.fs-price .dash {
+  color: var(--el-text-color-placeholder, #c0c4cc);
+}
+
+.fs-apply {
+  margin: 0 16px;
+  width: calc(100% - 32px);
+}
+
+/* ============ 主区 ============ */
+.list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-cats {
+  display: none;
+}
+
+/* 排序条 */
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--mall-surface, #fff);
+  border: 1px solid var(--el-border-color-lighter, #ebeef5);
+  border-radius: var(--mall-radius, 8px);
+  padding: 0 12px;
+  height: 42px;
+  margin-bottom: 12px;
+}
+
+.sort-item {
+  padding: 0 16px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 13px;
+  color: var(--el-text-color-regular, #606266);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.12s;
+}
+
+.sort-item:hover {
+  color: var(--el-color-primary);
+}
+
+.sort-item.active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+  background: var(--el-color-primary-light-9);
+}
+
+.sort-item .arr {
+  font-style: normal;
+  font-size: 11px;
+}
+
+.sort-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+/* 栅格 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   min-height: 200px;
 }
@@ -156,30 +417,52 @@ onMounted(() => {
   padding: 18px 0 24px;
 }
 
-/* 平板 */
-@media (max-width: 1199px) {
+/* ============ 平板 769-1199 ============ */
+@media (max-width: 1199px) and (min-width: 769px) {
+  .filter-side {
+    width: 160px;
+  }
+
   .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-/* 手机 */
+/* ============ 手机 ≤768 ============ */
 @media (max-width: 768px) {
-  .product-list {
-    padding: 10px;
-  }
-
-  .filters {
-    width: 100%;
-  }
-
-  .filters .el-input,
-  .filters .el-input-number {
-    width: calc(50% - 4px) !important;
-  }
-
-  .result-meta {
+  .desktop-side {
     display: none;
+  }
+
+  .product-list {
+    padding: 10px 12px 20px;
+  }
+
+  .mobile-cats {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+
+  .mobile-cats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .m-cat {
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border-radius: 14px;
+    background: var(--mall-surface, #fff);
+    font-size: 13px;
+    color: var(--el-text-color-regular, #606266);
+    cursor: pointer;
+  }
+
+  .m-cat.active {
+    background: var(--el-color-primary);
+    color: #fff;
   }
 
   .grid {
@@ -188,4 +471,3 @@ onMounted(() => {
   }
 }
 </style>
-

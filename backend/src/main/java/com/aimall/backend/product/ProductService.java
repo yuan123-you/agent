@@ -63,6 +63,8 @@ public class ProductService {
             wrapper.orderByAsc(Product::getPrice);
         } else if ("price_desc".equals(sort)) {
             wrapper.orderByDesc(Product::getPrice);
+        } else if ("sales_desc".equals(sort)) {
+            wrapper.orderByDesc(Product::getSales).orderByDesc(Product::getId);
         } else {
             wrapper.orderByDesc(Product::getId);
         }

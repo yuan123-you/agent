@@ -1,23 +1,62 @@
 <template>
   <div class="home" v-loading="loading">
-    <!-- 轮播 Banner -->
-    <section class="banner-section container">
-      <el-carousel :interval="4500" trigger="click" arrow="hover" :height="bannerHeight">
-        <el-carousel-item v-for="b in banners" :key="b.title">
-          <div class="banner" :style="{ background: b.bg }" @click="$router.push(b.link)">
-            <div class="banner-content">
-              <h2>{{ b.title }}</h2>
-              <p>{{ b.desc }}</p>
-              <span class="banner-cta">立即查看 →</span>
+    <!-- ============ 第一屏：分类竖菜单 + 轮播 + 用户卡 ============ -->
+    <section class="container hero-zone">
+      <aside class="side-cats desktop-only">
+        <div v-for="c in catCells" :key="c.key" class="side-cat" @click="$router.push(c.link)">
+          <span class="sc-icon">{{ c.icon }}</span>
+          <span class="sc-name">{{ c.name }}</span>
+          <span class="sc-arrow">›</span>
+        </div>
+      </aside>
+
+      <div class="hero-banner">
+        <el-carousel :interval="4500" trigger="click" arrow="hover" :height="bannerHeight">
+          <el-carousel-item v-for="b in banners" :key="b.title">
+            <div class="banner" :style="{ background: b.bg }" @click="$router.push(b.link)">
+              <div class="banner-content">
+                <h2>{{ b.title }}</h2>
+                <p>{{ b.desc }}</p>
+                <span class="banner-cta">立即查看 →</span>
+              </div>
+              <div class="banner-emoji">{{ b.emoji }}</div>
             </div>
-            <div class="banner-emoji">{{ b.emoji }}</div>
+          </el-carousel-item>
+        </el-carousel>
+      </div>
+
+      <aside class="side-user tablet-only-none">
+        <div class="user-panel mall-card">
+          <template v-if="auth.user">
+            <el-avatar :size="44" class="up-avatar">{{ auth.user.nickname.slice(0, 1) }}</el-avatar>
+            <div class="up-hello">Hi，{{ auth.user.nickname }}</div>
+            <div class="up-sub">欢迎回到 AI Mall</div>
+          </template>
+          <template v-else>
+            <div class="up-hello">Hi，欢迎来到 AI Mall</div>
+            <div class="up-sub">登录后享专属优惠</div>
+            <el-button type="danger" round class="up-login" @click="$router.push('/login')">
+              登录 / 注册
+            </el-button>
+          </template>
+          <div class="up-links">
+            <span @click="$router.push('/orders')">我的订单</span>
+            <span @click="$router.push('/favorites')">我的收藏</span>
+            <span @click="$router.push('/cart')">购物车</span>
+            <span @click="scrollToCoupons">领券中心</span>
           </div>
-        </el-carousel-item>
-      </el-carousel>
+        </div>
+        <div class="notice-panel mall-card">
+          <div class="notice-title">🛎️ 商城公告</div>
+          <div class="notice-item">全场满 100 减 20 优惠券限时领取</div>
+          <div class="notice-item">品牌秒杀专区每日上新</div>
+          <div class="notice-item">AI 助手帮你找货 · 秒回价保咨询</div>
+        </div>
+      </aside>
     </section>
 
-    <!-- 分类宫格（来自商城目录；接口为空时回落到内置常量） -->
-    <section class="container">
+    <!-- ============ 分类金刚区（平板/手机；桌面在左侧竖菜单） ============ -->
+    <section class="container cat-grid-zone mobile-tablet-only">
       <div class="cat-grid">
         <div v-for="c in catCells" :key="c.key" class="cat-cell" @click="$router.push(c.link)">
           <span class="cat-icon">{{ c.icon }}</span>
@@ -26,34 +65,39 @@
       </div>
     </section>
 
-    <!-- 限时秒杀楼层 -->
-    <section v-if="seckills.length" class="container floor">
-      <div class="floor-head">
-        <h3>⚡ 限时秒杀 <span v-if="countdownText" class="countdown">{{ countdownText }}</span></h3>
-      </div>
-      <div class="seckill-track">
-        <div v-for="s in seckills" :key="s.seckillId" class="seckill-card mall-card"
-          @click="$router.push(`/products/${s.productId}`)">
-          <el-image :src="s.imageUrl" fit="cover" class="seckill-pic" lazy decoding="async" />
-          <div class="seckill-name">{{ s.name }}</div>
-          <div class="seckill-prices">
-            <span class="seckill-now">￥{{ s.seckillPrice }}</span>
-            <span class="seckill-old">￥{{ s.originalPrice }}</span>
+    <!-- ============ 限时秒杀专区（模块化：倒计时面板 + 商品网格） ============ -->
+    <section v-if="seckills.length" id="seckill-zone" class="container floor">
+      <div class="seckill-zone">
+        <div class="seckill-side">
+          <div class="ss-flash">⚡</div>
+          <div class="ss-title">限时秒杀</div>
+          <div class="ss-sub">品牌好物 · 低价到底</div>
+          <div class="ss-countdown" v-if="countdownText">{{ countdownText }}</div>
+        </div>
+        <div class="seckill-goods">
+          <div v-for="s in seckills.slice(0, 5)" :key="s.seckillId" class="sg-card"
+            @click="$router.push(`/products/${s.productId}`)">
+            <el-image :src="s.imageUrl" fit="cover" class="sg-pic" lazy decoding="async" />
+            <div class="sg-name">{{ s.name }}</div>
+            <div class="sg-price-row">
+              <span class="sg-now"><i>￥</i>{{ s.seckillPrice }}</span>
+              <span class="sg-old">￥{{ s.originalPrice }}</span>
+            </div>
+            <div class="sg-progress">
+              <div class="sg-bar" :style="{ width: stockPercent(s) }" />
+            </div>
+            <button class="sg-buy" :class="{ soon: !s.started }">
+              {{ s.started ? '马上抢' : '即将开始' }}
+            </button>
           </div>
-          <div class="seckill-stock">
-            <div class="bar" :style="{ width: stockPercent(s) }" />
-          </div>
-          <span class="seckill-state" :class="{ soon: !s.started }">
-            {{ s.started ? '抢' : '即将开始' }}
-          </span>
         </div>
       </div>
     </section>
 
-    <!-- 领券中心 -->
-    <section v-if="coupons.length" class="container floor">
+    <!-- ============ 领券中心 ============ -->
+    <section v-if="coupons.length" id="coupon-zone" class="container floor">
       <div class="floor-head">
-        <h3>🎫 领券中心</h3>
+        <h3><i class="bar-accent" />领券中心</h3>
       </div>
       <div class="coupon-row">
         <div v-for="c in coupons" :key="c.couponId" class="coupon-card">
@@ -71,8 +115,8 @@
       </div>
     </section>
 
-    <!-- AI 助手入口横幅 -->
-    <section class="container">
+    <!-- ============ AI 助手入口 ============ -->
+    <section class="container floor">
       <div class="ai-entry" @click="$router.push('/assistant')">
         <span class="ai-emoji">🤖</span>
         <div class="ai-text">
@@ -83,10 +127,10 @@
       </div>
     </section>
 
-    <!-- 商品楼层（按分类） -->
+    <!-- ============ 商品楼层 ============ -->
     <section v-for="f in floors" :key="f.code" class="container floor">
       <div class="floor-head">
-        <h3>{{ f.icon }} {{ f.name }}</h3>
+        <h3><i class="bar-accent" />{{ f.name }}</h3>
         <el-button text type="primary" @click="$router.push(`/products?category=${f.code}`)">
           更多 ›
         </el-button>
@@ -96,17 +140,15 @@
       </div>
     </section>
 
-    <!-- 猜你喜欢 -->
+    <!-- ============ 猜你喜欢 ============ -->
     <section class="container floor">
       <div class="floor-head">
-        <h3>✨ 猜你喜欢</h3>
+        <h3><i class="bar-accent" />猜你喜欢</h3>
       </div>
       <div class="floor-grid like-grid">
         <ProductCard v-for="p in likes" :key="p.id" :product="p" />
       </div>
     </section>
-
-    <footer class="home-footer">AI Mall · 智能电商平台 · 演示环境</footer>
   </div>
 </template>
 
@@ -115,19 +157,19 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiCatalogCategories, apiProducts, apiReceivableCoupons, apiReceiveCoupon, apiSeckills } from '@/api'
 import { CATEGORIES, categoryName } from '@/constants/categories'
+import { useAuthStore } from '@/stores/auth'
 import ProductCard from '@/components/product/ProductCard.vue'
 import type { CategoryVO, CouponVO, ProductVO, SeckillVO } from '@/types/api'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const windowWidth = ref(window.innerWidth)
 const onResize = () => (windowWidth.value = window.innerWidth)
 window.addEventListener('resize', onResize)
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
-  if (timer) window.clearInterval(timer)
-})
 
-const bannerHeight = computed(() => (windowWidth.value <= 768 ? '140px' : '240px'))
+const bannerHeight = computed(() =>
+  windowWidth.value <= 768 ? '150px' : windowWidth.value <= 1199 ? '200px' : '320px',
+)
 
 const banners = [
   { title: '数码焕新季', desc: '旗舰影像 · 折上折', emoji: '📱', bg: 'linear-gradient(120deg, #4f7cff, #8f6bff)', link: '/products?category=PHONE' },
@@ -140,13 +182,13 @@ const floorCodes = ['PHONE', 'APPLIANCE', 'CLOTHING', 'SPORTS']
 const floors = ref<{ code: string; name: string; icon: string; products: ProductVO[] }[]>([])
 const likes = ref<ProductVO[]>([])
 
-// 分类宫格：优先商城目录（nav_status=1），为空时回落到内置常量
+// 分类（宫格 + 左侧竖菜单共用）：商城目录优先，为空时回落到内置常量
 interface CatCell { key: string; name: string; icon: string; link: string }
 const catCells = ref<CatCell[]>(
   CATEGORIES.map((c) => ({ key: c.code, name: c.name, icon: c.icon, link: `/products?category=${c.code}` })),
 )
 
-// ---------- 秒杀楼层 ----------
+// ---------- 秒杀专区 ----------
 const seckills = ref<SeckillVO[]>([])
 const nowTick = ref(Date.now())
 let timer: number | undefined
@@ -159,7 +201,7 @@ const countdownText = computed(() => {
   const m = Math.floor((diff % 3600000) / 60000)
   const s = Math.floor((diff % 60000) / 1000)
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `距结束 ${pad(h)}:${pad(m)}:${pad(s)}`
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
 })
 
 function stockPercent(s: SeckillVO): string {
@@ -169,6 +211,10 @@ function stockPercent(s: SeckillVO): string {
 
 // ---------- 领券中心 ----------
 const coupons = ref<CouponVO[]>([])
+
+function scrollToCoupons() {
+  document.getElementById('coupon-zone')?.scrollIntoView({ behavior: 'smooth' })
+}
 
 async function receive(c: CouponVO) {
   await apiReceiveCoupon(c.couponId)
@@ -210,20 +256,85 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  if (timer) window.clearInterval(timer)
+})
+
 </script>
 
 <style scoped>
 .home {
   min-height: 100%;
+  padding-top: 12px;
 }
 
 .home .container {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+}
+
+/* ================= 第一屏三栏 ================= */
+.hero-zone {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* 左侧分类竖菜单 */
+.side-cats {
+  width: 190px;
+  flex-shrink: 0;
+  background: var(--mall-surface, #fff);
+  border-radius: var(--mall-radius);
+  overflow: hidden;
+  box-shadow: var(--mall-shadow-card);
+  padding: 6px 0;
+}
+
+.side-cat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--el-text-color-primary, #303133);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.side-cat:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  padding-left: 18px;
+}
+
+.sc-icon {
+  font-size: 15px;
+}
+
+.sc-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sc-arrow {
+  color: var(--el-text-color-placeholder, #c0c4cc);
+}
+
+.hero-banner {
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--mall-radius);
+  overflow: hidden;
 }
 
 .banner {
   height: 100%;
-  border-radius: 12px;
+  border-radius: var(--mall-radius);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -235,7 +346,8 @@ onMounted(async () => {
 
 .banner-content h2 {
   margin: 0 0 8px;
-  font-size: 30px;
+  font-size: 32px;
+  font-weight: 700;
 }
 
 .banner-content p {
@@ -246,23 +358,125 @@ onMounted(async () => {
 .banner-cta {
   font-size: 14px;
   border: 1px solid rgba(255, 255, 255, 0.7);
-  padding: 6px 16px;
-  border-radius: 16px;
+  padding: 6px 18px;
+  border-radius: 18px;
 }
 
 .banner-emoji {
-  font-size: 88px;
+  font-size: 92px;
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
 }
 
-/* 分类宫格：PC 10 列，平板 5 列，手机 5 列（两行） */
+/* 右侧用户卡 */
+.side-user {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-panel {
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.up-avatar {
+  background: var(--mall-gradient);
+  color: #fff;
+  font-weight: 700;
+}
+
+.up-hello {
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 8px;
+}
+
+.up-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  margin-top: 2px;
+}
+
+.up-login {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.up-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--el-border-color-lighter, #ebeef5);
+}
+
+.up-links span {
+  font-size: 12px;
+  color: var(--el-text-color-regular, #606266);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.up-links span:hover {
+  color: var(--el-color-primary);
+}
+
+.notice-panel {
+  padding: 14px 16px;
+}
+
+.notice-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.notice-item {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  line-height: 1.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================= 分类金刚区（平板/手机） ================= */
+.mobile-tablet-only {
+  display: none;
+}
+
+@media (max-width: 1199px) {
+  .mobile-tablet-only {
+    display: block;
+  }
+
+  .side-cats {
+    display: none;
+  }
+
+  .side-user {
+    width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .side-user {
+    display: none;
+  }
+}
+
+/* 分类宫格 */
 .cat-grid {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
   background: var(--mall-surface, #fff);
-  border-radius: 12px;
-  padding: 16px 12px;
+  border-radius: var(--mall-radius);
+  padding: 12px 8px;
+  box-shadow: var(--mall-shadow-card);
 }
 
 .cat-cell {
@@ -277,7 +491,7 @@ onMounted(async () => {
 }
 
 .cat-cell:hover {
-  background: var(--mall-surface-2, #f5f7fa);
+  background: var(--el-color-primary-light-9);
 }
 
 .cat-icon {
@@ -289,38 +503,7 @@ onMounted(async () => {
   color: var(--el-text-color-regular, #606266);
 }
 
-/* AI 助手入口 */
-.ai-entry {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: linear-gradient(120deg, #eef3ff, #f6efff);
-  border: 1px solid #dde6ff;
-  border-radius: 12px;
-  padding: 16px 20px;
-  cursor: pointer;
-}
-
-.ai-emoji {
-  font-size: 34px;
-}
-
-.ai-text {
-  flex: 1;
-}
-
-.ai-title {
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.ai-desc {
-  font-size: 13px;
-  color: var(--el-text-color-secondary, #909399);
-  margin-top: 2px;
-}
-
-/* 楼层 */
+/* ================= 楼层标题条 ================= */
 .floor-head {
   display: flex;
   align-items: center;
@@ -328,74 +511,136 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
-/* 秒杀楼层 */
-.countdown {
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--el-color-danger);
-  padding: 2px 10px;
-  border-radius: 12px;
-  margin-left: 8px;
-  font-variant-numeric: tabular-nums;
+.floor-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
 }
 
-.seckill-track {
+.bar-accent {
+  display: inline-block;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--mall-gradient);
+}
+
+/* ================= 秒杀专区 ================= */
+.seckill-zone {
   display: flex;
   gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  scrollbar-width: none;
+  background: var(--mall-surface, #fff);
+  border-radius: var(--mall-radius);
+  overflow: hidden;
+  box-shadow: var(--mall-shadow-card);
 }
 
-.seckill-track::-webkit-scrollbar {
-  display: none;
+.seckill-side {
+  width: 200px;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, #ee0a24, #ff6034);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
 }
 
-.seckill-card {
-  flex: none;
-  width: 170px;
-  padding: 10px;
+.ss-flash {
+  font-size: 40px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
+}
+
+.ss-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.ss-sub {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.ss-countdown {
+  margin-top: 8px;
+  background: #2b2b33;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.seckill-goods {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: #f0f1f4;
+}
+
+.sg-card {
+  background: var(--mall-surface, #fff);
+  padding: 14px 12px;
   cursor: pointer;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.15s;
 }
 
-.seckill-pic {
+.sg-card:hover {
+  box-shadow: var(--mall-shadow-hover);
+  z-index: 1;
+}
+
+.sg-pic {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 8px;
   background: var(--mall-surface-2, #f5f7fa);
 }
 
-.seckill-name {
+.sg-name {
   font-size: 13px;
-  font-weight: 600;
   margin-top: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.seckill-prices {
+.sg-price-row {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
-.seckill-now {
-  color: var(--el-color-danger);
-  font-size: 19px;
+.sg-now {
+  color: var(--mall-price, #e4393c);
+  font-size: 20px;
   font-weight: 700;
 }
 
-.seckill-old {
+.sg-now i {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.sg-old {
   font-size: 12px;
   color: var(--el-text-color-placeholder, #c0c4cc);
   text-decoration: line-through;
 }
 
-.seckill-stock {
+.sg-progress {
   height: 6px;
   border-radius: 3px;
   background: #fde2e2;
@@ -403,28 +648,32 @@ onMounted(async () => {
   margin: 8px 0;
 }
 
-.seckill-stock .bar {
+.sg-bar {
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, #ff7a59, var(--el-color-danger));
+  background: linear-gradient(90deg, #ff6034, var(--mall-price, #e4393c));
 }
 
-.seckill-state {
-  display: block;
-  text-align: center;
-  background: linear-gradient(90deg, #ff7a59, var(--el-color-danger));
+.sg-buy {
+  border: 0;
+  border-radius: 14px;
+  padding: 6px 0;
+  background: linear-gradient(90deg, #ff6034, var(--mall-price, #e4393c));
   color: #fff;
   font-size: 13px;
   font-weight: 600;
-  border-radius: 14px;
-  padding: 4px 0;
+  cursor: pointer;
 }
 
-.seckill-state.soon {
+.sg-buy:hover {
+  filter: brightness(1.08);
+}
+
+.sg-buy.soon {
   background: linear-gradient(120deg, #b8c4ff, #8f9dff);
 }
 
-/* 领券中心 */
+/* ================= 领券中心 ================= */
 .coupon-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -442,18 +691,18 @@ onMounted(async () => {
 
 .coupon-left {
   flex: none;
-  width: 88px;
+  width: 92px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #fff1f0, #ffe3e0);
-  color: var(--el-color-danger);
-  padding: 12px 6px;
+  color: var(--mall-price, #e4393c);
+  padding: 14px 6px;
 }
 
 .coupon-val {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1;
 }
@@ -486,36 +735,41 @@ onMounted(async () => {
   text-overflow: ellipsis;
 }
 
-@media (max-width: 1199px) {
-  .coupon-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* ================= AI 入口 ================= */
+.ai-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(120deg, #eef3ff, #f6efff);
+  border: 1px solid #dde6ff;
+  border-radius: var(--mall-radius);
+  padding: 16px 20px;
+  cursor: pointer;
 }
 
-@media (max-width: 768px) {
-  .seckill-card {
-    width: 140px;
-  }
-
-  .coupon-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .coupon-left {
-    width: 72px;
-  }
+.ai-emoji {
+  font-size: 34px;
 }
 
-
-.floor-head h3 {
-  margin: 0;
-  font-size: 18px;
+.ai-text {
+  flex: 1;
 }
 
+.ai-title {
+  font-weight: 700;
+  color: var(--el-color-primary);
+}
+
+.ai-desc {
+  font-size: 13px;
+  color: var(--el-text-color-secondary, #909399);
+  margin-top: 2px;
+}
+
+/* ================= 楼层栅格 ================= */
 .floor-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -523,54 +777,108 @@ onMounted(async () => {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
-.home-footer {
-  text-align: center;
-  color: var(--el-text-color-placeholder, #c0c4cc);
-  font-size: 12px;
-  padding: 8px 0 24px;
-}
+/* ================= 平板 ================= */
+@media (max-width: 1199px) and (min-width: 769px) {
+  .hero-zone {
+    flex-wrap: wrap;
+  }
 
-/* 平板 */
-@media (max-width: 1199px) {
-  .cat-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .hero-banner {
+    flex: 1;
+  }
+
+  .side-user {
+    display: none;
+  }
+
+  .seckill-goods {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sg-card:nth-child(n + 4) {
+    display: none;
+  }
+
+  .coupon-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .floor-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .like-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+/* ================= 手机 ================= */
+@media (max-width: 768px) {
+  .home {
+    padding-top: 8px;
+  }
+
+  .hero-zone {
+    gap: 0;
+  }
 
   .banner {
-    padding: 0 28px;
+    padding: 0 24px;
   }
 
   .banner-content h2 {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .banner-emoji {
-    font-size: 64px;
-  }
-}
-
-/* 手机 */
-@media (max-width: 768px) {
-  .container {
-    padding: 0 10px;
-    margin-bottom: 14px;
+    font-size: 52px;
   }
 
   .cat-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding: 10px 6px;
   }
 
-  .cat-icon {
-    font-size: 22px;
+  .seckill-zone {
+    flex-direction: column;
+  }
+
+  .seckill-side {
+    width: 100%;
+    flex-direction: row;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .ss-flash {
+    font-size: 26px;
+  }
+
+  .ss-title {
+    font-size: 17px;
+  }
+
+  .ss-sub {
+    display: none;
+  }
+
+  .ss-countdown {
+    margin: 0 0 0 auto;
+    font-size: 14px;
+    padding: 4px 10px;
+  }
+
+  .seckill-goods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+  }
+
+  .sg-card:nth-child(n + 3) {
+    display: none;
+  }
+
+  .coupon-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .floor-grid,
@@ -581,33 +889,6 @@ onMounted(async () => {
 
   .floor-head h3 {
     font-size: 16px;
-  }
-
-  .banner {
-    padding: 0 20px;
-    border-radius: 8px;
-  }
-
-  .banner-content h2 {
-    font-size: 18px;
-    margin-bottom: 4px;
-  }
-
-  .banner-content p {
-    margin-bottom: 8px;
-    font-size: 12px;
-  }
-
-  .banner-emoji {
-    font-size: 44px;
-  }
-
-  .ai-entry {
-    padding: 12px 14px;
-  }
-
-  .ai-desc {
-    display: none;
   }
 }
 </style>

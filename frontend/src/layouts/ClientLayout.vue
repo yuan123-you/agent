@@ -1,62 +1,96 @@
 <template>
   <el-container class="client-layout">
-    <!-- 顶栏 + 分类导航条：仅首页显示 -->
-    <template v-if="isHome">
-      <el-header class="header">
-        <div class="header-inner">
-          <div class="logo" @click="$router.push('/')">
-            <span class="logo-badge">AI</span>
-            <span class="logo-text">Mall</span>
-          </div>
-          <div class="search-box">
-            <el-input
-              v-model="keyword"
-              placeholder="搜索商品 / 品牌 / 卖点"
-              clearable
-              @keyup.enter="doSearch"
-              @clear="doSearch"
-            >
-              <template #append>
-                <el-button :icon="Search" @click="doSearch" />
-              </template>
-            </el-input>
-            <!-- 桌面端搜索热词（点击直达分类） -->
-            <div class="search-hints desktop-only">
-              <span v-for="c in navCats.slice(0, 4)" :key="c.key" class="hint" @click="goCategory(c)">
-                {{ c.name }}
-              </span>
-            </div>
-          </div>
-          <div class="quick-links">
-            <ThemeToggle />
-            <el-button text :type="route.path.startsWith('/assistant') ? 'primary' : ''" @click="$router.push('/assistant')">
-              <el-icon><ChatDotRound /></el-icon>
-              <span class="link-text">AI 助手</span>
-            </el-button>
-            <el-button v-if="auth.isCustomer" text :type="route.path.startsWith('/orders') ? 'primary' : ''"
-              @click="$router.push('/orders')">
-              <el-icon><ShoppingBag /></el-icon>
-              <span class="link-text">我的订单</span>
-            </el-button>
-            <el-dropdown @command="onCommand">
-              <span class="user-chip">
-                <el-avatar :size="30" class="user-avatar">{{ (auth.user?.nickname || 'U').slice(0, 1) }}</el-avatar>
-                <span class="nickname">{{ auth.user?.nickname }}</span>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-                  <el-dropdown-item command="cart" v-if="auth.isCustomer">购物车</el-dropdown-item>
-                  <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+    <!-- ============ 顶部通栏（桌面/平板） ============ -->
+    <div v-if="isHome" class="shop-topbar">
+      <div class="topbar-inner">
+        <span class="topbar-slogan">AI Mall 品牌正品 · 7 天无理由退货 · 极速退款</span>
+        <div class="topbar-links">
+          <ThemeToggle />
+          <span class="tb-link" @click="$router.push('/assistant')">AI 助手</span>
+          <span v-if="auth.isCustomer" class="tb-link" @click="$router.push('/orders')">我的订单</span>
+          <span v-if="auth.isCustomer" class="tb-link" @click="$router.push('/favorites')">我的收藏</span>
+          <el-dropdown v-if="auth.user" @command="onCommand">
+            <span class="tb-link user-name">{{ auth.user.nickname }}</span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item command="cart">我的购物车</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <span v-else class="tb-link" @click="$router.push('/login')">登录 / 注册</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 主头部（大 Logo + 大搜索 + 购物车） ============ -->
+    <header v-if="isHome" class="shop-header">
+      <div class="header-inner">
+        <div class="logo" @click="$router.push('/')">
+          <span class="logo-badge">AI</span>
+          <div class="logo-words">
+            <span class="logo-text">AI Mall</span>
+            <span class="logo-sub">正品好货 · AI 甄选</span>
           </div>
         </div>
-      </el-header>
-    </template>
+        <div class="search-area">
+          <div class="search-box">
+            <input
+              v-model="keyword"
+              class="search-input"
+              type="text"
+              placeholder="搜索商品 / 品牌 / 卖点"
+              @keyup.enter="doSearch"
+            />
+            <button class="search-btn" @click="doSearch">
+              <el-icon :size="18"><Search /></el-icon>
+              <span>搜索</span>
+            </button>
+          </div>
+          <div class="search-hot">
+            <span v-for="c in hotWords" :key="c" class="hot-word" @click="searchWord(c)">{{ c }}</span>
+          </div>
+        </div>
+        <button class="cart-entry" @click="$router.push('/cart')">
+          <el-icon :size="20"><ShoppingCart /></el-icon>
+          <span>我的购物车</span>
+          <i v-if="cartCount > 0" class="cart-badge">{{ cartCount > 99 ? '99+' : cartCount }}</i>
+        </button>
+      </div>
+    </header>
 
-    <!-- 子页面简洁头部（非首页） -->
+    <!-- ============ 主题色导航条（仅首页；含全部分类下拉） ============ -->
+    <nav v-if="isHome" class="shop-nav">
+      <div class="nav-inner">
+        <div class="all-cats" @mouseenter="catsOpen = true" @mouseleave="catsOpen = false">
+          <div class="all-cats-label">
+            <el-icon :size="16"><Menu /></el-icon>
+            <span>全部商品分类</span>
+          </div>
+          <transition name="cats-fade">
+            <div v-if="catsOpen" class="cats-panel">
+              <div v-for="c in navCats" :key="c.key" class="cats-row"
+                @click="goCategory(c); catsOpen = false">
+                <span class="cats-icon">{{ c.icon || '🛍️' }}</span>
+                <span class="cats-name">{{ c.name }}</span>
+                <span class="cats-arrow">›</span>
+              </div>
+            </div>
+          </transition>
+        </div>
+        <div class="nav-links">
+          <span class="nav-link" :class="{ active: route.path === '/' }" @click="$router.push('/')">首页</span>
+          <span class="nav-link" @click="$router.push('/products')">全部商品</span>
+          <span class="nav-link nav-hot" @click="scrollToSeckill">限时秒杀 ⚡</span>
+          <span class="nav-link" @click="scrollToCoupons">领券中心 🎫</span>
+          <span class="nav-link" @click="$router.push('/assistant')">AI 助手</span>
+        </div>
+        <span class="nav-tip desktop-only">正品保障 · 极速发货</span>
+      </div>
+    </nav>
+
+    <!-- ============ 子页面精简头部 ============ -->
     <header v-else class="sub-header">
       <el-button :icon="ArrowLeft" circle size="small" @click="goBack" />
       <span class="sub-title">{{ subTitle }}</span>
@@ -73,6 +107,7 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="home">回首页</el-dropdown-item>
+            <el-dropdown-item command="cart">购物车</el-dropdown-item>
             <el-dropdown-item command="profile">个人中心</el-dropdown-item>
             <el-dropdown-item command="logout">退出登录</el-dropdown-item>
           </el-dropdown-menu>
@@ -80,27 +115,23 @@
       </el-dropdown>
     </header>
 
-    <!-- 分类导航条（真实目录优先，常量兜底；PC 换行、平板换行、手机横滑，仅首页） -->
-    <div v-if="isHome" class="category-bar">
-      <div class="cat-track">
-        <div class="cat-item" :class="{ active: route.path === '/' }" @click="$router.push('/')">
-          推荐
-        </div>
-        <div
-          v-for="c in navCats"
-          :key="c.key"
-          class="cat-item"
-          :class="{ active: isCatActive(c) }"
-          @click="goCategory(c)"
-        >
-          <span v-if="c.icon" class="cat-icon">{{ c.icon }}</span>{{ c.name }}
-        </div>
-      </div>
-    </div>
-
     <el-main class="main">
       <router-view />
     </el-main>
+
+    <footer v-if="isHome" class="shop-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="logo-badge">AI</span>
+          <span>AI Mall · 智能电商平台 · 演示环境，无真实交易</span>
+        </div>
+        <div class="footer-links">
+          <span @click="$router.push('/assistant')">AI 助手</span>
+          <span @click="$router.push('/orders')">我的订单</span>
+          <span @click="$router.push('/profile')">个人中心</span>
+        </div>
+      </div>
+    </footer>
 
     <!-- 移动端底部导航（商品详情页使用专属购买栏，不展示全站通用 Tabbar） -->
     <MobileTabbar v-if="!isProductDetail" />
@@ -110,10 +141,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ChatDotRound, Search, ShoppingBag } from '@element-plus/icons-vue'
+import { ArrowLeft, ChatDotRound, Menu, Search, ShoppingCart } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { CATEGORIES, categoryName } from '@/constants/categories'
-import { apiCatalogCategories } from '@/api'
+import { apiCartList, apiCatalogCategories } from '@/api'
 import type { CategoryVO } from '@/types/api'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
 import ThemeToggle from '@/components/layout/ThemeToggle.vue'
@@ -124,8 +155,10 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const keyword = ref('')
+const catsOpen = ref(false)
+const cartCount = ref(0)
 
-/** 仅首页显示完整顶栏+分类导航；其余页面用简洁子头部 */
+/** 仅首页显示完整电商头部；其余页面用精简子头部 */
 const isHome = computed(() => route.path === '/')
 
 /** 商品详情页隐藏通用 Tabbar，交由商品详情页底部专属操作栏承载 */
@@ -141,6 +174,8 @@ const navCats = ref<NavCat[]>(
   })),
 )
 
+const hotWords = computed(() => navCats.value.slice(0, 5).map((c) => c.name))
+
 onMounted(async () => {
   try {
     const tree = await apiCatalogCategories()
@@ -154,6 +189,10 @@ onMounted(async () => {
     }
   } catch {
     /* 目录不可用时使用内置常量 */
+  }
+  // 购物车徽标（游客忽略 401）
+  if (auth.isCustomer) {
+    apiCartList().then((d) => (cartCount.value = d.items.length)).catch(() => {})
   }
 })
 
@@ -182,14 +221,20 @@ function doSearch() {
   router.push({ path: '/products', query: keyword.value.trim() ? { keyword: keyword.value.trim() } : {} })
 }
 
+function searchWord(word: string) {
+  router.push({ path: '/products', query: { keyword: word } })
+}
+
 function goCategory(c: NavCat) {
   router.push({ path: '/products', query: c.query })
 }
 
-function isCatActive(c: NavCat): boolean {
-  if (route.path !== '/products') return false
-  if ('categoryId' in c.query) return route.query.categoryId === c.query.categoryId
-  return route.query.category === c.query.category
+function scrollToSeckill() {
+  document.getElementById('seckill-zone')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+function scrollToCoupons() {
+  document.getElementById('coupon-zone')?.scrollIntoView({ behavior: 'smooth' })
 }
 
 async function onCommand(cmd: string) {
@@ -212,173 +257,6 @@ async function onCommand(cmd: string) {
   flex-direction: column;
 }
 
-/* ================= 顶栏 ================= */
-.header {
-  background: var(--mall-surface, #fff);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
-  height: auto !important;
-  padding: 0;
-  box-shadow: 0 1px 4px rgba(30, 40, 80, 0.04);
-  z-index: 50;
-}
-
-.header-inner {
-  max-width: var(--mall-container);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  height: var(--mall-header-h);
-  padding: 0 24px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-}
-
-.logo-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--mall-gradient);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  box-shadow: var(--mall-shadow-float);
-}
-
-.logo-text {
-  font-size: 22px;
-  font-weight: 800;
-  background: var(--mall-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.search-box {
-  min-width: 0;
-  flex: 1;
-  max-width: 560px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.search-box :deep(.el-input__wrapper) {
-  border-radius: 20px;
-  box-shadow: 0 0 0 1px #e4e9f2 inset;
-}
-
-.search-box :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1.5px var(--el-color-primary) inset;
-}
-
-.search-hints {
-  display: flex;
-  gap: 14px;
-  padding-left: 6px;
-}
-
-.search-hints .hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  cursor: pointer;
-}
-
-.search-hints .hint:hover {
-  color: var(--el-color-primary);
-}
-
-.quick-links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.quick-links .link-text {
-  margin-left: 4px;
-}
-
-.user-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  margin-left: 8px;
-}
-
-.user-avatar {
-  background: var(--mall-gradient);
-  color: #fff;
-  font-weight: 600;
-}
-
-.nickname {
-  font-size: 14px;
-  max-width: 90px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ================= 分类导航条 ================= */
-.category-bar {
-  position: sticky;
-  top: var(--mall-header-h);
-  z-index: 49;
-  background: var(--mall-surface, #fff);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
-  flex-shrink: 0;
-}
-
-.cat-track {
-  max-width: var(--mall-container);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 24px;
-  flex-wrap: wrap;
-}
-
-.cat-item {
-  flex-shrink: 0;
-  padding: 5px 14px;
-  border-radius: 17px;
-  font-size: 14px;
-  color: var(--el-text-color-regular, #606266);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-
-.cat-item:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-}
-
-.cat-item.active {
-  background: var(--mall-gradient);
-  color: #fff;
-  font-weight: 500;
-  box-shadow: var(--mall-shadow-float);
-}
-
-.cat-icon {
-  margin-right: 4px;
-}
-
 .main {
   padding: 0;
   flex: 1;
@@ -386,19 +264,341 @@ async function onCommand(cmd: string) {
   overflow-x: hidden;
 }
 
-/* ================= 子页面简洁头部 ================= */
+/* ================= 顶部通栏 ================= */
+.shop-topbar {
+  background: var(--mall-surface-2, #f7f8fa);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #6b7280);
+}
+
+.topbar-inner {
+  max-width: var(--mall-container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 16px;
+}
+
+.topbar-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tb-link {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tb-link:hover {
+  color: var(--el-color-primary);
+}
+
+.user-name {
+  max-width: 96px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+}
+
+/* ================= 主头部 ================= */
+.shop-header {
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
+}
+
+.header-inner {
+  max-width: var(--mall-container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  height: 88px;
+  padding: 0 16px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.logo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--mall-gradient);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: var(--mall-shadow-float);
+}
+
+.logo-words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.logo-text {
+  font-size: 26px;
+  font-weight: 800;
+  background: var(--mall-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.logo-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  letter-spacing: 2px;
+}
+
+/* 搜索区 */
+.search-area {
+  flex: 1;
+  min-width: 0;
+  max-width: 560px;
+}
+
+.search-box {
+  display: flex;
+  height: 40px;
+  border: 2px solid var(--el-color-primary);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--mall-surface, #fff);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 0 14px;
+  font-size: 14px;
+  color: inherit;
+  background: transparent;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 0 22px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.search-btn:hover {
+  filter: brightness(1.08);
+}
+
+.search-hot {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  padding-left: 4px;
+}
+
+.hot-word {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  cursor: pointer;
+}
+
+.hot-word:hover {
+  color: var(--el-color-primary);
+}
+
+/* 购物车入口 */
+.cart-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--el-color-primary);
+  border-radius: 4px;
+  background: var(--mall-surface, #fff);
+  color: var(--el-color-primary);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.cart-entry:hover {
+  background: var(--el-color-primary-light-9);
+}
+
+.cart-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--mall-price, #e4393c);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ================= 主题色导航条 ================= */
+.shop-nav {
+  background: var(--mall-gradient);
+  box-shadow: var(--mall-shadow-float);
+}
+
+.nav-inner {
+  max-width: var(--mall-container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+.all-cats {
+  position: relative;
+  height: 40px;
+  width: 190px;
+  flex-shrink: 0;
+}
+
+.all-cats-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: default;
+}
+
+.cats-panel {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  z-index: 200;
+  width: 190px;
+  max-height: 460px;
+  overflow-y: auto;
+  background: var(--mall-surface, #fff);
+  border: 1px solid var(--el-border-color-lighter, #eceef2);
+  border-top: 0;
+  box-shadow: var(--mall-shadow-hover);
+}
+
+.cats-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 40px;
+  font-size: 13px;
+  color: var(--el-text-color-primary, #303133);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.cats-row:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  padding-left: 18px;
+}
+
+.cats-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cats-arrow {
+  color: var(--el-text-color-placeholder, #c0c4cc);
+}
+
+.cats-fade-enter-active,
+.cats-fade-leave-active {
+  transition: opacity 0.15s;
+}
+
+.cats-fade-enter-from,
+.cats-fade-leave-to {
+  opacity: 0;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nav-link {
+  padding: 0 16px;
+  height: 40px;
+  line-height: 40px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.nav-hot {
+  color: #ffe98c;
+}
+
+.nav-tip {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+}
+
+/* ================= 子页面精简头部 ================= */
 .sub-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
   display: flex;
   align-items: center;
   gap: 10px;
   background: var(--mall-surface, #fff);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
   height: 52px;
   padding: 0 16px;
-  box-shadow: 0 1px 4px rgba(30, 40, 80, 0.04);
 }
 
 .sub-title {
@@ -416,82 +616,121 @@ async function onCommand(cmd: string) {
   cursor: pointer;
 }
 
-/* ================= 平板 769–1199 ================= */
+.user-avatar {
+  background: var(--mall-gradient);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ================= 页脚 ================= */
+.shop-footer {
+  background: var(--mall-surface, #fff);
+  border-top: 1px solid var(--el-border-color-lighter, #eceef2);
+  margin-top: 24px;
+}
+
+.footer-inner {
+  max-width: var(--mall-container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 16px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary, #909399);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-brand .logo-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+.footer-links span {
+  cursor: pointer;
+}
+
+.footer-links span:hover {
+  color: var(--el-color-primary);
+}
+
+/* ================= 平板 769-1199 ================= */
 @media (max-width: 1199px) and (min-width: 769px) {
   .header-inner {
-    gap: 14px;
-    padding: 0 16px;
-    height: 56px;
+    gap: 20px;
+    height: 72px;
   }
 
   .logo-text {
-    font-size: 18px;
+    font-size: 20px;
   }
 
-  .quick-links .link-text {
+  .nav-tip {
     display: none;
   }
 
-  .category-bar {
-    top: 56px;
-  }
-
-  .cat-track {
-    padding: 6px 16px;
+  .all-cats {
+    width: 160px;
   }
 }
 
 /* ================= 手机 ≤768 ================= */
 @media (max-width: 768px) {
+  .shop-topbar,
+  .shop-nav,
+  .search-hot,
+  .cart-entry span,
+  .logo-words {
+    display: none;
+  }
+
   .header-inner {
-    height: 52px;
+    height: 54px;
     gap: 10px;
     padding: 0 12px;
   }
 
   .logo-badge {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+    border-radius: 9px;
   }
 
-  .logo-text {
-    font-size: 17px;
+  .search-area {
+    max-width: none;
   }
 
-  .quick-links {
-    display: none;
-  }
-
-  .search-box :deep(.el-input__inner) {
+  .search-box {
     height: 34px;
   }
 
-  .category-bar {
-    top: 52px;
+  .search-btn {
+    padding: 0 12px;
   }
 
-  .cat-track {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 6px 12px;
-    gap: 6px;
-    scrollbar-width: none;
-  }
-
-  .cat-track::-webkit-scrollbar {
-    display: none;
-  }
-
-  .cat-item {
-    padding: 4px 12px;
-    font-size: 13px;
+  .cart-entry {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 6px;
   }
 
   .main {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom)); /* 底部 TabBar 高度及安全区 */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
 }
 </style>

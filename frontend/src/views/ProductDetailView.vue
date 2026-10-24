@@ -1,6 +1,13 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="30" @end-reached="direction => direction === 'bottom' && loadReviews()">
     <div v-if="product" class="page detail">
+    <div class="crumbs">
+      <span @click="$router.push('/')">首页</span>
+      <span class="sep">›</span>
+      <span>{{ categoryName(product.category) }}</span>
+      <span class="sep">›</span>
+      <span class="cur">{{ product.name }}</span>
+    </div>
     <div class="main">
       <el-image :src="product.imageUrl" fit="cover" class="pic" fetchpriority="high" decoding="async" :preview-src-list="[product.imageUrl]">
         <template #placeholder>
@@ -15,13 +22,22 @@
         <div class="sub-row">
           <el-tag size="small" effect="plain">{{ categoryName(product.category) }}</el-tag>
           <span class="brand">{{ product.brand }}</span>
-          <span class="sales">已售 {{ product.sales || 0 }} 件</span>
         </div>
-        <div class="price" :class="{ 'seckill-price': seckill }">
-          <span v-if="seckill" class="seckill-tag">⚡ 秒杀价</span>
-          <template v-if="selectedSku">￥{{ selectedSku.price }}<span class="price-range" v-if="skus.length > 1 && !seckill"> 起 ￥{{ minSkuPrice }}</span></template>
-          <template v-else>￥{{ displayPrice }}</template>
-          <span v-if="seckill" class="price-origin">￥{{ selectedSku?.price || product.price }}</span>
+        <div class="price-block">
+          <div class="price-row" :class="{ 'seckill-price': seckill }">
+            <span v-if="seckill" class="seckill-tag">⚡ 秒杀价</span>
+            <span v-else class="price-label">价　格</span>
+            <span class="price-main">
+              <i>￥</i><template v-if="selectedSku">{{ selectedSku.price }}</template><template v-else>{{ displayPrice }}</template>
+            </span>
+            <span v-if="seckill" class="price-origin">￥{{ selectedSku?.price || product.price }}</span>
+            <span v-else-if="skus.length > 1 && selectedSku" class="price-range">起价 ￥{{ minSkuPrice }}</span>
+            <span class="sales-tip">已售 {{ product.sales || 0 }} 件</span>
+          </div>
+          <div class="promo-row" v-if="points.length">
+            <span class="promo-label">促　销</span>
+            <span class="promo-text">{{ points.join(' · ') }}</span>
+          </div>
         </div>
         <!-- SKU 规格选择（对标 mall：按销售属性分组，选中组合定位 SKU） -->
         <div v-if="skuGroups.length" class="sku-block">
@@ -68,26 +84,26 @@
       </div>
     </div>
 
-    <!-- 规格参数 -->
+    <!-- 商品介绍 / 规格参数 -->
     <el-card shadow="never" class="card">
-      <template #header>商品信息</template>
-      <el-descriptions :column="isMobile ? 1 : 2" border>
-        <el-descriptions-item label="品牌">{{ product.brand }}</el-descriptions-item>
-        <el-descriptions-item label="类目">{{ categoryName(product.category) }}</el-descriptions-item>
-        <el-descriptions-item v-if="product.material" label="材质">{{ product.material }}</el-descriptions-item>
-        <el-descriptions-item v-if="product.origin" label="产地">{{ product.origin }}</el-descriptions-item>
-        <el-descriptions-item v-if="product.shipFrom" label="发货地">{{ product.shipFrom }}</el-descriptions-item>
-        <el-descriptions-item v-if="product.productionDate" label="生产日期">
-          {{ product.productionDate }}
-        </el-descriptions-item>
-        <el-descriptions-item v-for="s in specs" :key="s.k" :label="s.k">{{ s.v }}</el-descriptions-item>
-      </el-descriptions>
-    </el-card>
-
-    <!-- 商品介绍 -->
-    <el-card shadow="never" class="card">
-      <template #header>商品介绍</template>
-      <div class="md-content" v-html="descHtml"></div>
+      <el-tabs v-model="detailTab">
+        <el-tab-pane label="商品介绍" name="intro">
+          <div class="md-content" v-html="descHtml"></div>
+        </el-tab-pane>
+        <el-tab-pane label="规格参数" name="specs">
+          <el-descriptions :column="isMobile ? 1 : 2" border>
+            <el-descriptions-item label="品牌">{{ product.brand }}</el-descriptions-item>
+            <el-descriptions-item label="类目">{{ categoryName(product.category) }}</el-descriptions-item>
+            <el-descriptions-item v-if="product.material" label="材质">{{ product.material }}</el-descriptions-item>
+            <el-descriptions-item v-if="product.origin" label="产地">{{ product.origin }}</el-descriptions-item>
+            <el-descriptions-item v-if="product.shipFrom" label="发货地">{{ product.shipFrom }}</el-descriptions-item>
+            <el-descriptions-item v-if="product.productionDate" label="生产日期">
+              {{ product.productionDate }}
+            </el-descriptions-item>
+            <el-descriptions-item v-for="s in specs" :key="s.k" :label="s.k">{{ s.v }}</el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- 商品评论 -->
@@ -274,6 +290,8 @@ const specAttrs = computed(() => {
 })
 const totalAmount = computed(() => (unitPrice.value * quantity.value).toFixed(2))
 const descHtml = computed(() => renderMarkdown(product.value?.description || '暂无介绍'))
+
+const detailTab = ref('intro')
 
 // ---------- SKU 规格选择（对标 mall） ----------
 const skus = ref<SkuVO[]>([])
@@ -531,34 +549,39 @@ function shortTime(t?: string): string {
   font-size: 13px;
 }
 
-.price {
-  color: var(--el-color-danger);
-  font-size: 30px;
-  font-weight: 700;
-  margin: 14px 0;
+/* 京东式价格块 */
+.price-block {
+  background: var(--mall-price-bg, #fff2f2);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 12px 0;
 }
 
-.price-range {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--el-text-color-secondary);
-  margin-left: 8px;
-}
-
-/* 秒杀价 */
-.seckill-price {
+.price-row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.seckill-tag {
-  background: var(--el-color-danger);
-  color: #fff;
+.price-label,
+.promo-label {
   font-size: 12px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 4px;
+  color: var(--el-text-color-secondary);
+  flex: none;
+}
+
+.price-main {
+  color: var(--mall-price, #e4393c);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.price-main i {
+  font-style: normal;
+  font-size: 16px;
+  margin-right: 2px;
 }
 
 .price-origin {
@@ -568,10 +591,58 @@ function shortTime(t?: string): string {
   text-decoration: line-through;
 }
 
+.price-range {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+}
+
+.sales-tip {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.seckill-tag {
+  background: var(--mall-price, #e4393c);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex: none;
+  align-self: center;
+}
+
+.seckill-price {
+  align-items: center;
+}
+
+.promo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.promo-text {
+  font-size: 13px;
+  color: var(--mall-price, #e4393c);
+}
+
 .discount-note {
   margin-left: 10px;
   font-size: 12px;
-  color: var(--el-color-danger);
+  color: var(--mall-price, #e4393c);
+}
+
+/* 京东式 CTA 大按钮 */
+.btn-row .act-btn {
+  height: 46px;
+  min-width: 160px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 6px;
 }
 
 /* SKU 规格选择 */
@@ -604,10 +675,10 @@ function shortTime(t?: string): string {
 
 .sku-val {
   min-width: 44px;
-  padding: 5px 14px;
-  border-radius: 16px;
+  padding: 6px 16px;
+  border-radius: 4px;
   border: 1px solid var(--el-border-color);
-  background: var(--el-fill-color-blank);
+  background: var(--mall-surface, #fff);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s;
