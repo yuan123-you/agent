@@ -116,3 +116,22 @@
 - 会员体系（UMS）：积分、成长值、等级
 - 搜索增强：Elasticsearch 商品检索（当前为 MySQL LIKE + AI 混合检索）
 - 物流对接：发货物流公司/单号联动、自动确认收货
+
+## 九、深色模式 / 物流确认收货 / 搜索增强（2026-10-24 第四批，37fabfe）
+
+**深色模式**：三态切换（浅色/深色/跟随系统），`html.dark` + Element dark css-vars + 自有
+`--mall-surface/page-bg/surface-2` 变量体系；index.html 内联脚本防首屏闪烁；切换入口在
+买家端顶栏/子头部与控制台、卖家中心头部；localStorage 持久化。32 个组件 scoped 样式
+硬编码颜色批量替换为带 fallback 的变量（亮色渲染零变化）。
+
+**物流与确认收货**（V11）：`order_info.delivery_company`；管理端发货可填物流公司；
+买家端 SHIPPED 订单出现「确认收货」（本人校验 + 状态机 SHIPPED→DELIVERED）；
+`OrderAutoConfirmJob` 每 30 分钟扫描发货满 7 天的订单自动完成（逐单推进，单笔失败跳过）。
+
+**搜索增强**（V11）：`product` 加 ngram 全文索引（name/brand/selling_points），
+买家端关键词搜索改走 `MATCH AGAINST` 自然语言模式并按相关度排序，索引异常自动降级
+原 LIKE；AI 客服内部搜索链路零改动。选择 MySQL 全文而非 Elasticsearch：生产为
+小内存 ARM 单机，ngram 方案零新增资源即可显著改善中文召回。
+
+**验证**：后端 495 / 前端 152 测试 + tsc + build 全过；线上 V11 success=1、FULLTEXT
+3 列、关键词「手表」相关度搜索命中、首页 200、暗色脚本已注入。
