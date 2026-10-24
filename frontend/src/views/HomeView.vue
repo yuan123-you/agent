@@ -158,10 +158,12 @@ import { ElMessage } from 'element-plus'
 import { apiCatalogCategories, apiProducts, apiReceivableCoupons, apiReceiveCoupon, apiSeckills } from '@/api'
 import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 import ProductCard from '@/components/product/ProductCard.vue'
 import type { CategoryVO, CouponVO, ProductVO, SeckillVO } from '@/types/api'
 
 const auth = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
 const windowWidth = ref(window.innerWidth)
 const onResize = () => (windowWidth.value = window.innerWidth)
@@ -217,6 +219,11 @@ function scrollToCoupons() {
 }
 
 async function receive(c: CouponVO) {
+  if (!auth.isCustomer) {
+    ElMessage.warning('请先登录后领券')
+    void router.push({ path: '/login', query: { redirect: '/' } })
+    return
+  }
   await apiReceiveCoupon(c.couponId)
   c.received = true
   ElMessage.success(`已领取「${c.name}」，可在个人中心查看`)
