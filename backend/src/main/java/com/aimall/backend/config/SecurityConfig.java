@@ -54,6 +54,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**", "/api/v1/product-images/**").permitAll()
                         // 商品浏览（列表/详情/分类）：游客公开可见
                         .requestMatchers("/api/v1/products/**").permitAll()
+                        // 商城目录（分类树/品牌/SKU）与营销浏览（秒杀/可领券列表）：游客公开可见（领取/下单仍需登录）
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/promotions/seckills",
+                                "/api/v1/promotions/coupons").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 内部接口：仅 AI 服务（内部令牌）
                         .requestMatchers("/internal/**").hasRole("INTERNAL")
