@@ -233,8 +233,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { HomeFilled, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
 import CouponPicker from '@/components/mall/CouponPicker.vue'
 import {
