@@ -37,6 +37,7 @@ public class CartController {
 
     private final CartItemMapper cartItemMapper;
     private final ProductMapper productMapper;
+    private final com.aimall.backend.mapper.MallSkuMapper skuMapper;
     private final OrderService orderService;
 
     @Data
@@ -44,6 +45,9 @@ public class CartController {
         @NotNull
         @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
         private Long productId;
+        /** SKU ID（可空=无规格商品；商品有规格未指定时自动选最低价规格） */
+        @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
+        private Long skuId;
         @NotNull
         @Min(1)
         @Max(99)
@@ -56,6 +60,9 @@ public class CartController {
         private List<CheckoutItemBody> items;
         @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
         private Long addressId;
+        /** 用户优惠券ID（可空=不使用） */
+        @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
+        private Long couponUserId;
         private String receiverName;
         private String receiverPhone;
         private String receiverAddress;
@@ -65,6 +72,8 @@ public class CartController {
     public static class CheckoutItemBody {
         @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
         private Long productId;
+        @JsonDeserialize(using = ExactCartNumberDeserializers.LongValue.class)
+        private Long skuId;
         @JsonDeserialize(using = ExactCartNumberDeserializers.IntegerValue.class)
         private Integer quantity;
     }
@@ -95,7 +104,7 @@ public class CartController {
         }
     }
 
-    /** 加入购物车（已存在则累加数量） */
+    /** 加入购物车（同商品同规格已存在则累加数量） */
     @PostMapping("/items")
     public ApiResponse<Void> add(@AuthenticationPrincipal Long userId, @Valid @RequestBody AddBody body) {
         if (body == null || body.getProductId() == null || body.getProductId() <= 0
@@ -106,29 +115,55 @@ public class CartController {
         if (product == null || !"ON_SALE".equals(product.getStatus())) {
             throw new BizException(2005, "商品不存在或已下架");
         }
+        long skuId = resolveCartSkuId(product, body.getSkuId());
         // Each SQL statement is atomic. Do not compute replacements from a stale cart read.
-        if (cartItemMapper.increment(userId, body.getProductId(), body.getQuantity()) == 1) {
+        if (cartItemMapper.increment(userId, body.getProductId(), skuId, body.getQuantity()) == 1) {
             return ApiResponse.ok();
         }
         try {
-            if (cartItemMapper.insertGuarded(userId, body.getProductId(), body.getQuantity()) == 1) {
+            if (cartItemMapper.insertGuarded(userId, body.getProductId(), skuId, body.getQuantity()) == 1) {
                 return ApiResponse.ok();
             }
         } catch (DuplicateKeyException competingInsert) {
-            // The existing unique user/product key arbitrates simultaneous first additions.
-            if (cartItemMapper.increment(userId, body.getProductId(), body.getQuantity()) == 1) {
+            // The existing unique user/product/sku key arbitrates simultaneous first additions.
+            if (cartItemMapper.increment(userId, body.getProductId(), skuId, body.getQuantity()) == 1) {
                 return ApiResponse.ok();
             }
         }
         throw new BizException(2006, "超出库存或商品状态已变化");
     }
 
-    /** 购物车列表（含商品快照与合计） */
+    /**
+     * 归一化加购 SKU：0=无规格商品。
+     * 指定 skuId 时校验归属与启用；商品有规格但未指定时自动选最低价在售 SKU（老前端兜底）。
+     */
+    private long resolveCartSkuId(Product product, Long skuId) {
+        java.util.List<com.aimall.backend.entity.MallSku> skus = skuMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.aimall.backend.entity.MallSku>()
+                        .eq(com.aimall.backend.entity.MallSku::getProductId, product.getId())
+                        .eq(com.aimall.backend.entity.MallSku::getStatus, "ENABLE"));
+        if (skus.isEmpty()) {
+            return 0L;
+        }
+        if (skuId == null || skuId <= 0) {
+            return skus.stream()
+                    .min(java.util.Comparator.comparing(com.aimall.backend.entity.MallSku::getPrice,
+                            java.util.Comparator.nullsLast(java.math.BigDecimal::compareTo)))
+                    .orElseThrow().getId();
+        }
+        com.aimall.backend.entity.MallSku target = skus.stream()
+                .filter(s -> s.getId().equals(skuId)).findFirst()
+                .orElseThrow(() -> new BizException(2108, "商品规格不存在或不属于该商品"));
+        return target.getId();
+    }
+
+    /** 购物车列表（含商品快照与合计，带 SKU 时按 SKU 价格计算） */
     @GetMapping
     public ApiResponse<Map<String, Object>> list(@AuthenticationPrincipal Long userId) {
         List<CartItem> items = cartItemMapper.selectList(new LambdaQueryWrapper<CartItem>()
                 .eq(CartItem::getUserId, userId)
                 .orderByDesc(CartItem::getId));
+        Map<Long, com.aimall.backend.entity.MallSku> skuCache = new HashMap<>();
         List<Map<String, Object>> rows = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         int checkedCount = 0;
@@ -137,16 +172,27 @@ public class CartController {
             if (p == null) {
                 continue;
             }
+            com.aimall.backend.entity.MallSku sku = null;
+            if (ci.getSkuId() != null && ci.getSkuId() > 0) {
+                sku = skuCache.computeIfAbsent(ci.getSkuId(),
+                        id -> skuMapper.selectById(id));
+                if (sku == null) {
+                    continue; // SKU 已删除，购物车行作废
+                }
+            }
+            BigDecimal unitPrice = sku != null ? sku.getPrice() : p.getPrice();
             Map<String, Object> row = new HashMap<>();
             row.put("cartItemId", ci.getId());
             row.put("productId", p.getId());
+            row.put("skuId", sku != null ? sku.getId() : 0);
+            row.put("skuSp", sku != null ? sku.getSpData() : null);
             row.put("name", p.getName());
-            row.put("imageUrl", p.getImageUrl());
-            row.put("price", p.getPrice());
+            row.put("imageUrl", sku != null && sku.getPic() != null ? sku.getPic() : p.getImageUrl());
+            row.put("price", unitPrice);
             row.put("quantity", ci.getQuantity());
             row.put("checked", ci.getChecked());
             row.put("stock", p.getStock());
-            BigDecimal subtotal = p.getPrice().multiply(BigDecimal.valueOf(ci.getQuantity()));
+            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
             row.put("subtotal", subtotal);
             rows.add(row);
             if (ci.getChecked() == 1) {
@@ -242,7 +288,8 @@ public class CartController {
                 if (b.getProductId() == null || b.getProductId() <= 0 || b.getQuantity() == null || b.getQuantity() <= 0) {
                     throw new BizException(2001, "结算商品和数量不合法");
                 }
-                items.add(new OrderService.CheckoutItem(b.getProductId(), b.getQuantity()));
+                items.add(new OrderService.CheckoutItem(b.getProductId(),
+                        b.getSkuId() == null ? 0L : b.getSkuId(), b.getQuantity()));
             }
             // Explicit buy-now remains valid without a cart row. Lock only existing matching rows.
             snapshots = cartItemMapper.selectList(new LambdaQueryWrapper<CartItem>()
@@ -260,17 +307,20 @@ public class CartController {
                 throw new BizException(2001, "请先勾选要结算的商品");
             }
             for (CartItem ci : checked) {
-                items.add(new OrderService.CheckoutItem(ci.getProductId(), ci.getQuantity()));
+                items.add(new OrderService.CheckoutItem(ci.getProductId(),
+                        ci.getSkuId() == null ? 0L : ci.getSkuId(), ci.getQuantity()));
             }
         }
         var order = orderService.checkout(userId, items, body.getAddressId(),
-                body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress());
+                body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress(),
+                body.getCouponUserId());
         // Only the locked pre-order snapshot can be cleared. A persistence failure rolls back the order too.
         for (CartItem snapshot : snapshots) {
             int deleted = cartItemMapper.delete(new LambdaQueryWrapper<CartItem>()
                     .eq(CartItem::getId, snapshot.getId())
                     .eq(CartItem::getUserId, userId)
                     .eq(CartItem::getProductId, snapshot.getProductId())
+                    .eq(CartItem::getSkuId, snapshot.getSkuId() == null ? 0L : snapshot.getSkuId())
                     .eq(CartItem::getQuantity, snapshot.getQuantity()));
             if (deleted != 1) {
                 throw new BizException(2004, "购物车项已变化，请刷新后重试");

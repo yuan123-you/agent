@@ -21,6 +21,12 @@ public class OrderInfo {
 
     private BigDecimal totalAmount;
 
+    /** 券优惠金额 */
+    private BigDecimal discountAmount;
+
+    /** 使用的用户券ID */
+    private Long couponUserId;
+
     /** PENDING_PAYMENT / PAID / SHIPPED / DELIVERED / CANCELLED */
     private String status;
 

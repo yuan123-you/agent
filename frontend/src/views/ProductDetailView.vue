@@ -17,7 +17,26 @@
           <span class="brand">{{ product.brand }}</span>
           <span class="sales">已售 {{ product.sales || 0 }} 件</span>
         </div>
-        <div class="price">￥{{ product.price }}</div>
+        <div class="price" :class="{ 'seckill-price': seckill }">
+          <span v-if="seckill" class="seckill-tag">⚡ 秒杀价</span>
+          <template v-if="selectedSku">￥{{ selectedSku.price }}<span class="price-range" v-if="skus.length > 1 && !seckill"> 起 ￥{{ minSkuPrice }}</span></template>
+          <template v-else>￥{{ displayPrice }}</template>
+          <span v-if="seckill" class="price-origin">￥{{ selectedSku?.price || product.price }}</span>
+        </div>
+        <!-- SKU 规格选择（对标 mall：按销售属性分组，选中组合定位 SKU） -->
+        <div v-if="skuGroups.length" class="sku-block">
+          <div v-for="g in skuGroups" :key="g.key" class="sku-group">
+            <span class="sku-label">{{ g.key }}</span>
+            <div class="sku-vals">
+              <button v-for="v in g.values" :key="v" type="button" class="sku-val"
+                :class="{ active: selectedSpecs[g.key] === v }" @click="pickSpec(g.key, v)">
+                {{ v }}
+              </button>
+            </div>
+          </div>
+          <div v-if="!selectedSku" class="sku-hint">请选择完整规格</div>
+          <div v-else-if="selectedSku.stock === 0" class="sku-hint warn">该规格暂时缺货</div>
+        </div>
         <div class="points">
           <el-tag v-for="(p, i) in points" :key="i" type="info" effect="plain" class="point-tag">
             {{ p }}
@@ -31,14 +50,14 @@
         </div>
         <div class="qty-row">
           <span class="qty-label">数量</span>
-          <el-input-number v-model="quantity" :min="1" :max="Math.min(99, product.stock)" />
-          <span class="stock">库存 {{ product.stock }} {{ product.stock === 0 ? '（暂时缺货）' : '' }}</span>
+          <el-input-number v-model="quantity" :min="1" :max="stockLimit" />
+          <span class="stock">库存 {{ stockLimit }} {{ stockLimit === 0 ? '（暂时缺货）' : '' }}</span>
         </div>
         <div class="btn-row">
-          <el-button size="large" class="act-btn" :disabled="product.stock === 0" @click="addToCart">
+          <el-button size="large" class="act-btn" :disabled="stockLimit === 0 || buyBlocked" @click="addToCart">
             加入购物车
           </el-button>
-          <el-button type="danger" size="large" class="act-btn" :disabled="product.stock === 0"
+          <el-button type="danger" size="large" class="act-btn" :disabled="stockLimit === 0 || buyBlocked"
             @click="buyNow">
             立即购买
           </el-button>
@@ -123,10 +142,10 @@
         <span>购物车</span>
       </div>
       <div class="mobile-act-btns">
-        <el-button class="m-cart-btn" :disabled="product.stock === 0" @click="addToCart">
+        <el-button class="m-cart-btn" :disabled="stockLimit === 0 || buyBlocked" @click="addToCart">
           加入购物车
         </el-button>
-        <el-button type="danger" class="m-buy-btn" :disabled="product.stock === 0" @click="buyNow">
+        <el-button type="danger" class="m-buy-btn" :disabled="stockLimit === 0 || buyBlocked" @click="buyNow">
           立即购买
         </el-button>
       </div>
@@ -145,8 +164,8 @@
         </el-image>
         <div class="spec-info">
           <div class="spec-name">{{ product.name }}</div>
-          <div class="spec-price">￥{{ product.price }}</div>
-          <div class="spec-stock">库存 {{ product.stock }}</div>
+          <div class="spec-price">￥{{ unitPrice }}</div>
+          <div class="spec-stock">库存 {{ stockLimit }}</div>
         </div>
       </div>
       <div v-if="specAttrs.length" class="spec-block">
@@ -160,11 +179,11 @@
       </div>
       <div class="spec-qty">
         <span class="qty-t">数量</span>
-        <el-input-number v-model="specQty" :min="1" :max="Math.min(99, product.stock)" />
+        <el-input-number v-model="specQty" :min="1" :max="stockLimit" />
       </div>
       <template #footer>
         <el-button @click="showSpec = false">取消</el-button>
-        <el-button type="danger" :disabled="product.stock === 0" @click="confirmSpec">确定</el-button>
+        <el-button type="danger" :disabled="stockLimit === 0 || buyBlocked" @click="confirmSpec">确定</el-button>
       </template>
     </el-dialog>
 
@@ -174,8 +193,13 @@
         <el-form-item label="商品">
           <span>{{ product.name }} × {{ quantity }}</span>
         </el-form-item>
+        <el-form-item label="优惠券">
+          <CouponPicker v-model="selectedCouponId" :amount="subtotalAmount"
+            @discount="(v) => (couponDiscountValue = v)" />
+        </el-form-item>
         <el-form-item label="合计">
-          <span class="total">￥{{ totalAmount }}</span>
+          <span class="total">￥{{ payableAmount }}</span>
+          <span v-if="couponDiscountValue > 0" class="discount-note">已优惠 ￥{{ couponDiscountValue }}</span>
         </el-form-item>
         <el-form-item label="收货地址" class="addr-form-item">
           <CheckoutAddressPicker v-model="selectedAddressId" />
@@ -196,13 +220,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { HomeFilled, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
 import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
+import CouponPicker from '@/components/mall/CouponPicker.vue'
 import {
-  apiCartAdd, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
-  apiPayOrder, apiProductDetail, apiReviewCreate, apiReviews, type ReviewVO,
+  apiCartAdd, apiCatalogProductSkus, apiCreateOrder, apiFavoriteStatus, apiFavoriteToggle, apiHistoryRecord,
+  apiPayOrder, apiProductDetail, apiReviewCreate, apiReviews, apiSeckills, type ReviewVO,
 } from '@/api'
 import { renderMarkdown } from '@/components/mall/link'
 import { categoryName } from '@/constants/categories'
-import type { ProductVO } from '@/types/api'
+import type { ProductVO, SkuVO } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,8 +272,80 @@ const specAttrs = computed(() => {
   if (product.value?.origin) attrs.push({ k: '产地', v: product.value.origin })
   return attrs
 })
-const totalAmount = computed(() => ((product.value?.price || 0) * quantity.value).toFixed(2))
+const totalAmount = computed(() => (unitPrice.value * quantity.value).toFixed(2))
 const descHtml = computed(() => renderMarkdown(product.value?.description || '暂无介绍'))
+
+// ---------- SKU 规格选择（对标 mall） ----------
+const skus = ref<SkuVO[]>([])
+const selectedSpecs = ref<Record<string, string>>({})
+
+interface SpEntry { key: string; value: string }
+
+function parseSp(spData?: string): SpEntry[] {
+  try {
+    const arr = JSON.parse(spData || '[]') as SpEntry[]
+    return Array.isArray(arr) ? arr.filter((e) => e && e.key && e.value != null) : []
+  } catch {
+    return []
+  }
+}
+
+/** 销售属性分组：[{key:'颜色', values:['黑色','白色']}, ...] */
+const skuGroups = computed(() => {
+  const map = new Map<string, string[]>()
+  for (const s of skus.value) {
+    for (const e of parseSp(s.spData)) {
+      const list = map.get(e.key) || []
+      if (!list.includes(String(e.value))) list.push(String(e.value))
+      map.set(e.key, list)
+    }
+  }
+  return [...map.entries()].map(([key, values]) => ({ key, values }))
+})
+
+/** 当前选中组合对应的 SKU（全部属性命中才算选中） */
+const selectedSku = computed<SkuVO | null>(() => {
+  if (!skuGroups.value.length) return null
+  return skus.value.find((s) => {
+    const sp = parseSp(s.spData)
+    return sp.length === skuGroups.value.length
+      && sp.every((e) => selectedSpecs.value[e.key] === String(e.value))
+  }) || null
+})
+
+const unitPrice = computed(() => {
+  if (seckill.value) return seckill.value.seckillPrice
+  return selectedSku.value?.price ?? product.value?.price ?? 0
+})
+const minSkuPrice = computed(() => {
+  const prices = skus.value.map((s) => s.price).filter((p) => p != null)
+  return prices.length ? Math.min(...prices) : product.value?.price || 0
+})
+/** 秒杀展示原价（无 SKU 商品为商品价） */
+const displayPrice = computed(() => seckill.value ? minSkuPrice.value : product.value?.price || 0)
+const stockLimit = computed(() => {
+  const limit = selectedSku.value ? selectedSku.value.stock : product.value?.stock || 0
+  const capped = Math.min(99, Math.max(0, limit))
+  // 秒杀限购优先
+  return seckill.value ? Math.min(capped, seckill.value.seckillLimit) : capped
+})
+/** 有规格但未选完整 或 选中规格缺货 → 阻断购买 */
+const buyBlocked = computed(() => skuGroups.value.length > 0 && (!selectedSku.value || selectedSku.value.stock === 0))
+
+function pickSpec(key: string, value: string) {
+  selectedSpecs.value = { ...selectedSpecs.value, [key]: selectedSpecs.value[key] === value ? '' : value }
+  quantity.value = 1
+}
+
+// ---------- 秒杀与优惠券 ----------
+const seckill = ref<{ seckillId: number; seckillPrice: number; seckillLimit: number } | null>(null)
+const selectedCouponId = ref<number>()
+const couponDiscountValue = ref(0)
+
+const subtotalAmount = computed(() => Number((unitPrice.value * quantity.value).toFixed(2)))
+const payableAmount = computed(() =>
+  Math.max(0, Number((subtotalAmount.value - couponDiscountValue.value).toFixed(2))),
+)
 
 onMounted(async () => {
   window.addEventListener('resize', updateMobile)
@@ -259,9 +356,29 @@ onMounted(async () => {
     router.replace('/404')
     return
   }
-  // 收藏状态 + 浏览历史上报（失败不影响页面）
+  // 收藏状态 + 浏览历史上报 + SKU 列表 + 秒杀（失败不影响页面）
   apiFavoriteStatus(id).then((s) => (favorited.value = s.favorited)).catch(() => {})
   apiHistoryRecord(id).catch(() => {})
+  apiCatalogProductSkus(id).then((list) => {
+    skus.value = list || []
+    // 默认选中第一个有库存的 SKU 组合
+    const first = skus.value.find((s) => s.stock > 0) || skus.value[0]
+    if (first) {
+      for (const e of parseSp(first.spData)) {
+        selectedSpecs.value[e.key] = String(e.value)
+      }
+    }
+  }).catch(() => {})
+  apiSeckills().then((list) => {
+    const mine = (list || []).find((s) => s.productId === id && s.started)
+    if (mine) {
+      seckill.value = {
+        seckillId: mine.seckillId,
+        seckillPrice: mine.seckillPrice,
+        seckillLimit: mine.seckillLimit,
+      }
+    }
+  }).catch(() => {})
   loadReviews()
 })
 
@@ -288,7 +405,7 @@ async function loadReviews() {
 }
 
 async function addToCart() {
-  await apiCartAdd(product.value!.id, quantity.value)
+  await apiCartAdd(product.value!.id, quantity.value, selectedSku.value?.id)
   ElMessage.success('已加入购物车')
 }
 
@@ -320,6 +437,8 @@ async function submitOrder() {
   try {
     const order = await apiCreateOrder({
       productId: product.value!.id,
+      skuId: selectedSku.value?.id,
+      couponUserId: selectedCouponId.value,
       quantity: quantity.value,
       addressId: selectedAddressId.value,
     })
@@ -417,6 +536,102 @@ function shortTime(t?: string): string {
   font-size: 30px;
   font-weight: 700;
   margin: 14px 0;
+}
+
+.price-range {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+  margin-left: 8px;
+}
+
+/* 秒杀价 */
+.seckill-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.seckill-tag {
+  background: var(--el-color-danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.price-origin {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+  text-decoration: line-through;
+}
+
+.discount-note {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--el-color-danger);
+}
+
+/* SKU 规格选择 */
+.sku-block {
+  margin: 4px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sku-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sku-label {
+  flex: none;
+  width: 56px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 32px;
+}
+
+.sku-vals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sku-val {
+  min-width: 44px;
+  padding: 5px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-fill-color-blank);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sku-val:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+
+.sku-val.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.sku-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.sku-hint.warn {
+  color: var(--el-color-danger);
 }
 
 .point-tag {

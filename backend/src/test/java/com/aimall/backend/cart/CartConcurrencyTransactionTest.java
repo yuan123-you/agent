@@ -114,13 +114,13 @@ class CartConcurrencyTransactionTest {
                         }
                         return result;
                     });
-            return new CartController(observed, products, orders);
+            return new CartController(observed, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), orders);
         }
         @Bean RaceGate raceGate() { return new RaceGate(); }
         @Bean OrderSseNotifier notifier() { return mock(OrderSseNotifier.class); }
         @Bean OrderService orderService(OrderInfoMapper orders, OrderItemMapper items, ProductMapper products,
                                        OrderSseNotifier notifier, RaceGate gate) {
-            return new OrderService(orders, items, products, notifier, mock(AddressService.class));
+            return new OrderService(orders, items, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), notifier, mock(AddressService.class));
         }
     }
 
@@ -132,7 +132,7 @@ class CartConcurrencyTransactionTest {
         context = new AnnotationConfigApplicationContext(Config.class);
         jdbc = context.getBean(JdbcTemplate.class); controller = context.getBean(CartController.class); gate = context.getBean(RaceGate.class);
         table("cart_item", CartItem.class); table("product", Product.class); table("order_info", OrderInfo.class); table("order_item", OrderItem.class);
-        jdbc.execute("alter table cart_item add constraint uk_user_product unique(user_id,product_id)");
+        jdbc.execute("alter table cart_item add constraint uk_user_product_sku unique(user_id,product_id,sku_id)");
         jdbc.update("insert into product(id,name,status,price,stock,version,deleted) values(1,'Product','ON_SALE',10,1000,1,0)");
     }
     private void table(String name, Class<?> entity) {
@@ -150,7 +150,7 @@ class CartConcurrencyTransactionTest {
         jdbc.execute("create table " + name + "(" + String.join(",", columns) + ")");
     }
     @AfterEach void close() { jdbc.execute("drop all objects"); context.close(); }
-    private void row(int qty) { jdbc.update("insert into cart_item(id,user_id,product_id,quantity,checked) values(1,7,1,?,1)",qty); }
+    private void row(int qty) { jdbc.update("insert into cart_item(id,user_id,product_id,sku_id,quantity,checked) values(1,7,1,0,?,1)",qty); }
     private CartController.AddBody addBody(Integer qty) { var b = new CartController.AddBody(); b.setProductId(1L); b.setQuantity(qty); return b; }
     private CartController.CheckoutBody checkoutBody() {
         var b = new CartController.CheckoutBody(); b.setReceiverName("Receiver"); b.setReceiverPhone("13800000000"); b.setReceiverAddress("Test address"); return b;

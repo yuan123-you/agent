@@ -8,7 +8,7 @@
       :class="{ active: isActive(tab) }"
       @click="$router.push(tab.path)"
     >
-      <el-icon :size="22"><component :is="tab.icon" /></el-icon>
+      <el-icon :size="21"><component :is="tab.icon" /></el-icon>
       <span class="tab-label">{{ tab.label }}</span>
     </div>
   </nav>
@@ -47,8 +47,10 @@ function isActive(tab: (typeof tabs)[number]): boolean {
     left: 0;
     right: 0;
     display: flex;
-    background: #fff;
-    border-top: 1px solid #ebeef5;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid #eef1f6;
     padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
     z-index: 100;
   }
@@ -61,11 +63,24 @@ function isActive(tab: (typeof tabs)[number]): boolean {
     gap: 1px;
     color: #909399;
     cursor: pointer;
-    padding: 2px 0;
+    padding: 3px 0;
+    transition: color 0.15s, transform 0.15s;
+  }
+
+  .tab-item:active {
+    transform: scale(0.92);
   }
 
   .tab-item.active {
     color: var(--el-color-primary);
+    font-weight: 500;
+  }
+
+  .tab-item.active .tab-label {
+    background: var(--mall-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .tab-label {

@@ -3,6 +3,7 @@ package com.aimall.backend.order;
 import com.aimall.backend.address.AddressService;
 import com.aimall.backend.common.BizException;
 import com.aimall.backend.entity.Address;
+import com.aimall.backend.entity.MallSku;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.entity.OrderItem;
 import com.aimall.backend.entity.Product;
@@ -36,12 +37,14 @@ public class OrderService {
     private final OrderInfoMapper orderInfoMapper;
     private final OrderItemMapper orderItemMapper;
     private final ProductMapper productMapper;
+    private final com.aimall.backend.mapper.MallSkuMapper skuMapper;
+    private final com.aimall.backend.promotion.PromotionService promotionService;
     private final OrderSseNotifier orderSseNotifier;
     private final AddressService addressService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** 下单（页面或 AI 工具统一入口）：事务 + 乐观锁防超卖 */
+    /** 下单（页面或 AI 工具统一入口）：事务 + 乐观锁防超卖。skuId 可空=无规格商品 */
     @Transactional
     public OrderInfo create(Long userId, OrderDtos.CreateOrderRequest req, String source, Long conversationId) {
         if (req == null) {
@@ -55,14 +58,34 @@ public class OrderService {
             throw new BizException(2005, "商品已下架");
         }
         validatePrice(product);
+        MallSku sku = resolveSku(product, req.getSkuId());
+        // 秒杀：活动期内自动生效（价格替换 + 专属库存扣减）
+        com.aimall.backend.entity.MallSeckill seckill = promotionService.resolveSeckill(product.getId());
+        if (seckill != null) {
+            promotionService.validateSeckill(seckill, req.getQuantity());
+        }
         deductStock(product, req.getQuantity());
+        if (sku != null) {
+            deductSkuStock(sku, req.getQuantity());
+        }
+        if (seckill != null) {
+            promotionService.deductSeckillStock(seckill, req.getQuantity());
+        }
 
         // 订单 + 明细（价格名称快照）
-        BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(req.getQuantity()));
+        BigDecimal unitPrice = seckill != null ? seckill.getSeckillPrice()
+                : (sku != null ? sku.getPrice() : product.getPrice());
+        BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(req.getQuantity()));
+        // 优惠券：先校验门槛并计算优惠，订单落库后核销
+        BigDecimal discount = req.getCouponUserId() == null ? BigDecimal.ZERO
+                : promotionService.couponDiscount(userId, req.getCouponUserId(), subtotal);
+        BigDecimal payable = subtotal.subtract(discount).max(BigDecimal.ZERO);
         OrderInfo order = new OrderInfo();
         order.setOrderNo(genOrderNo());
         order.setUserId(userId);
-        order.setTotalAmount(subtotal);
+        order.setTotalAmount(payable);
+        order.setDiscountAmount(discount);
+        order.setCouponUserId(req.getCouponUserId());
         order.setStatus("PENDING_PAYMENT");
         order.setReceiverName(delivery.name());
         order.setReceiverPhone(delivery.phone());
@@ -74,12 +97,18 @@ public class OrderService {
         OrderItem item = new OrderItem();
         item.setOrderId(order.getId());
         item.setProductId(product.getId());
+        item.setSkuId(sku != null ? sku.getId() : null);
+        item.setSkuSp(sku != null ? sku.getSpData() : null);
+        item.setSeckillId(seckill != null ? seckill.getId() : null);
         item.setProductName(product.getName());
         item.setProductImage(product.getImageUrl());
-        item.setPrice(product.getPrice());
+        item.setPrice(unitPrice);
         item.setQuantity(req.getQuantity());
         item.setSubtotal(subtotal);
         orderItemMapper.insert(item);
+        if (req.getCouponUserId() != null) {
+            promotionService.markCouponUsed(userId, req.getCouponUserId(), order.getId());
+        }
         publishAfterCommit(order);
         return order;
     }
@@ -103,7 +132,18 @@ public class OrderService {
             if (product != null) {
                 restock(product, item.getQuantity());
             }
+            if (item.getSkuId() != null) {
+                MallSku sku = skuMapper.selectById(item.getSkuId());
+                if (sku != null) {
+                    restockSku(sku, item.getQuantity());
+                }
+            }
+            if (item.getSeckillId() != null) {
+                promotionService.restockSeckill(item.getSeckillId(), item.getQuantity());
+            }
         }
+        // 优惠券回退为未使用
+        promotionService.releaseCoupon(order.getCouponUserId());
         publishAfterCommit(order);
     }
 
@@ -203,14 +243,15 @@ public class OrderService {
         }
     }
 
-    /** 购物车结算条目 */
-    public record CheckoutItem(Long productId, Integer quantity) {
+    /** 购物车结算条目（skuId 可空=无规格商品） */
+    public record CheckoutItem(Long productId, Long skuId, Integer quantity) {
     }
 
     /** 购物车批量结算：多商品单订单（行锁逐一扣减，任一失败整体回滚） */
     @Transactional
     public OrderInfo checkout(Long userId, List<CheckoutItem> items, Long addressId,
-                              String receiverName, String receiverPhone, String receiverAddress) {
+                              String receiverName, String receiverPhone, String receiverAddress,
+                              Long couponUserId) {
         if (items == null || items.isEmpty()) {
             throw new BizException(2001, "结算商品不能为空");
         }
@@ -229,23 +270,45 @@ public class OrderService {
                 throw new BizException(2005, "商品已下架：" + ci.productId());
             }
             validatePrice(product);
+            MallSku sku = resolveSku(product, ci.skuId());
+            com.aimall.backend.entity.MallSeckill seckill = promotionService.resolveSeckill(product.getId());
+            if (seckill != null) {
+                promotionService.validateSeckill(seckill, ci.quantity());
+            }
             deductStock(product, ci.quantity());
-            BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(ci.quantity()));
+            if (sku != null) {
+                deductSkuStock(sku, ci.quantity());
+            }
+            if (seckill != null) {
+                promotionService.deductSeckillStock(seckill, ci.quantity());
+            }
+            BigDecimal unitPrice = seckill != null ? seckill.getSeckillPrice()
+                    : (sku != null ? sku.getPrice() : product.getPrice());
+            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(ci.quantity()));
             total = total.add(subtotal);
             OrderItem item = new OrderItem();
             item.setProductId(product.getId());
+            item.setSkuId(sku != null ? sku.getId() : null);
+            item.setSkuSp(sku != null ? sku.getSpData() : null);
+            item.setSeckillId(seckill != null ? seckill.getId() : null);
             item.setProductName(product.getName());
             item.setProductImage(product.getImageUrl());
-            item.setPrice(product.getPrice());
+            item.setPrice(unitPrice);
             item.setQuantity(ci.quantity());
             item.setSubtotal(subtotal);
             pendingItems.add(item);
         }
 
+        // 优惠券：按整单金额校验门槛，订单落库后核销
+        BigDecimal discount = couponUserId == null ? BigDecimal.ZERO
+                : promotionService.couponDiscount(userId, couponUserId, total);
+        BigDecimal payable = total.subtract(discount).max(BigDecimal.ZERO);
         OrderInfo order = new OrderInfo();
         order.setOrderNo(genOrderNo());
         order.setUserId(userId);
-        order.setTotalAmount(total);
+        order.setTotalAmount(payable);
+        order.setDiscountAmount(discount);
+        order.setCouponUserId(couponUserId);
         order.setStatus("PENDING_PAYMENT");
         order.setReceiverName(delivery.name());
         order.setReceiverPhone(delivery.phone());
@@ -256,8 +319,59 @@ public class OrderService {
             item.setOrderId(order.getId());
             orderItemMapper.insert(item);
         }
+        if (couponUserId != null) {
+            promotionService.markCouponUsed(userId, couponUserId, order.getId());
+        }
         publishAfterCommit(order);
         return order;
+    }
+
+    /**
+     * 解析下单 SKU：skuId 为空返回 null（无规格商品，走商品级价格库存）。
+     * 传入 skuId 时校验存在、归属与启用状态。
+     */
+    private MallSku resolveSku(Product product, Long skuId) {
+        if (skuId == null || skuId <= 0) {
+            return null;
+        }
+        MallSku sku = skuMapper.selectById(skuId);
+        if (sku == null || !sku.getProductId().equals(product.getId()) || sku.getDeleted() != null && sku.getDeleted() == 1) {
+            throw new BizException(2108, "商品规格不存在或不属于该商品");
+        }
+        if (!"ENABLE".equals(sku.getStatus())) {
+            throw new BizException(2108, "商品规格已停用：" + String.valueOf(sku.getSpData()));
+        }
+        return sku;
+    }
+
+    /** SKU 乐观锁扣减库存（与商品扣减同事务，失败整体回滚） */
+    private void deductSkuStock(MallSku sku, int quantity) {
+        updateSkuStock(sku, -quantity, "规格库存不足");
+    }
+
+    private void restockSku(MallSku sku, int quantity) {
+        updateSkuStock(sku, quantity, "规格库存回补失败");
+    }
+
+    private void updateSkuStock(MallSku sku, int delta, String failMsg) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            MallSku current = attempt == 0 ? sku : skuMapper.selectById(sku.getId());
+            if (current == null) {
+                throw new BizException(2108, "商品规格不存在");
+            }
+            int newStock = current.getStock() + delta;
+            if (newStock < 0) {
+                throw new BizException(2006, failMsg);
+            }
+            MallSku upd = new MallSku();
+            upd.setId(current.getId());
+            upd.setStock(newStock);
+            upd.setVersion(current.getVersion());
+            if (skuMapper.updateById(upd) == 1) {
+                return;
+            }
+        }
+        throw new BizException(2006, "操作的人员过多，请重试");
     }
 
     /**

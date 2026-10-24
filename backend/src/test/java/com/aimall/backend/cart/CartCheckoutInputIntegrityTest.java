@@ -32,7 +32,7 @@ class CartCheckoutInputIntegrityTest {
     private final CartItemMapper cart = mock(CartItemMapper.class);
     private final ProductMapper products = mock(ProductMapper.class);
     private final OrderService orders = mock(OrderService.class);
-    private final CartController controller = new CartController(cart, products, orders);
+    private final CartController controller = new CartController(cart, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), orders);
 
     @BeforeEach void initializeCartLambdaMetadata() {
         // These are controller-only mocks; initialize metadata so captured SQL guards can be inspected.
@@ -55,7 +55,7 @@ class CartCheckoutInputIntegrityTest {
         ArgumentCaptor<LambdaQueryWrapper<CartItem>> deleted = ArgumentCaptor.forClass((Class) LambdaQueryWrapper.class);
         var sequence = inOrder(cart, orders);
         sequence.verify(cart).selectList(selected.capture());
-        sequence.verify(orders).checkout(7L, expected, null, "Receiver", "13800000000", "Test address");
+        sequence.verify(orders).checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null);
         sequence.verify(cart).delete(deleted.capture());
         sequence.verifyNoMoreInteractions();
         String selectionSql = selected.getValue().getSqlSegment();
@@ -78,10 +78,11 @@ class CartCheckoutInputIntegrityTest {
         assertTrue(cleanupSql.contains("product_id ="));
         assertTrue(cleanupSql.contains("quantity ="));
         var parameters = deleted.getValue().getParamNameValuePairs();
-        assertEquals(4, parameters.size());
+        assertEquals(5, parameters.size());
         assertTrue(parameters.containsValue(snapshot.getId()));
         assertTrue(parameters.containsValue(snapshot.getUserId()));
         assertTrue(parameters.containsValue(snapshot.getProductId()));
+        assertTrue(parameters.containsValue(snapshot.getSkuId() == null ? 0L : snapshot.getSkuId()));
         assertTrue(parameters.containsValue(snapshot.getQuantity()));
         verifyNoInteractions(products);
     }
@@ -136,14 +137,14 @@ class CartCheckoutInputIntegrityTest {
     void validExplicitEntriesRetainCheckoutAndCartCleanup(String total) {
         var body = body();
         body.setItems(List.of(item()));
-        var expected = List.of(new OrderService.CheckoutItem(10L, 2));
+        var expected = List.of(new OrderService.CheckoutItem(10L, 0L, 2));
         // Explicit quantity is 2; existing policy clears the whole locked cart row of 5.
         var snapshot = snapshot(5);
         when(cart.selectList(any())).thenReturn(List.of(snapshot));
         when(cart.delete(any())).thenReturn(1);
         var order = order();
         order.setTotalAmount(new BigDecimal(total));
-        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address")).thenReturn(order);
+        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null)).thenReturn(order);
         var result = controller.checkout(7L, body);
         assertEquals(0, result.getCode());
         assertEquals(30L, result.getData().get("orderId"));
@@ -156,9 +157,9 @@ class CartCheckoutInputIntegrityTest {
     @Test void explicitBuyNowWithoutCartSnapshotDoesNotBlindlyDelete() {
         var body = body();
         body.setItems(List.of(item()));
-        var expected = List.of(new OrderService.CheckoutItem(10L, 2));
+        var expected = List.of(new OrderService.CheckoutItem(10L, 0L, 2));
         when(cart.selectList(any())).thenReturn(List.of());
-        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address")).thenReturn(order());
+        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null)).thenReturn(order());
         var result = controller.checkout(7L, body);
         assertEquals(0, result.getCode());
         assertEquals(30L, result.getData().get("orderId"));
@@ -167,7 +168,7 @@ class CartCheckoutInputIntegrityTest {
         assertEquals(new BigDecimal("25.00"), result.getData().get("totalAmount"));
         var sequence = inOrder(cart, orders);
         sequence.verify(cart).selectList(any());
-        sequence.verify(orders).checkout(7L, expected, null, "Receiver", "13800000000", "Test address");
+        sequence.verify(orders).checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null);
         sequence.verifyNoMoreInteractions();
         verify(cart, never()).delete(any());
         verifyNoInteractions(products);
@@ -178,11 +179,11 @@ class CartCheckoutInputIntegrityTest {
         var body = body();
         if (explicit) body.setItems(List.of(item()));
         var snapshot = snapshot(2);
-        var expected = List.of(new OrderService.CheckoutItem(10L, 2));
+        var expected = List.of(new OrderService.CheckoutItem(10L, 0L, 2));
         when(cart.selectList(any())).thenReturn(List.of(snapshot));
         // The original fallback success fixture implicitly returned this same zero via Mockito.
         when(cart.delete(any())).thenReturn(0);
-        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address")).thenReturn(order());
+        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null)).thenReturn(order());
         var error = assertThrows(BizException.class, () -> controller.checkout(7L, body));
         assertEquals(2004, error.getCode());
         assertLockedSnapshotCleanup(snapshot, expected, explicit);
@@ -195,8 +196,8 @@ class CartCheckoutInputIntegrityTest {
         CartItem checked = snapshot(2);
         when(cart.selectList(any())).thenReturn(List.of(checked));
         when(cart.delete(any())).thenReturn(1);
-        var expected = List.of(new OrderService.CheckoutItem(10L, 2));
-        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address"))
+        var expected = List.of(new OrderService.CheckoutItem(10L, 0L, 2));
+        when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null))
                 .thenReturn(order());
         assertEquals(30L, controller.checkout(7L, body).getData().get("orderId"));
         assertLockedSnapshotCleanup(checked, expected, false);

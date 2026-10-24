@@ -52,7 +52,7 @@ class ExactNumericDtoCoverageTest {
         assertNull(type.getMethod(getter).invoke(nullable));
     }
     @Test void sourceInventoryAndDecimalPriceFieldsStayExplicit() throws Exception {
-        assertEquals(23,fields().count());
+        assertEquals(25,fields().count());
         for (String name : List.of("minPrice","maxPrice")) {
             Field field = InternalToolController.ProductSearchBody.class.getDeclaredField(name);
             assertEquals(BigDecimal.class,field.getType()); assertNull(field.getAnnotation(JsonDeserialize.class));

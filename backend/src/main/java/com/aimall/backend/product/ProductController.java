@@ -22,12 +22,15 @@ public class ProductController {
     public ApiResponse<PageResult<Product>> list(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
-        return ApiResponse.ok(productService.list(keyword, category, minPrice, maxPrice, sort, page, size));
+        return ApiResponse.ok(productService.list(keyword, category, categoryId, brandId,
+                minPrice, maxPrice, sort, page, size));
     }
 
     @GetMapping("/{id}")

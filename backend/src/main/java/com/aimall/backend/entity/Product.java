@@ -17,7 +17,13 @@ public class Product {
 
     private String category;
 
+    /** 分类ID(mall_category.id,NULL=历史数据未归一) */
+    private Long categoryId;
+
     private String brand;
+
+    /** 品牌ID(mall_brand.id,NULL=历史数据未归一) */
+    private Long brandId;
 
     private BigDecimal price;
 

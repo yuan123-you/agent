@@ -1,4 +1,38 @@
-/* 全局样式（简洁正常风格） */
+/* ==========================================================================
+   AI Mall 全局设计系统（三端自适应）
+   断点体系：手机 ≤768px ｜ 平板 769–1199px ｜ 桌面 ≥1200px
+   主色体系：电商蓝 #4f7cff，品牌渐变 #4f7cff → #8f6bff（与首页 banner 一致）
+   ========================================================================== */
+
+:root {
+  /* 品牌色 */
+  --mall-primary: #4f7cff;
+  --mall-primary-dark: #3a63e0;
+  --mall-gradient: linear-gradient(120deg, #4f7cff, #8f6bff);
+  --mall-gradient-soft: linear-gradient(120deg, rgba(79, 124, 255, 0.08), rgba(143, 107, 255, 0.08));
+
+  /* Element 主色对齐（覆盖默认 #409eff） */
+  --el-color-primary: #4f7cff;
+  --el-color-primary-light-3: #7d9bff;
+  --el-color-primary-light-5: #a7bfff;
+  --el-color-primary-light-7: #cdd9ff;
+  --el-color-primary-light-8: #dfe6ff;
+  --el-color-primary-light-9: #eff3ff;
+  --el-color-primary-dark-2: #3a63e0;
+
+  /* 圆角与阴影 */
+  --mall-radius: 12px;
+  --mall-radius-lg: 16px;
+  --mall-shadow-card: 0 2px 8px rgba(30, 40, 80, 0.06);
+  --mall-shadow-hover: 0 10px 28px rgba(30, 40, 80, 0.12);
+  --mall-shadow-float: 0 4px 16px rgba(79, 124, 255, 0.25);
+
+  /* 布局 */
+  --mall-container: 1280px;
+  --mall-header-h: 64px;
+  --mall-catbar-h: 44px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -15,11 +49,95 @@ body,
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   background: #f5f7fa;
   color: #303133;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 通用自适应容器（买家端页面统一使用） ---------- */
+.container {
+  max-width: var(--mall-container);
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 1199px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* ---------- 三端显隐工具类 ---------- */
+.desktop-only { display: initial; }
+.tablet-only { display: none; }
+.mobile-only { display: none; }
+
+@media (max-width: 1199px) {
+  .desktop-only { display: none !important; }
+  .tablet-only { display: initial; }
+}
+
+@media (max-width: 768px) {
+  .tablet-only { display: none !important; }
+  .mobile-only { display: initial; }
+}
+
+/* ---------- 通用卡片 ---------- */
+.mall-card {
+  background: #fff;
+  border-radius: var(--mall-radius);
+  box-shadow: var(--mall-shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.mall-card:hover {
+  box-shadow: var(--mall-shadow-hover);
+}
+
+/* ---------- 滚动条美化（桌面端） ---------- */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d3d8e2;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #b8bfce;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ---------- 骨架呼吸动画 ---------- */
+@keyframes mall-skeleton {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.mall-skeleton {
+  background: linear-gradient(90deg, #eef1f6, #f7f9fc, #eef1f6);
+  background-size: 200% 100%;
+  animation: mall-skeleton 1.4s ease infinite;
+  border-radius: 8px;
 }
 
 /* ⭐ AI 高亮链接 */
 .ai-link {
-  color: var(--el-color-primary, #409eff);
+  color: var(--el-color-primary, #4f7cff);
   font-weight: 500;
   cursor: pointer;
   text-decoration: underline;
@@ -67,7 +185,7 @@ body,
   display: inline-block;
   width: 8px;
   height: 16px;
-  background: var(--el-color-primary, #409eff);
+  background: var(--el-color-primary, #4f7cff);
   margin-left: 2px;
   vertical-align: middle;
   animation: blink 0.8s infinite;
@@ -118,6 +236,10 @@ body,
 .el-dialog,
 .el-message-box {
   max-width: calc(100% - 24px);
+}
+
+.el-dialog {
+  border-radius: var(--mall-radius);
 }
 
 .el-dialog .el-input-number,
@@ -177,6 +299,13 @@ body,
   }
 }
 
+/* ---------- 表格窄屏保护（后台列表页） ---------- */
+@media (max-width: 768px) {
+  .el-table {
+    font-size: 13px;
+  }
+}
+
 /* 移动端触控与缩放优化 */
 html {
   -webkit-tap-highlight-color: transparent;
@@ -207,5 +336,10 @@ button,
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 14px 16px !important;
+  }
+
+  /* 触控目标下限 40px */
+  .el-button--small {
+    min-height: 32px;
   }
 }

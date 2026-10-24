@@ -24,7 +24,7 @@ class OrderServiceTest {
     private final AddressService addressService = mock(AddressService.class);
     private final OrderService service = new OrderService(
             mock(OrderInfoMapper.class), mock(OrderItemMapper.class), productMapper,
-            mock(OrderSseNotifier.class), addressService);
+            mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), mock(OrderSseNotifier.class), addressService);
 
     private static Product product(int stock, int version) {
         Product p = new Product();

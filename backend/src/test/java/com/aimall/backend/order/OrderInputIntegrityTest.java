@@ -25,7 +25,7 @@ class OrderInputIntegrityTest {
     private final OrderItemMapper orderItems = mock(OrderItemMapper.class);
     private final ProductMapper products = mock(ProductMapper.class);
     private final OrderSseNotifier notifier = mock(OrderSseNotifier.class);
-    private final OrderService service = new OrderService(orders, orderItems, products, notifier,
+    private final OrderService service = new OrderService(orders, orderItems, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), notifier,
             mock(AddressService.class));
 
     private OrderDtos.CreateOrderRequest request(Integer quantity) {
@@ -85,15 +85,15 @@ class OrderInputIntegrityTest {
     }
 
     static List<OrderService.CheckoutItem> malformedEntries() {
-        return Arrays.asList(null, new OrderService.CheckoutItem(null, 1),
-                new OrderService.CheckoutItem(2L, null), new OrderService.CheckoutItem(2L, 0),
-                new OrderService.CheckoutItem(2L, -1));
+        return Arrays.asList(null, new OrderService.CheckoutItem(null, 0L, 1),
+                new OrderService.CheckoutItem(2L, 0L, null), new OrderService.CheckoutItem(2L, 0L, 0),
+                new OrderService.CheckoutItem(2L, 0L, -1));
     }
 
     @ParameterizedTest @MethodSource("malformedEntries")
     void checkoutPreflightsMalformedLaterEntryBeforeAnyStockChange(OrderService.CheckoutItem invalid) {
         product(1L, new BigDecimal("12.50"));
-        assertInvalid(() -> checkout(Arrays.asList(new OrderService.CheckoutItem(1L, 1), invalid)));
+        assertInvalid(() -> checkout(Arrays.asList(new OrderService.CheckoutItem(1L, 0L, 1), invalid)));
         verifyNoInteractions(products);
     }
 
@@ -106,7 +106,7 @@ class OrderInputIntegrityTest {
     @ParameterizedTest @NullSource @ValueSource(strings = {"-0.01", "-12.50"})
     void checkoutRejectsMalformedPriceBeforeStockChange(String price) {
         product(1L, price == null ? null : new BigDecimal(price));
-        assertInvalid(() -> checkout(List.of(new OrderService.CheckoutItem(1L, 2))));
+        assertInvalid(() -> checkout(List.of(new OrderService.CheckoutItem(1L, 0L, 2))));
     }
 
     @ParameterizedTest @ValueSource(strings = {"0.00", "12.50"})
@@ -134,8 +134,8 @@ class OrderInputIntegrityTest {
     @Test void checkoutPreservesMixedZeroAndPositivePriceTotal() {
         product(1L, new BigDecimal("0.00"));
         product(2L, new BigDecimal("12.50"));
-        var result = checkout(List.of(new OrderService.CheckoutItem(1L, 2),
-                new OrderService.CheckoutItem(2L, 3)));
+        var result = checkout(List.of(new OrderService.CheckoutItem(1L, 0L, 2),
+                new OrderService.CheckoutItem(2L, 0L, 3)));
         assertEquals(new BigDecimal("37.50"), result.getTotalAmount());
         verify(products, times(2)).updateById(any(Product.class));
         var captured = ArgumentCaptor.forClass(OrderItem.class);
@@ -146,6 +146,6 @@ class OrderInputIntegrityTest {
     }
 
     private OrderInfo checkout(List<OrderService.CheckoutItem> entries) {
-        return service.checkout(7L, entries, null, "Receiver", "13800000000", "Test address");
+        return service.checkout(7L, entries, null, "Receiver", "13800000000", "Test address", null);
     }
 }

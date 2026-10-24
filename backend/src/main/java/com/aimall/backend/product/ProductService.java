@@ -20,13 +20,22 @@ import java.math.BigDecimal;
 public class ProductService {
 
     private final ProductMapper productMapper;
+    private final CatalogService catalogService;
 
     public PageResult<Product> list(String keyword, String category, BigDecimal minPrice,
                                     BigDecimal maxPrice, String sort, long page, long size) {
+        return list(keyword, category, null, null, minPrice, maxPrice, sort, page, size);
+    }
+
+    /** 支持按分类/品牌 ID 过滤（旧 category 字符串参数保持兼容） */
+    public PageResult<Product> list(String keyword, String category, Long categoryId, Long brandId,
+                                    BigDecimal minPrice, BigDecimal maxPrice, String sort, long page, long size) {
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .eq(Product::getStatus, "ON_SALE")
                 .gt(Product::getStock, 0)
                 .eq(category != null && !category.isBlank(), Product::getCategory, category)
+                .eq(categoryId != null, Product::getCategoryId, categoryId)
+                .eq(brandId != null, Product::getBrandId, brandId)
                 .ge(minPrice != null, Product::getPrice, minPrice)
                 .le(maxPrice != null, Product::getPrice, maxPrice)
                 .and(keyword != null && !keyword.isBlank(), w -> w
@@ -94,8 +103,9 @@ public class ProductService {
 
     private void copy(ProductSaveRequest req, Product product) {
         product.setName(req.getName());
-        product.setCategory(req.getCategory());
-        product.setBrand(req.getBrand());
+        // 按分类/品牌 ID 同步冗余名称列；ID 缺省时回落到字符串（旧行为）
+        catalogService.syncCatalogNames(product, req.getCategoryId(), req.getBrandId(),
+                req.getCategory(), req.getBrand());
         product.setPrice(req.getPrice());
         product.setStock(req.getStock());
         product.setImageUrl(req.getImageUrl());
@@ -108,7 +118,9 @@ public class ProductService {
     public static class ProductSaveRequest {
         private String name;
         private String category;
+        private Long categoryId;
         private String brand;
+        private Long brandId;
         private BigDecimal price;
         private Integer stock;
         private String imageUrl;

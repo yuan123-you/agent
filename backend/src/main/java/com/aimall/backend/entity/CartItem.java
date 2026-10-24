@@ -16,6 +16,9 @@ public class CartItem {
 
     private Long productId;
 
+    /** SKU ID(0=无规格商品) */
+    private Long skuId;
+
     private Integer quantity;
 
     /** 勾选状态（结算用） */

@@ -33,6 +33,26 @@
       </div>
     </div>
 
+    <!-- 我的优惠券 -->
+    <div class="coupon-section">
+      <h3 class="section-title">🎫 我的优惠券</h3>
+      <div v-if="coupons.length" class="coupon-list">
+        <div v-for="c in coupons" :key="c.userCouponId" class="my-coupon" :class="c.status.toLowerCase()">
+          <div class="mc-amount"><i>￥</i>{{ c.discountValue }}</div>
+          <div class="mc-info">
+            <div class="mc-name">{{ c.name }}</div>
+            <div class="mc-rule">
+              {{ (c.minAmount || 0) > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }} · {{ (c.expireAt || '').slice(0, 10) }} 到期
+            </div>
+          </div>
+          <el-tag size="small" :type="c.status === 'UNUSED' ? 'danger' : 'info'" effect="plain">
+            {{ c.status === 'UNUSED' ? '可用' : c.status === 'USED' ? '已使用' : '已过期' }}
+          </el-tag>
+        </div>
+      </div>
+      <el-empty v-else description="还没有优惠券，去领券中心逛逛" :image-size="56" />
+    </div>
+
     <AddressBook compact title="我的常用收货地址" />
 
     <!-- 菜单 -->
@@ -57,16 +77,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRight, ChatDotRound, Clock, Goods, Location, ShoppingBag, ShoppingCart, Star, SwitchButton,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { apiMyCoupons } from '@/api'
+import type { MyCouponVO } from '@/types/api'
 import AddressBook from '@/components/address/AddressBook.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+const coupons = ref<MyCouponVO[]>([])
 
 const roleText = computed(
   () => ({ ADMIN: '管理员', AGENT: '人工客服', CUSTOMER: '买家', MERCHANT: '卖家' }[auth.role] || auth.role),
@@ -76,6 +99,10 @@ async function logout() {
   await auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  apiMyCoupons().then((list) => (coupons.value = list || [])).catch(() => {})
+})
 </script>
 
 <style scoped>
@@ -83,6 +110,75 @@ async function logout() {
   max-width: 720px;
   margin: 0 auto;
   padding: 20px 16px;
+}
+
+/* 我的优惠券 */
+.coupon-section {
+  background: #fff;
+  border-radius: var(--mall-radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-coupon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #ffe0d6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(120deg, #fff8f6, #fff);
+}
+
+.my-coupon.used,
+.my-coupon.expired {
+  border-color: #eef0f4;
+  background: #fafbfc;
+  filter: grayscale(0.4);
+}
+
+.mc-amount {
+  flex: none;
+  width: 72px;
+  text-align: center;
+  color: var(--el-color-danger);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.mc-amount i {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.mc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-rule {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
 }
 
 .user-card {

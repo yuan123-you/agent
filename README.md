@@ -24,6 +24,7 @@ AI Mall 是面向购物与客服场景的智能电商平台，由 **Vue 3 前端
 ## 核心能力
 
 - **完整电商链路**：商品浏览、收藏、购物车、地址簿、下单、支付、订单状态与评价。
+- **商城目录中心（对标 mall PMS）**：层级商品分类（导航栏/显示状态控制）、品牌库（logo、品牌故事）、SKU 规格库存（属性组合定价、独立库存、乐观锁防超卖）；下单、购物车与订单取消全链路支持 SKU，无规格商品自动回落商品级价格与库存。
 - **带来源的商品数据集**：当前 `products.jsonl` 包含 2,512 条记录，保留来源、图片摘要与采集元数据；交易字段包含模拟数据，不代表实时供应商库存与价格。
 - **多角色后台**：商家商品管理、客服工作台、管理员用户/订单/知识库/统计看板。
 - **AI 购物助手**：LangGraph 工具循环、SSE 流式输出、`mall://` 站内链接和工具调用卡片。
@@ -347,6 +348,7 @@ python backend/scripts/generate_kb_dataset.py
 | 说明 | 当前实现入口 |
 | --- | --- |
 | 订单生命周期 | [OrderService](backend/src/main/java/com/aimall/backend/order/OrderService.java)、[OrderTransition](backend/src/main/java/com/aimall/backend/order/OrderTransition.java) |
+| 商城目录（分类/品牌/SKU） | [CatalogService](backend/src/main/java/com/aimall/backend/product/CatalogService.java)、[CatalogController](backend/src/main/java/com/aimall/backend/product/CatalogController.java)、[AdminCatalogController](backend/src/main/java/com/aimall/backend/product/AdminCatalogController.java) |
 | AI 动作准备与确认 | [AgentOrderActionService](backend/src/main/java/com/aimall/backend/internal/AgentOrderActionService.java)、[OrderActionController](backend/src/main/java/com/aimall/backend/order/OrderActionController.java) |
 | Agent 流程 | [graph.py](ai-service/app/agent/graph.py) |
 | RAG 候选与证据 | [retrieval.py](ai-service/app/rag/retrieval.py)、[citations.py](ai-service/app/rag/citations.py) |

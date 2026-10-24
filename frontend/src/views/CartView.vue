@@ -12,6 +12,7 @@
           </el-image>
           <div class="info">
             <div class="name" @click="goDetail(row.productId)">{{ row.name }}</div>
+            <div v-if="row.skuSp" class="sku-tag">{{ spText(row.skuSp) }}</div>
             <div class="price">￥{{ row.price }}</div>
           </div>
           <div class="ops">
@@ -42,6 +43,14 @@
         <el-form-item label="商品">
           <span>共 {{ checkedCount }} 件，合计 <b class="amount">￥{{ totalAmount }}</b></span>
         </el-form-item>
+        <el-form-item label="优惠券">
+          <CouponPicker v-model="selectedCouponId" :amount="totalAmount"
+            @discount="(v) => (couponDiscountValue = v)" />
+        </el-form-item>
+        <el-form-item label="应付">
+          <span class="amount">￥{{ payableAmount }}</span>
+          <span v-if="couponDiscountValue > 0" class="discount-note">已优惠 ￥{{ couponDiscountValue }}</span>
+        </el-form-item>
         <el-form-item label="收货地址" class="addr-form-item">
           <CheckoutAddressPicker v-model="selectedAddressId" />
         </el-form-item>
@@ -59,6 +68,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
+import CouponPicker from '@/components/mall/CouponPicker.vue'
 import {
   apiCartCheckAll, apiCartCheckout, apiCartList, apiCartRemove, apiCartUpdate,
   apiPayOrder, type CartRow,
@@ -72,6 +82,11 @@ const checkedCount = ref(0)
 const showCheckout = ref(false)
 const submitting = ref(false)
 const selectedAddressId = ref<number>()
+const selectedCouponId = ref<number>()
+const couponDiscountValue = ref(0)
+const payableAmount = computed(() =>
+  Math.max(0, Number((totalAmount.value - couponDiscountValue.value).toFixed(2))),
+)
 
 const allChecked = computed(() => items.value.length > 0 && checkedCount.value === items.value.length)
 
@@ -112,6 +127,8 @@ async function remove(row: CartRow) {
 async function openCheckout() {
   showCheckout.value = true
   selectedAddressId.value = undefined
+  selectedCouponId.value = undefined
+  couponDiscountValue.value = 0
 }
 
 async function submit() {
@@ -121,7 +138,10 @@ async function submit() {
   }
   submitting.value = true
   try {
-    const order = await apiCartCheckout({ addressId: selectedAddressId.value })
+    const order = await apiCartCheckout({
+      addressId: selectedAddressId.value,
+      couponUserId: selectedCouponId.value,
+    })
     // 结算后直接完成支付，无需用户再次确认
     await apiPayOrder(order.orderId)
     ElMessage.success(`下单并模拟支付成功：${order.orderNo}`)
@@ -136,6 +156,16 @@ async function submit() {
 
 function goDetail(id: number) {
   router.push(`/products/${id}`)
+}
+
+/** SKU 属性 JSON 转 "颜色:黑色，容量:256G" */
+function spText(spData?: string): string {
+  try {
+    const arr = JSON.parse(spData || '[]') as { key: string; value: string }[]
+    return arr.map((e) => `${e.key}:${e.value}`).join('，')
+  } catch {
+    return spData || ''
+  }
 }
 
 onMounted(load)
@@ -202,8 +232,27 @@ onMounted(load)
   cursor: pointer;
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  -webkit-box-orient: vertical;  overflow: hidden;
+}
+
+.sku-tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  max-width: 100%;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discount-note {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--el-color-danger);
 }
 
 .price {

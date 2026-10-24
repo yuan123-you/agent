@@ -6,6 +6,9 @@
         <el-input v-model="keyword" placeholder="搜索商品/品牌/卖点" clearable style="width: 220px"
           @keyup.enter="reload" @clear="reload" />
         <el-input-number v-model="maxPrice" :min="0" :step="500" placeholder="价格上限" style="width: 140px" />
+        <el-select v-model="brandId" placeholder="全部品牌" clearable style="width: 150px" @change="reload">
+          <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
+        </el-select>
         <el-select v-model="sort" style="width: 150px" @change="reload">
           <el-option label="最新上架" value="created_desc" />
           <el-option label="价格从低到高" value="price_asc" />
@@ -31,9 +34,9 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { apiProducts } from '@/api'
+import { apiCatalogBrands, apiProducts } from '@/api'
 import ProductCard from '@/components/product/ProductCard.vue'
-import type { ProductVO } from '@/types/api'
+import type { BrandVO, ProductVO } from '@/types/api'
 
 const route = useRoute()
 
@@ -42,6 +45,13 @@ const loading = ref(false)
 const finished = ref(false)
 const keyword = ref((route.query.keyword as string) || '')
 const category = ref((route.query.category as string) || '')
+const categoryId = ref<number | undefined>(
+  route.query.categoryId ? Number(route.query.categoryId) : undefined,
+)
+const brandId = ref<number | undefined>(
+  route.query.brandId ? Number(route.query.brandId) : undefined,
+)
+const brands = ref<BrandVO[]>([])
 const maxPrice = ref<number | undefined>()
 const sort = ref('created_desc')
 const page = ref(1)
@@ -53,6 +63,8 @@ watch(
   () => {
     category.value = (route.query.category as string) || ''
     keyword.value = (route.query.keyword as string) || ''
+    categoryId.value = route.query.categoryId ? Number(route.query.categoryId) : undefined
+    brandId.value = route.query.brandId ? Number(route.query.brandId) : undefined
     reload()
   },
 )
@@ -71,6 +83,8 @@ async function load() {
   try {
     const params: Record<string, unknown> = { page: page.value, size: 20, sort: sort.value }
     if (category.value) params.category = category.value
+    if (categoryId.value) params.categoryId = categoryId.value
+    if (brandId.value) params.brandId = brandId.value
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
     if (maxPrice.value) params.maxPrice = maxPrice.value
     const result = await apiProducts(params)
@@ -90,7 +104,10 @@ function loadMore() {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  apiCatalogBrands().then((list) => (brands.value = list || [])).catch(() => {})
+  load()
+})
 </script>
 
 <style scoped>
@@ -127,7 +144,7 @@ onMounted(load)
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   min-height: 200px;
 }
@@ -140,9 +157,9 @@ onMounted(load)
 }
 
 /* 平板 */
-@media (max-width: 1024px) {
+@media (max-width: 1199px) {
   .grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

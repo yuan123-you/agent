@@ -30,7 +30,7 @@ class OrderLifecycleTest {
     private final OrderItemMapper items = mock(OrderItemMapper.class);
     private final ProductMapper products = mock(ProductMapper.class);
     private final OrderSseNotifier notifier = mock(OrderSseNotifier.class);
-    private final OrderService service = new OrderService(orders, items, products, notifier, mock(AddressService.class));
+    private final OrderService service = new OrderService(orders, items, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), notifier, mock(AddressService.class));
 
     private OrderInfo order(String state) {
         OrderInfo order = new OrderInfo();

@@ -34,7 +34,7 @@ class CartUpdateRequestValidationTest {
     private final CartItemMapper cart = mock(CartItemMapper.class);
     private final ProductMapper products = mock(ProductMapper.class);
     private final OrderService orders = mock(OrderService.class);
-    private final CartController controller = new CartController(cart, products, orders);
+    private final CartController controller = new CartController(cart, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), orders);
     private MockMvc mvc;
 
     @RestController static class QueryProbe {

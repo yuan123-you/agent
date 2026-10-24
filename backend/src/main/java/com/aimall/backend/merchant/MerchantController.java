@@ -40,6 +40,7 @@ public class MerchantController {
     private final ProductMapper productMapper;
     private final ProductReviewMapper reviewMapper;
     private final ProductImageService productImageService;
+    private final com.aimall.backend.product.CatalogService catalogService;
 
     /** 上架/编辑商品模板 */
     @Data
@@ -49,8 +50,12 @@ public class MerchantController {
         private String name;
         @NotBlank(message = "品牌为必填项")
         private String brand;
+        /** 品牌ID（与 brand 二选一，提供 ID 时以目录为准） */
+        private Long brandId;
         @NotBlank(message = "类目为必填项")
         private String category;
+        /** 分类ID（与 category 二选一，提供 ID 时以目录为准） */
+        private Long categoryId;
         @NotNull(message = "价格为必填项")
         @Min(value = 1, message = "价格须大于0")
         private BigDecimal price;
@@ -203,8 +208,8 @@ public class MerchantController {
 
     private void copyTemplate(ProductTemplate tpl, Product p) {
         p.setName(tpl.getName());
-        p.setBrand(tpl.getBrand());
-        p.setCategory(tpl.getCategory());
+        catalogService.syncCatalogNames(p, tpl.getCategoryId(), tpl.getBrandId(),
+                tpl.getCategory(), tpl.getBrand());
         p.setPrice(tpl.getPrice());
         p.setStock(tpl.getStock());
         p.setSellingPoints(tpl.getSellingPoints());

@@ -25,7 +25,7 @@ class CartRequestValidationTest {
     private final CartItemMapper cart = mock(CartItemMapper.class);
     private final ProductMapper products = mock(ProductMapper.class);
     private final OrderService orders = mock(OrderService.class);
-    private final CartController controller = new CartController(cart, products, orders);
+    private final CartController controller = new CartController(cart, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), orders);
     private MockMvc mvc() {
         return MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
@@ -94,26 +94,26 @@ class CartRequestValidationTest {
     void legacyIntegralAddJsonRemainsSuccessful(String quantityToken) throws Exception {
         var product = new Product(); product.setId(10L); product.setStock(1000); product.setStatus("ON_SALE");
         when(products.selectById(10L)).thenReturn(product);
-        when(cart.increment(null, 10L, 2)).thenReturn(1);
+        when(cart.increment(null, 10L, 0L, 2)).thenReturn(1);
         mvc().perform(post("/api/v1/cart/items").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"productId\":10.0,\"quantity\":" + quantityToken + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(0));
-        verify(products).selectById(10L); verify(cart).increment(null, 10L, 2); verifyNoInteractions(orders);
+        verify(products).selectById(10L); verify(cart).increment(null, 10L, 0L, 2); verifyNoInteractions(orders);
     }
 
     @Test void integralCheckoutJsonKeepsLongPrecisionZeroPriceAndNoGlobal99Cap() throws Exception {
         long productId = 9007199254740993L;
         long addressId = Long.MAX_VALUE;
-        var expected = List.of(new OrderService.CheckoutItem(productId, 150));
+        var expected = List.of(new OrderService.CheckoutItem(productId, 0L, 150));
         var order = new OrderInfo(); order.setId(30L); order.setOrderNo("ORD-30"); order.setStatus("PENDING_PAYMENT"); order.setTotalAmount(new BigDecimal("0.00"));
         when(cart.selectList(any())).thenReturn(List.of());
-        when(orders.checkout(null, expected, addressId, null, null, null)).thenReturn(order);
+        when(orders.checkout(null, expected, addressId, null, null, null, null)).thenReturn(order);
         mvc().perform(post("/api/v1/cart/checkout").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"items\":[{\"productId\":9007199254740993.0,\"quantity\":1.5e2}],\"addressId\":9223372036854775807.0}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.orderId").value(30)).andExpect(jsonPath("$.data.orderNo").value("ORD-30"))
                 .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT")).andExpect(jsonPath("$.data.totalAmount").value(0));
-        verify(orders).checkout(null, expected, addressId, null, null, null);
+        verify(orders).checkout(null, expected, addressId, null, null, null, null);
         verify(cart, never()).delete(any()); verifyNoInteractions(products);
     }
 
@@ -136,7 +136,7 @@ class CartRequestValidationTest {
 
     @Test void unrelatedRuntimeFailuresRemain500RatherThanBeingReclassifiedAsUnreadableJson() throws Exception {
         when(cart.selectList(any())).thenReturn(List.of());
-        when(orders.checkout(any(), anyList(), any(), any(), any(), any()))
+        when(orders.checkout(any(), anyList(), any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("internal-private-marker"));
         var result = mvc().perform(post("/api/v1/cart/checkout").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"items\":[{\"productId\":10,\"quantity\":2}]}"))

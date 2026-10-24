@@ -37,7 +37,9 @@ export interface ProductVO {
   id: number
   name: string
   category: string
+  categoryId?: number
   brand: string
+  brandId?: number
   price: number
   stock: number
   imageUrl?: string
@@ -51,6 +53,101 @@ export interface ProductVO {
   sales?: number
   status?: string
   createdAt?: string
+}
+
+/** 商品分类（对标 mall pms_product_category） */
+export interface CategoryVO {
+  id: number
+  parentId: number
+  name: string
+  level: number
+  icon?: string
+  sort?: number
+  navStatus?: number
+  showStatus?: number
+  description?: string
+  children?: CategoryVO[]
+  productCount?: number
+}
+
+/** 品牌（对标 mall pms_brand） */
+export interface BrandVO {
+  id: number
+  name: string
+  firstLetter?: string
+  logo?: string
+  bigPic?: string
+  brandStory?: string
+  sort?: number
+  showStatus?: number
+  productCount?: number
+}
+
+/** SKU 规格库存（对标 mall pms_sku_stock） */
+export interface SkuVO {
+  id: number
+  productId: number
+  skuCode?: string
+  /** 销售属性JSON：[{"key":"颜色","value":"黑色"}] */
+  spData?: string
+  price: number
+  stock: number
+  lowStock?: number
+  pic?: string
+  sale?: number
+  status: string
+}
+
+/** 可领优惠券（对标 mall sms_coupon） */
+export interface CouponVO {
+  couponId: number
+  name: string
+  discountValue: number
+  minAmount: number
+  totalCount: number
+  receivedCount: number
+  startTime?: string
+  endTime?: string
+  received?: boolean
+}
+
+/** 我的优惠券 */
+export interface MyCouponVO {
+  userCouponId: number
+  couponId: number
+  name?: string
+  discountValue?: number
+  minAmount?: number
+  status: 'UNUSED' | 'USED' | 'EXPIRED'
+  receivedAt: string
+  expireAt: string
+  usedOrderId?: number
+}
+
+/** 结算可用券预览 */
+export interface UsableCouponVO {
+  userCouponId: number
+  name: string
+  discountValue: number
+  minAmount: number
+  expireAt: string
+  usable: boolean
+  discount: number
+}
+
+/** 秒杀活动（对标 mall sms_seckill） */
+export interface SeckillVO {
+  seckillId: number
+  productId: number
+  name: string
+  imageUrl?: string
+  originalPrice: number
+  seckillPrice: number
+  seckillStock: number
+  seckillLimit: number
+  startTime: string
+  endTime: string
+  started: boolean
 }
 
 export interface OrderItemVO {

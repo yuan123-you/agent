@@ -2,7 +2,9 @@ import { API_BASE } from '@/api/base'
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, AdminDashboardVO, ConversationVO, CustomerRegistration, KbDocVO, LoginResp, MerchantRegistration, OrderAction, OrderApprovalForm, OrderVO, PageResult, ProductVO, StatsVO, UserInfo, WorkbenchSla,
+  AddressVO, AdminDashboardVO, BrandVO, CategoryVO, ConversationVO, CouponVO, CustomerRegistration,
+  KbDocVO, LoginResp, MerchantRegistration, MyCouponVO, OrderAction, OrderApprovalForm, OrderVO,
+  PageResult, ProductVO, SeckillVO, SkuVO, StatsVO, UsableCouponVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
 
 // ---------- 认证 ----------
@@ -23,11 +25,58 @@ export const apiProducts = (params: Record<string, unknown>) =>
 export const apiProductDetail = (id: number) => get<ProductVO>(`/products/${id}`)
 export const apiCategories = () => get<string[]>('/products/categories')
 
+// ---------- 商城目录（分类/品牌/SKU，对标 mall PMS） ----------
+export const apiCatalogCategories = () => get<CategoryVO[]>('/catalog/categories')
+export const apiCatalogBrands = () => get<BrandVO[]>('/catalog/brands')
+export const apiCatalogProductSkus = (productId: number) =>
+  get<SkuVO[]>(`/catalog/products/${productId}/skus`)
+export const apiAdminCatalogCategories = () => get<CategoryVO[]>('/admin/catalog/categories')
+export const apiAdminCategoryCreate = (data: Partial<CategoryVO>) =>
+  post<number>('/admin/catalog/categories', data)
+export const apiAdminCategoryUpdate = (id: number, data: Partial<CategoryVO>) =>
+  put<void>(`/admin/catalog/categories/${id}`, data)
+export const apiAdminCategoryDelete = (id: number) => del<void>(`/admin/catalog/categories/${id}`)
+export const apiAdminBrands = () => get<BrandVO[]>('/admin/catalog/brands')
+export const apiAdminBrandCreate = (data: Partial<BrandVO>) => post<number>('/admin/catalog/brands', data)
+export const apiAdminBrandUpdate = (id: number, data: Partial<BrandVO>) =>
+  put<void>(`/admin/catalog/brands/${id}`, data)
+export const apiAdminBrandDelete = (id: number) => del<void>(`/admin/catalog/brands/${id}`)
+export const apiAdminSkus = (productId: number) => get<SkuVO[]>(`/admin/catalog/products/${productId}/skus`)
+export const apiAdminSkuCreate = (productId: number, data: Partial<SkuVO>) =>
+  post<number>(`/admin/catalog/products/${productId}/skus`, data)
+export const apiAdminSkuUpdate = (productId: number, skuId: number, data: Partial<SkuVO>) =>
+  put<void>(`/admin/catalog/products/${productId}/skus/${skuId}`, data)
+export const apiAdminSkuDelete = (productId: number, skuId: number) =>
+  del<void>(`/admin/catalog/products/${productId}/skus/${skuId}`)
+
+// ---------- 营销（券 + 秒杀，对标 mall SMS） ----------
+export const apiReceivableCoupons = () => get<CouponVO[]>('/promotions/coupons')
+export const apiReceiveCoupon = (couponId: number) =>
+  post<number>(`/promotions/coupons/${couponId}/receive`)
+export const apiMyCoupons = () => get<MyCouponVO[]>('/promotions/my-coupons')
+export const apiUsableCoupons = (amount: number) =>
+  get<UsableCouponVO[]>('/promotions/usable-coupons', { params: { amount } })
+export const apiSeckills = () => get<SeckillVO[]>('/promotions/seckills')
+export const apiAdminCoupons = () =>
+  get<Array<Record<string, unknown>>>('/admin/promotions/coupons')
+export const apiAdminCouponCreate = (data: Record<string, unknown>) =>
+  post<number>('/admin/promotions/coupons', data)
+export const apiAdminCouponUpdate = (id: number, data: Record<string, unknown>) =>
+  put<void>(`/admin/promotions/coupons/${id}`, data)
+export const apiAdminCouponDelete = (id: number) => del<void>(`/admin/promotions/coupons/${id}`)
+export const apiAdminSeckills = () =>
+  get<Array<Record<string, unknown>>>('/admin/promotions/seckills')
+export const apiAdminSeckillCreate = (data: Record<string, unknown>) =>
+  post<number>('/admin/promotions/seckills', data)
+export const apiAdminSeckillUpdate = (id: number, data: Record<string, unknown>) =>
+  put<void>(`/admin/promotions/seckills/${id}`, data)
+export const apiAdminSeckillDelete = (id: number) => del<void>(`/admin/promotions/seckills/${id}`)
+
 // ---------- 购物车 ----------
-export const apiCartAdd = (productId: number, quantity: number) =>
-  post<void>('/cart/items', { productId, quantity })
+export const apiCartAdd = (productId: number, quantity: number, skuId?: number) =>
+  post<void>('/cart/items', { productId, quantity, skuId: skuId || 0 })
 export interface CartRow {
-  cartItemId: number; productId: number; name: string; imageUrl: string
+  cartItemId: number; productId: number; skuId?: number; skuSp?: string; name: string; imageUrl: string
   price: number; quantity: number; checked: number; stock: number; subtotal: number
 }
 export const apiCartList = () =>
@@ -38,6 +87,7 @@ export const apiCartCheckAll = (checked: boolean) => put<void>('/cart/check-all'
 export const apiCartRemove = (id: number) => del<void>(`/cart/items/${id}`)
 export interface CheckoutDeliveryPayload {
   addressId?: number
+  couponUserId?: number
   receiverName?: string
   receiverPhone?: string
   receiverAddress?: string
@@ -99,9 +149,9 @@ export const apiAdminProductStatus = (id: number, status: string) =>
 // ---------- 订单 ----------
 export interface CreateOrderPayload extends CheckoutDeliveryPayload {
   productId: number
+  skuId?: number
   quantity: number
-}
-export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
+}export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
 export const apiPayOrder = (id: number) => post<void>(`/orders/${id}/pay`)
 export const apiCancelOrder = (id: number) => post<void>(`/orders/${id}/cancel`)
 export const apiMyOrders = (params: Record<string, unknown>) =>

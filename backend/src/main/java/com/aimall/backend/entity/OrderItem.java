@@ -18,6 +18,15 @@ public class OrderItem {
 
     private Long productId;
 
+    /** SKU ID(NULL=无规格商品) */
+    private Long skuId;
+
+    /** SKU销售属性快照JSON */
+    private String skuSp;
+
+    /** 秒杀活动ID(NULL=非秒杀下单) */
+    private Long seckillId;
+
     /** 商品名快照 */
     private String productName;
 

@@ -94,7 +94,7 @@ class OrderLifecycleTransactionTest {
                         if ("selectById".equals(method.getName()) && barrier != null) barrier.await(5, TimeUnit.SECONDS);
                         return value;
                     });
-            return new OrderService(observed, items, products, notifier, mock(AddressService.class));
+            return new OrderService(observed, items, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), notifier, mock(AddressService.class));
         }
     }
 
@@ -200,8 +200,8 @@ class OrderLifecycleTransactionTest {
     @Test void checkoutAnnouncesOnlyAfterOuterCommit() {
         TransactionTemplate tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
         tx.executeWithoutResult(status -> {
-            service.checkout(7L, List.of(new OrderService.CheckoutItem(1L, 1)), null,
-                    "Test Buyer", "13800000000", "Test address");
+            service.checkout(7L, List.of(new OrderService.CheckoutItem(1L, 0L, 1)), null,
+                    "Test Buyer", "13800000000", "Test address", null);
             verifyNoInteractions(notifier);
         });
         verify(notifier).publish(any(OrderInfo.class));
@@ -211,8 +211,8 @@ class OrderLifecycleTransactionTest {
     @Test void checkoutOuterRollbackRestoresStockAndCreatedRowsWithoutNotification() {
         TransactionTemplate tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
         assertThrows(IllegalStateException.class, () -> tx.executeWithoutResult(status -> {
-            service.checkout(7L, List.of(new OrderService.CheckoutItem(1L, 1)), null,
-                    "Test Buyer", "13800000000", "Test address");
+            service.checkout(7L, List.of(new OrderService.CheckoutItem(1L, 0L, 1)), null,
+                    "Test Buyer", "13800000000", "Test address", null);
             throw new IllegalStateException("outer checkout failure");
         }));
         assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));

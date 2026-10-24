@@ -1,5 +1,6 @@
 <template>
   <el-container class="merchant-layout">
+    <!-- 桌面/平板侧栏 -->
     <el-aside width="200px" class="aside">
       <div class="logo">🏪 卖家中心</div>
       <div class="shop-card">
@@ -16,27 +17,53 @@
       </div>
     </el-aside>
     <el-container>
+      <el-header class="header">
+        <el-button class="menu-toggle" text :icon="Menu" @click="drawer = true" />
+        <span class="title mobile-only">🏪 卖家中心</span>
+        <span class="spacer" />
+        <span class="welcome">{{ profile?.shopName || auth.user?.nickname }}</span>
+        <el-button link type="danger" @click="logout">退出</el-button>
+      </el-header>
       <el-main class="main">
         <router-view />
       </el-main>
     </el-container>
+
+    <!-- 移动端抽屉菜单 -->
+    <el-drawer v-model="drawer" title="🏪 卖家中心" direction="ltr" size="72vw">
+      <div class="drawer-shop">
+        <div class="shop-name">{{ profile?.shopName || '...' }}</div>
+        <div class="shop-meta">在售 {{ profile?.onSaleCount ?? '-' }} / 共 {{ profile?.totalProducts ?? '-' }}</div>
+      </div>
+      <el-menu :default-active="activeMenu" router class="drawer-menu" @select="drawer = false">
+        <el-menu-item index="/merchant/products">商品管理</el-menu-item>
+        <el-menu-item index="/merchant/reviews">评论回复</el-menu-item>
+      </el-menu>
+      <div class="drawer-footer">
+        <el-button @click="$router.push('/'); drawer = false">回商城</el-button>
+        <el-button type="danger" plain @click="logout">退出</el-button>
+      </div>
+    </el-drawer>
   </el-container>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Menu } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { apiMerchantProfile } from '@/api'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const drawer = ref(false)
 const profile = ref<{ shopName: string; onSaleCount: number; totalProducts: number } | null>(null)
 
 const activeMenu = computed(() => '/' + (route.path.split('/')[2] || 'products'))
 
 async function logout() {
+  drawer.value = false
   await auth.logout()
   router.push('/login')
 }
@@ -98,46 +125,103 @@ onMounted(async () => {
   border-top: 1px solid #f5f7fa;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  height: 56px;
+}
+
+.menu-toggle {
+  display: none;
+  font-size: 20px;
+}
+
+.title {
+  font-weight: 700;
+  color: var(--el-color-primary);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.welcome {
+  min-width: 0;
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .main {
   overflow-y: auto;
   background: #f5f7fa;
 }
 
-@media (max-width: 768px) {
-  .merchant-layout {
-    flex-direction: column;
-  }
+.drawer-shop {
+  padding: 0 4px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  margin-bottom: 8px;
+}
 
+.drawer-menu {
+  border-right: none;
+}
+
+.drawer-footer {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.drawer-footer .el-button {
+  flex: 1;
+}
+
+/* ---------- 平板：紧凑侧栏 ---------- */
+@media (max-width: 1199px) and (min-width: 769px) {
   .aside {
-    width: 100% !important;
-    height: auto;
-    flex-shrink: 0;
-    border-right: 0;
-    border-bottom: 1px solid #e4e7ed;
+    width: 64px !important;
   }
 
-  .menu {
-    display: flex;
-    flex-wrap: wrap;
+  .aside .logo {
+    font-size: 14px;
   }
 
-  .logo {
-    height: 44px;
+  .shop-card {
+    display: none;
+  }
+
+  .aside :deep(.el-menu-item) {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .aside-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* ---------- 手机：抽屉菜单 ---------- */
+@media (max-width: 768px) {
+  .aside {
+    display: none;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
   }
 
   .main {
     padding: 12px;
-  }
-
-  .shop-card,
-  .aside-footer {
-    display: none;
-  }
-
-  :deep(.el-menu-item) {
-    padding: 0 16px;
-    flex: 1 0 auto;
-    justify-content: center;
   }
 }
 </style>

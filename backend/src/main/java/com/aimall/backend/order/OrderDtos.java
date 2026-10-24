@@ -18,6 +18,12 @@ public class OrderDtos {
         @NotNull
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long productId;
+        /** SKU ID（可空=无规格商品，走商品级价格与库存） */
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long skuId;
+        /** 用户优惠券ID（可空=不使用优惠券） */
+        @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
+        private Long couponUserId;
         @NotNull
         @Min(1)
         @Max(99)
