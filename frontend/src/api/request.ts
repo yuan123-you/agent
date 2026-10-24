@@ -64,6 +64,11 @@ instance.interceptors.response.use(
     const body = error.response?.data
     const code = body?.code
     if (status === 401 || code === 1003) {
+      // 登录接口的 401 = 凭据错误，展示具体原因而非触发「未登录」跳转
+      if (error.config?.url?.includes('/auth/login')) {
+        ElMessage.error(body?.message || '用户名或密码错误')
+        return Promise.reject(body)
+      }
       const token = await tryRefresh()
       if (token) {
         return instance(error.config)

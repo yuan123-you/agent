@@ -28,9 +28,9 @@
             <span v-if="seckill" class="seckill-tag">⚡ 秒杀价</span>
             <span v-else class="price-label">价　格</span>
             <span class="price-main">
-              <i>￥</i><template v-if="selectedSku">{{ selectedSku.price }}</template><template v-else>{{ displayPrice }}</template>
+              <i>￥</i>{{ unitPrice }}
             </span>
-            <span v-if="seckill" class="price-origin">￥{{ selectedSku?.price || product.price }}</span>
+            <span v-if="seckill" class="price-origin">￥{{ displayPrice }}</span>
             <span v-else-if="skus.length > 1 && selectedSku" class="price-range">起价 ￥{{ minSkuPrice }}</span>
             <span class="sales-tip">已售 {{ product.sales || 0 }} 件</span>
           </div>
@@ -344,10 +344,12 @@ const minSkuPrice = computed(() => {
 /** 秒杀展示原价（无 SKU 商品为商品价） */
 const displayPrice = computed(() => seckill.value ? minSkuPrice.value : product.value?.price || 0)
 const stockLimit = computed(() => {
+  // 秒杀中：可购数量 = min(秒杀专属库存, 限购)；与商品/SKU 原库存无关（后端秒杀仅扣秒杀库存）
+  if (seckill.value) {
+    return Math.min(seckill.value.seckillStock, seckill.value.seckillLimit)
+  }
   const limit = selectedSku.value ? selectedSku.value.stock : product.value?.stock || 0
-  const capped = Math.min(99, Math.max(0, limit))
-  // 秒杀限购优先
-  return seckill.value ? Math.min(capped, seckill.value.seckillLimit) : capped
+  return Math.min(99, Math.max(0, limit))
 })
 /** 有规格但未选完整 或 选中规格缺货 → 阻断购买 */
 const buyBlocked = computed(() => skuGroups.value.length > 0 && (!selectedSku.value || selectedSku.value.stock === 0))
@@ -358,7 +360,7 @@ function pickSpec(key: string, value: string) {
 }
 
 // ---------- 秒杀与优惠券 ----------
-const seckill = ref<{ seckillId: number; seckillPrice: number; seckillLimit: number } | null>(null)
+const seckill = ref<{ seckillId: number; seckillPrice: number; seckillStock: number; seckillLimit: number } | null>(null)
 const selectedCouponId = ref<number>()
 const couponDiscountValue = ref(0)
 
@@ -398,6 +400,7 @@ onMounted(async () => {
       seckill.value = {
         seckillId: mine.seckillId,
         seckillPrice: mine.seckillPrice,
+        seckillStock: mine.seckillStock,
         seckillLimit: mine.seckillLimit,
       }
     }

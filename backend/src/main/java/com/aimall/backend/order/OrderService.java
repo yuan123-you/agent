@@ -64,12 +64,14 @@ public class OrderService {
         if (seckill != null) {
             promotionService.validateSeckill(seckill, req.getQuantity());
         }
-        deductStock(product, req.getQuantity());
-        if (sku != null) {
-            deductSkuStock(sku, req.getQuantity());
-        }
         if (seckill != null) {
+            // 秒杀下单：仅扣秒杀专属库存（mall 模式），不占用商品/SKU 常规库存
             promotionService.deductSeckillStock(seckill, req.getQuantity());
+        } else {
+            deductStock(product, req.getQuantity());
+            if (sku != null) {
+                deductSkuStock(sku, req.getQuantity());
+            }
         }
 
         // 订单 + 明细（价格名称快照）
@@ -128,6 +130,11 @@ public class OrderService {
         transition(order, OrderTransition.CANCEL, new OrderInfo());
         // Only the winning cancellation can restore inventory, in the same transaction.
         for (OrderItem item : itemsOf(order.getId())) {
+            if (item.getSeckillId() != null) {
+                // 秒杀订单：只回补秒杀专属库存（下单时未占用商品/SKU 常规库存）
+                promotionService.restockSeckill(item.getSeckillId(), item.getQuantity());
+                continue;
+            }
             Product product = productMapper.selectById(item.getProductId());
             if (product != null) {
                 restock(product, item.getQuantity());
@@ -137,9 +144,6 @@ public class OrderService {
                 if (sku != null) {
                     restockSku(sku, item.getQuantity());
                 }
-            }
-            if (item.getSeckillId() != null) {
-                promotionService.restockSeckill(item.getSeckillId(), item.getQuantity());
             }
         }
         // 优惠券回退为未使用
@@ -286,12 +290,14 @@ public class OrderService {
             if (seckill != null) {
                 promotionService.validateSeckill(seckill, ci.quantity());
             }
-            deductStock(product, ci.quantity());
-            if (sku != null) {
-                deductSkuStock(sku, ci.quantity());
-            }
             if (seckill != null) {
+                // 秒杀下单：仅扣秒杀专属库存
                 promotionService.deductSeckillStock(seckill, ci.quantity());
+            } else {
+                deductStock(product, ci.quantity());
+                if (sku != null) {
+                    deductSkuStock(sku, ci.quantity());
+                }
             }
             BigDecimal unitPrice = seckill != null ? seckill.getSeckillPrice()
                     : (sku != null ? sku.getPrice() : product.getPrice());
