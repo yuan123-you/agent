@@ -110,7 +110,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ChatDotRound, Search, ShoppingBag } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { CATEGORIES } from '@/constants/categories'
+import { CATEGORIES, categoryName } from '@/constants/categories'
 import { apiCatalogCategories } from '@/api'
 import type { CategoryVO } from '@/types/api'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
@@ -144,7 +144,7 @@ onMounted(async () => {
     if (tree && tree.length) {
       navCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
         key: String(c.id),
-        name: c.name,
+        name: categoryName(c.name),
         icon: c.icon || '',
         query: { categoryId: String(c.id) },
       }))

@@ -139,7 +139,9 @@
           <el-button type="primary" @click="openCategoryCreate()">新增一级分类</el-button>
         </div>
         <el-table :data="categoryTree" border row-key="id" default-expand-all>
-          <el-table-column prop="name" label="分类名称" min-width="160" />
+          <el-table-column label="分类名称" min-width="160">
+            <template #default="{ row }">{{ categoryName(row.name) }}</template>
+          </el-table-column>
           <el-table-column label="在售商品" width="90">
             <template #default="{ row }">{{ row.productCount || 0 }}</template>
           </el-table-column>
