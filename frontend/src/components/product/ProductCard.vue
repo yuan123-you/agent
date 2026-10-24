@@ -87,7 +87,7 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
 .name {
   font-weight: 600;
   margin-top: 8px;
-  font-size: 14px;
+  font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

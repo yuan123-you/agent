@@ -266,10 +266,10 @@ async function onCommand(cmd: string) {
 
 /* ================= 顶部通栏 ================= */
 .shop-topbar {
-  background: var(--mall-surface-2, #f7f8fa);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
+  background: #2f3430;
+  border-bottom: 0;
   font-size: 12px;
-  color: var(--el-text-color-secondary, #6b7280);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .topbar-inner {
@@ -294,7 +294,7 @@ async function onCommand(cmd: string) {
 }
 
 .tb-link:hover {
-  color: var(--el-color-primary);
+  color: #fff;
 }
 
 .user-name {

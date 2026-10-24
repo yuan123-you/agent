@@ -5,26 +5,26 @@
    ========================================================================== */
 
 :root {
-  /* 品牌色 */
-  --mall-primary: #4f7cff;
-  --mall-primary-dark: #3a63e0;
-  --mall-gradient: linear-gradient(120deg, #4f7cff, #8f6bff);
-  --mall-gradient-soft: linear-gradient(120deg, rgba(79, 124, 255, 0.08), rgba(143, 107, 255, 0.08));
+  /* 品牌色：京东红经典电商 */
+  --mall-primary: #e4393c;
+  --mall-primary-dark: #c81623;
+  --mall-gradient: linear-gradient(90deg, #e4393c, #f0433f);
+  --mall-gradient-soft: linear-gradient(120deg, rgba(228, 57, 60, 0.08), rgba(255, 106, 61, 0.08));
 
-  /* 电商语义色（价格/促销统一京东红系） */
+  /* 电商语义色 */
   --mall-price: #e4393c;
   --mall-price-bg: #fff2f2;
   --mall-cta: linear-gradient(90deg, #ff6034, #ee0a24);
   --mall-cta-hover: linear-gradient(90deg, #ff7048, #ff2233);
 
-  /* Element 主色对齐（覆盖默认 #409eff） */
-  --el-color-primary: #4f7cff;
-  --el-color-primary-light-3: #7d9bff;
-  --el-color-primary-light-5: #a7bfff;
-  --el-color-primary-light-7: #cdd9ff;
-  --el-color-primary-light-8: #dfe6ff;
-  --el-color-primary-light-9: #eff3ff;
-  --el-color-primary-dark-2: #3a63e0;
+  /* Element 主色对齐京东红 */
+  --el-color-primary: #e4393c;
+  --el-color-primary-light-3: #ea6669;
+  --el-color-primary-light-5: #f19c9e;
+  --el-color-primary-light-7: #f7cfd0;
+  --el-color-primary-light-8: #fae2e3;
+  --el-color-primary-light-9: #fdf0f0;
+  --el-color-primary-dark-2: #c81623;
 
   /* 面板/页面底色（浅色主题） */
   --mall-page-bg: #f4f5f7;
@@ -42,6 +42,12 @@
   --mall-container: 1200px;
   --mall-header-h: 88px;
   --mall-catbar-h: 40px;
+
+  /* 字号层级节奏 */
+  --fs-floor-title: 22px;
+  --fs-body: 14px;
+  --fs-secondary: 13px;
+  --fs-caption: 12px;
 }
 
 /* ---------- 深色主题（html.dark，配合 Element dark css-vars） ---------- */
@@ -55,7 +61,7 @@ html.dark {
   --mall-shadow-float: 0 4px 16px rgba(79, 124, 255, 0.35);
 
   /* Element 暗色微调：主色在暗底上略提亮 */
-  --el-color-primary: #6b91ff;
+  --el-color-primary: #f0565a;
   --el-bg-color: #1c1e24;
   --el-bg-color-overlay: #22252d;
 }
@@ -92,6 +98,11 @@ body,
   background: var(--mall-page-bg, #f5f7fa);
   color: var(--el-text-color-primary, #303133);
   -webkit-font-smoothing: antialiased;
+}
+
+/* 顶部深色通栏（京东式） */
+html.dark .shop-topbar {
+  background: #141519;
 }
 
 /* ---------- 通用卡片 ---------- */
@@ -137,6 +148,11 @@ body,
 @media (max-width: 768px) {
   .tablet-only { display: none !important; }
   .mobile-only { display: initial; }
+}
+
+/* 顶部深色通栏（京东式） */
+html.dark .shop-topbar {
+  background: #141519;
 }
 
 /* ---------- 通用卡片 ---------- */

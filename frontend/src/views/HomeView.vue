@@ -127,7 +127,13 @@
       </div>
     </section>
 
-    <!-- ============ 商品楼层 ============ -->
+    <!-- ============ 商品楼层（加载中显示骨架，避免首屏空白断层） ============ -->
+    <section v-if="loading && floors.length === 0" class="container floor">
+      <div class="floor-skeleton">
+        <div v-for="n in 10" :key="n" class="mall-skeleton sk-card" />
+      </div>
+    </section>
+
     <section v-for="f in floors" :key="f.code" class="container floor">
       <div class="floor-head">
         <h3><i class="bar-accent" />{{ f.name }}</h3>
@@ -174,7 +180,7 @@ const bannerHeight = computed(() =>
 )
 
 const banners = [
-  { title: '数码焕新季', desc: '旗舰影像 · 折上折', emoji: '📱', bg: 'linear-gradient(120deg, #4f7cff, #8f6bff)', link: '/products?category=PHONE' },
+  { title: '数码焕新季', desc: '旗舰影像 · 折上折', emoji: '📱', bg: 'linear-gradient(120deg, #e4393c, #ff7a59)', link: '/products?category=PHONE' },
   { title: '家电狂欢周', desc: '一级能效 · 以旧换新', emoji: '🧺', bg: 'linear-gradient(120deg, #12b7a3, #48c9b0)', link: '/products?category=APPLIANCE' },
   { title: '生鲜直达', desc: '产地直发 · 新鲜到家', emoji: '🍎', bg: 'linear-gradient(120deg, #ff7a59, #ffb347)', link: '/products?category=FOOD' },
 ]
@@ -523,8 +529,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--fs-floor-title, 22px);
+  font-weight: 800;
+  letter-spacing: 0.5px;
 }
 
 .bar-accent {
@@ -747,8 +754,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(120deg, #eef3ff, #f6efff);
-  border: 1px solid #dde6ff;
+  background: linear-gradient(120deg, #fff4f0, #fdeef0);
+  border: 1px solid #ffd8d2;
   border-radius: var(--mall-radius);
   padding: 16px 20px;
   cursor: pointer;
@@ -771,6 +778,18 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--el-text-color-secondary, #909399);
   margin-top: 2px;
+}
+
+/* 楼层骨架屏 */
+.floor-skeleton {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sk-card {
+  height: 260px;
+  border-radius: var(--mall-radius, 8px);
 }
 
 /* ================= 楼层栅格 ================= */
