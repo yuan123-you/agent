@@ -90,7 +90,7 @@
     <!-- ============ 子页面精简头部 ============ -->
     <header v-else class="sub-header">
       <el-button :icon="ArrowLeft" circle size="small" @click="goBack" />
-      <span class="sub-title">{{ subTitle }}</span>
+      <span v-if="route.path !== '/products'" class="sub-title">{{ subTitle }}</span>
       <div class="spacer" />
       <ThemeToggle />
       <el-button text :type="route.path.startsWith('/assistant') ? 'primary' : ''"

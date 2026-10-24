@@ -1,11 +1,14 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
     <div class="product-list">
-      <!-- 面包屑 -->
-      <div class="crumbs">
-        <span @click="$router.push('/')">首页</span>
-        <span class="sep">›</span>
-        <span class="cur">{{ listTitle }}</span>
+      <!-- 常驻搜索框：随时在本页改词搜索 -->
+      <div class="list-search">
+        <input v-model="keywordInput" class="search-input" type="text"
+          placeholder="搜索商品 / 品牌 / 卖点" @keyup.enter="doSearch" />
+        <button class="search-btn" @click="doSearch">
+          <el-icon :size="16"><Search /></el-icon>
+          <span>搜索</span>
+        </button>
       </div>
 
       <div class="list-body">
@@ -53,7 +56,6 @@
               价格 <i class="arr" :class="{ up: sort === 'price_asc' }">{{ sort === 'price_asc' ? '↑' : '↓' }}</i>
             </span>
             <span class="sort-item" :class="{ active: sort === 'newest' }" @click="setSort('newest')">新品</span>
-            <span class="sort-meta">共 {{ total }} 件商品</span>
           </div>
 
           <!-- 商品栅格 -->
@@ -74,6 +76,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { Search } from '@element-plus/icons-vue'
 import { apiCatalogBrands, apiCatalogCategories, apiProducts } from '@/api'
 import ProductCard from '@/components/product/ProductCard.vue'
 import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
@@ -85,6 +88,7 @@ const products = ref<ProductVO[]>([])
 const loading = ref(false)
 const finished = ref(false)
 const keyword = ref((route.query.keyword as string) || '')
+const keywordInput = ref(keyword.value)
 const category = ref((route.query.category as string) || '')
 const categoryId = ref<number | undefined>(
   route.query.categoryId ? Number(route.query.categoryId) : undefined,
@@ -142,6 +146,11 @@ function applyPrice() {
   reload()
 }
 
+function doSearch() {
+  // 搜索时重置分类/品牌筛选（对齐主流电商搜索动线）
+  routerPush({ keyword: keywordInput.value.trim() })
+}
+
 function setSort(s: string) {
   sort.value = s === 'newest' ? 'created_desc' : s
   reload()
@@ -153,6 +162,10 @@ function togglePrice() {
 }
 
 function routerReplace(query: Record<string, string>) {
+  useSafeReplace(query)
+}
+
+function routerPush(query: Record<string, string>) {
   useSafeReplace(query)
 }
 
@@ -242,27 +255,54 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-/* 面包屑 */
-.crumbs {
-  font-size: 13px;
-  color: var(--el-text-color-secondary, #909399);
-  margin-bottom: 10px;
+/* 常驻搜索框 */
+.list-search {
+  display: flex;
+  height: 40px;
+  margin-bottom: 12px;
+  border: 2px solid var(--el-color-primary);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--mall-surface, #fff);
 }
 
-.crumbs span:first-child {
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 0 14px;
+  font-size: 14px;
+  color: inherit;
+  background: transparent;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 0 22px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 14px;
   cursor: pointer;
+  transition: filter 0.15s;
 }
 
-.crumbs span:first-child:hover {
-  color: var(--el-color-primary);
+.search-btn:hover {
+  filter: brightness(1.08);
 }
 
-.crumbs .sep {
-  margin: 0 6px;
-}
+@media (max-width: 768px) {
+  .list-search {
+    height: 36px;
+    margin-bottom: 10px;
+  }
 
-.crumbs .cur {
-  color: var(--el-text-color-primary, #303133);
+  .search-btn {
+    padding: 0 14px;
+  }
 }
 
 /* 双栏 */
@@ -396,11 +436,6 @@ onMounted(() => {
   font-size: 11px;
 }
 
-.sort-meta {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-}
 
 /* 栅格 */
 .grid {
