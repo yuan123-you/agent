@@ -113,7 +113,7 @@ onMounted(load)
 .his-item {
   display: flex;
   gap: 12px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 8px;
   padding: 10px;
   cursor: pointer;
@@ -132,8 +132,8 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
-  color: #c0c4cc;
+  background: var(--mall-surface-2, #f5f7fa);
+  color: var(--el-text-color-placeholder, #c0c4cc);
   font-size: 30px;
   font-weight: 700;
 }
@@ -154,7 +154,7 @@ onMounted(load)
 
 .points {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 4px;
 }
 
@@ -173,12 +173,12 @@ onMounted(load)
 
 .time {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 18px 0 24px;
 }

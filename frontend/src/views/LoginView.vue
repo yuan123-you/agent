@@ -147,7 +147,7 @@ async function doRegister() {
 
 .brand p {
   margin: 4px 0 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
 }
 

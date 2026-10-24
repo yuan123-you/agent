@@ -35,6 +35,7 @@
           <el-button v-if="o.status === 'PENDING_PAYMENT'" size="small" @click="cancel(o)">
             取消订单
           </el-button>
+        <el-button v-if="o.status === 'SHIPPED'" type="success" size="small" @click="confirmReceipt(o)">确认收货</el-button>
           <el-button size="small" @click="$router.push(`/orders/${o.orderId}`)">查看详情</el-button>
         </div>
       </el-card>
@@ -50,7 +51,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { apiCancelOrder, apiMyOrders, apiPayOrder, subscribeOrderStatus } from '@/api'
+import { apiCancelOrder, apiConfirmReceipt, apiMyOrders, apiPayOrder, subscribeOrderStatus } from '@/api'
 import type { OrderVO } from '@/types/api'
 
 const orders = ref<OrderVO[]>([])
@@ -104,6 +105,12 @@ async function cancel(o: OrderVO) {
   reload()
 }
 
+async function confirmReceipt(o: OrderVO) {
+  await apiConfirmReceipt(o.orderId)
+  ElMessage.success('已确认收货')
+  reload()
+}
+
 function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
   return {
     PENDING_PAYMENT: 'warning',
@@ -137,7 +144,7 @@ function statusTextOf(status: string): string {
 <style scoped>
 .page-scroll { height: 100%; }
 .orders {
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 8px;
   margin: 16px;
   padding: 16px;
@@ -171,7 +178,7 @@ function statusTextOf(status: string): string {
 
 .time {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 .spacer {
@@ -186,7 +193,7 @@ function statusTextOf(status: string): string {
 .items {
   margin: 10px 0;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   border-radius: 6px;
 }
 
@@ -203,16 +210,16 @@ function statusTextOf(status: string): string {
 }
 
 .item-qty {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .item-price {
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 18px 0 24px;
 }

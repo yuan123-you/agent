@@ -260,7 +260,7 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 8px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 12px;
   padding: 16px 12px;
 }
@@ -277,7 +277,7 @@ onMounted(async () => {
 }
 
 .cat-cell:hover {
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
 }
 
 .cat-icon {
@@ -286,7 +286,7 @@ onMounted(async () => {
 
 .cat-name {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 /* AI 助手入口 */
@@ -316,7 +316,7 @@ onMounted(async () => {
 
 .ai-desc {
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 2px;
 }
 
@@ -364,7 +364,7 @@ onMounted(async () => {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 8px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
 }
 
 .seckill-name {
@@ -391,7 +391,7 @@ onMounted(async () => {
 
 .seckill-old {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   text-decoration: line-through;
 }
 
@@ -436,7 +436,7 @@ onMounted(async () => {
   align-items: stretch;
   border-radius: var(--mall-radius);
   overflow: hidden;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border: 1px solid #ffd7d7;
 }
 
@@ -525,7 +525,7 @@ onMounted(async () => {
 
 .home-footer {
   text-align: center;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   font-size: 12px;
   padding: 8px 0 24px;
 }

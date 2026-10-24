@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 商品服务：买家端检索 + 管理端创建与状态维护
@@ -30,6 +31,22 @@ public class ProductService {
     /** 支持按分类/品牌 ID 过滤（旧 category 字符串参数保持兼容） */
     public PageResult<Product> list(String keyword, String category, Long categoryId, Long brandId,
                                     BigDecimal minPrice, BigDecimal maxPrice, String sort, long page, long size) {
+        // 有关键词优先走 ngram 全文检索（相关度排序）；索引/语法异常时降级 LIKE
+        if (keyword != null && !keyword.isBlank()) {
+            try {
+                long total = productMapper.countByKeyword(keyword.trim(), category, categoryId, brandId,
+                        minPrice, maxPrice);
+                List<Product> records = total > 0
+                        ? productMapper.searchByKeyword(keyword.trim(), category, categoryId, brandId,
+                                minPrice, maxPrice, (page - 1) * size, size)
+                        : List.of();
+                Page<Product> pageObj = new Page<>(page, size, total);
+                pageObj.setRecords(records);
+                return PageResult.of(pageObj);
+            } catch (org.springframework.dao.DataAccessException fulltextUnavailable) {
+                // FULLTEXT 索引不可用时回退原 LIKE 检索
+            }
+        }
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .eq(Product::getStatus, "ON_SALE")
                 .gt(Product::getStock, 0)

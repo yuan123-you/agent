@@ -21,7 +21,7 @@
       <el-header class="header">
         <!-- 移动端汉堡入口 -->
         <el-button class="menu-toggle" text :icon="Menu" @click="drawer = true" />
-        <span class="title mobile-only">AI Mall 控制台</span>
+        <ThemeToggle /><span class="title mobile-only">AI Mall 控制台</span>
         <span class="spacer" />
         <span class="welcome">{{ auth.user?.nickname }}（{{ roleText }}）</span>
         <el-button link type="danger" @click="logout">退出登录</el-button>
@@ -58,6 +58,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Menu } from '@element-plus/icons-vue'
+import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { consoleActiveMenu } from './consoleLayout'
 
@@ -90,8 +91,8 @@ async function logout() {
 }
 
 .aside {
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--mall-surface, #fff);
+  border-right: 1px solid var(--el-border-color, #e4e7ed);
 }
 
 .logo {
@@ -101,7 +102,7 @@ async function logout() {
   justify-content: center;
   font-weight: 700;
   color: var(--el-color-primary);
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .menu {
@@ -112,8 +113,8 @@ async function logout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color, #e4e7ed);
   height: 56px;
 }
 
@@ -134,12 +135,12 @@ async function logout() {
 .welcome {
   min-width: 0;
   font-size: 14px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .main {
   overflow-y: auto;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
 }
 
 .drawer-menu {

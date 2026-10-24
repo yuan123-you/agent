@@ -194,7 +194,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.address-book { background: #fff; border-radius: 16px; padding: 20px; }
+.address-book { background: var(--mall-surface, #fff); border-radius: 16px; padding: 20px; }
 .book-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .book-head h3 { margin: 3px 0 5px; font-size: 19px; }
 .book-head p { margin: 0; color: #8a8178; font-size: 13px; }

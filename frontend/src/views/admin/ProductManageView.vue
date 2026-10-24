@@ -841,13 +841,13 @@ onMounted(() => {
 
 .tab-hint {
   flex: 1;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
 }
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 18px 0 24px;
 }
@@ -860,7 +860,7 @@ onMounted(() => {
 
 .form-hint {
   margin-left: 10px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 12px;
 }
 </style>

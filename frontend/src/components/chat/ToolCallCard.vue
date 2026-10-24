@@ -180,10 +180,10 @@ function maskPhone(phone?: string) { return (phone || '').replace(/(\d{3})\d{4}(
 .tool-card {
   max-width: 420px;
   padding: 6px 10px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--el-border-color, #e4e7ed);
   border-radius: 6px;
   background: #f4f6fa;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
   font-size: 12px;
 }
 .tool-card.running { border-color: var(--el-color-primary-light-7); }
@@ -193,10 +193,10 @@ function maskPhone(phone?: string) { return (phone || '').replace(/(\d{3})\d{4}(
 .done-icon { margin-left: auto; color: var(--el-color-success); }
 .tool-detail { margin-top: 4px; border: none; }
 .tool-detail :deep(.el-collapse-item__header) {
-  height: 24px; border: none; background: transparent; color: #909399; font-size: 12px; line-height: 24px;
+  height: 24px; border: none; background: transparent; color: var(--el-text-color-secondary, #909399); font-size: 12px; line-height: 24px;
 }
 .tool-detail :deep(.el-collapse-item__wrap) { border: none; background: transparent; }
-.preview { max-height: 120px; overflow-y: auto; color: #909399; white-space: pre-wrap; word-break: break-all; }
+.preview { max-height: 120px; overflow-y: auto; color: var(--el-text-color-secondary, #909399); white-space: pre-wrap; word-break: break-all; }
 
 .order-action-card {
   width: min(430px, 100%);

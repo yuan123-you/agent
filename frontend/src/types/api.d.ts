@@ -167,6 +167,7 @@ export interface OrderVO {
   totalAmount: number
   source?: string
   logisticsNo?: string
+  deliveryCompany?: string
   receiverName?: string
   receiverPhone?: string
   receiverAddress?: string

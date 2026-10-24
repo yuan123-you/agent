@@ -59,6 +59,13 @@ public class OrderController {
         return ApiResponse.ok();
     }
 
+    /** 买家确认收货（仅本人已发货订单：SHIPPED -> DELIVERED） */
+    @PostMapping("/{id}/confirm")
+    public ApiResponse<Void> confirmReceipt(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+        orderService.confirmReceipt(userId, id);
+        return ApiResponse.ok();
+    }
+
     @GetMapping("/my")
     public ApiResponse<PageResult<Map<String, Object>>> my(
             @AuthenticationPrincipal Long userId,

@@ -49,6 +49,7 @@ public class AdminOrderController {
             vo.put("totalAmount", o.getTotalAmount());
             vo.put("source", o.getSource());
             vo.put("logisticsNo", o.getLogisticsNo());
+            vo.put("deliveryCompany", o.getDeliveryCompany());
             vo.put("createdAt", o.getCreatedAt());
             vo.put("items", orderService.itemsOf(o.getId()));
             return vo;
@@ -61,7 +62,7 @@ public class AdminOrderController {
         if (logisticsNo == null || logisticsNo.isBlank()) {
             logisticsNo = "SF" + System.currentTimeMillis();
         }
-        orderService.ship(id, logisticsNo);
+        orderService.ship(id, logisticsNo, body.get("deliveryCompany"));
         return ApiResponse.ok();
     }
 

@@ -19,7 +19,7 @@
     <el-container>
       <el-header class="header">
         <el-button class="menu-toggle" text :icon="Menu" @click="drawer = true" />
-        <span class="title mobile-only">🏪 卖家中心</span>
+        <ThemeToggle /><span class="title mobile-only">🏪 卖家中心</span>
         <span class="spacer" />
         <span class="welcome">{{ profile?.shopName || auth.user?.nickname }}</span>
         <el-button link type="danger" @click="logout">退出</el-button>
@@ -51,6 +51,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Menu } from '@element-plus/icons-vue'
+import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { apiMerchantProfile } from '@/api'
 
@@ -79,8 +80,8 @@ onMounted(async () => {
 }
 
 .aside {
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--mall-surface, #fff);
+  border-right: 1px solid var(--el-border-color, #e4e7ed);
   display: flex;
   flex-direction: column;
 }
@@ -92,7 +93,7 @@ onMounted(async () => {
   justify-content: center;
   font-weight: 700;
   color: var(--el-color-primary);
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .shop-card {
@@ -108,7 +109,7 @@ onMounted(async () => {
 
 .shop-meta {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 4px;
 }
 
@@ -129,8 +130,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color, #e4e7ed);
   height: 56px;
 }
 
@@ -151,7 +152,7 @@ onMounted(async () => {
 .welcome {
   min-width: 0;
   font-size: 14px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -159,12 +160,12 @@ onMounted(async () => {
 
 .main {
   overflow-y: auto;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
 }
 
 .drawer-shop {
   padding: 0 4px 12px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--el-fill-color, #f0f2f5);
   margin-bottom: 8px;
 }
 

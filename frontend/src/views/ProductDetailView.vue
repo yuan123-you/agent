@@ -490,7 +490,7 @@ function shortTime(t?: string): string {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   padding: 20px;
   border-radius: 8px;
 }
@@ -510,7 +510,7 @@ function shortTime(t?: string): string {
   justify-content: center;
   font-size: 90px;
   font-weight: 700;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   background: linear-gradient(135deg, #e8f0fe, #f5f7fa);
 }
 
@@ -527,7 +527,7 @@ function shortTime(t?: string): string {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
 }
 
@@ -645,9 +645,9 @@ function shortTime(t?: string): string {
   flex-wrap: wrap;
   gap: 8px 18px;
   padding: 10px 0;
-  border-top: 1px dashed #ebeef5;
-  border-bottom: 1px dashed #ebeef5;
-  color: #606266;
+  border-top: 1px dashed var(--el-border-color-lighter, #ebeef5);
+  border-bottom: 1px dashed var(--el-border-color-lighter, #ebeef5);
+  color: var(--el-text-color-regular, #606266);
   font-size: 13px;
 }
 
@@ -660,13 +660,13 @@ function shortTime(t?: string): string {
 }
 
 .qty-label {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 14px;
 }
 
 .stock {
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .btn-row {
@@ -713,7 +713,7 @@ function shortTime(t?: string): string {
 .r-time {
   margin-left: auto;
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 .r-content {
@@ -724,13 +724,13 @@ function shortTime(t?: string): string {
 .r-spec {
   margin: 4px 0 0 36px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .r-reply {
   margin: 8px 0 0 36px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   border-radius: 6px;
   font-size: 13px;
 }
@@ -738,7 +738,7 @@ function shortTime(t?: string): string {
 .review-form {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -755,7 +755,7 @@ function shortTime(t?: string): string {
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 12px 0;
 }
@@ -785,7 +785,7 @@ function shortTime(t?: string): string {
   justify-content: center;
   font-size: 28px;
   font-weight: 700;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   background: linear-gradient(135deg, #e8f0fe, #f5f7fa);
 }
 
@@ -811,7 +811,7 @@ function shortTime(t?: string): string {
 }
 
 .spec-stock {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -819,7 +819,7 @@ function shortTime(t?: string): string {
 .spec-block {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed #ebeef5;
+  border-top: 1px dashed var(--el-border-color-lighter, #ebeef5);
 }
 
 .spec-label {
@@ -838,18 +838,18 @@ function shortTime(t?: string): string {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 10px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   border-radius: 6px;
   font-size: 13px;
 }
 
 .attr-key {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   flex-shrink: 0;
 }
 
 .attr-val {
-  color: #303133;
+  color: var(--el-text-color-primary, #303133);
   text-align: right;
 }
 
@@ -861,7 +861,7 @@ function shortTime(t?: string): string {
 }
 
 .qty-t {
-  color: #303133;
+  color: var(--el-text-color-primary, #303133);
   font-weight: 600;
 }
 
@@ -909,8 +909,8 @@ function shortTime(t?: string): string {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: #fff;
-    border-top: 1px solid #ebeef5;
+    background: var(--mall-surface, #fff);
+    border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
     z-index: 100;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
@@ -922,7 +922,7 @@ function shortTime(t?: string): string {
     align-items: center;
     gap: 2px;
     font-size: 11px;
-    color: #606266;
+    color: var(--el-text-color-regular, #606266);
     cursor: pointer;
     min-width: 38px;
     padding: 2px 4px;

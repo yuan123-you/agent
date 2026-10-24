@@ -154,13 +154,14 @@ export interface CreateOrderPayload extends CheckoutDeliveryPayload {
 }export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
 export const apiPayOrder = (id: number) => post<void>(`/orders/${id}/pay`)
 export const apiCancelOrder = (id: number) => post<void>(`/orders/${id}/cancel`)
+export const apiConfirmReceipt = (id: number) => post<void>(`/orders/${id}/confirm`)
 export const apiMyOrders = (params: Record<string, unknown>) =>
   get<PageResult<OrderVO>>('/orders/my', { params })
 export const apiOrderDetail = (id: number) => get<OrderVO>(`/orders/${id}`)
 export const apiAdminOrders = (params: Record<string, unknown>) =>
   get<PageResult<OrderVO>>('/admin/orders', { params })
-export const apiAdminShip = (id: number, logisticsNo: string) =>
-  post<void>(`/admin/orders/${id}/ship`, { logisticsNo })
+export const apiAdminShip = (id: number, logisticsNo: string, deliveryCompany?: string) =>
+  post<void>(`/admin/orders/${id}/ship`, { logisticsNo, deliveryCompany })
 export const apiAdminDeliver = (id: number) => post<void>(`/admin/orders/${id}/deliver`)
 
 // ---------- AI 下单动作 ----------

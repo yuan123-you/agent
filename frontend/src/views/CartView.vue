@@ -197,7 +197,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 8px;
   padding: 12px;
 }
@@ -216,8 +216,8 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
-  color: #c0c4cc;
+  background: var(--mall-surface-2, #f5f7fa);
+  color: var(--el-text-color-placeholder, #c0c4cc);
   font-size: 28px;
   font-weight: 700;
 }
@@ -278,8 +278,8 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #fff;
-  border-top: 1px solid #ebeef5;
+  background: var(--mall-surface, #fff);
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
   padding: 10px 20px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }

@@ -52,7 +52,7 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
 .pic {
   width: 100%;
   aspect-ratio: 1;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   transition: transform 0.3s ease;
 }
 
@@ -80,7 +80,7 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
   justify-content: center;
   font-size: 40px;
   font-weight: 700;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   background: linear-gradient(135deg, #e8f0fe, #f5f7fa);
 }
 
@@ -95,7 +95,7 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
 
 .points {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   height: 32px;
   margin-top: 4px;
   display: -webkit-box;
@@ -128,7 +128,7 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
 
 .meta {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 /* 手机端紧凑卡片 */

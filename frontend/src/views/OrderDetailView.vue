@@ -11,6 +11,7 @@
         <div class="spacer" />
         <el-button v-if="order.status === 'PENDING_PAYMENT'" type="primary" @click="pay">去支付</el-button>
         <el-button v-if="order.status === 'PENDING_PAYMENT'" @click="cancel">取消订单</el-button>
+        <el-button v-if="order.status === 'SHIPPED'" type="success" @click="confirmReceipt">确认收货</el-button>
       </div>
       <el-steps :active="stepActive" :align-center="!isMobile" class="steps" :direction="isMobile ? 'vertical' : 'horizontal'">
         <el-step title="下单" :description="order.createdAt" />
@@ -18,7 +19,9 @@
         <el-step title="发货" :description="order.shippedAt" />
         <el-step title="送达" :description="order.deliveredAt" />
       </el-steps>
-      <div v-if="order.logisticsNo" class="logistics">物流单号：{{ order.logisticsNo }}</div>
+      <div v-if="order.logisticsNo" class="logistics">
+        物流{{ order.deliveryCompany ? `（${order.deliveryCompany}）` : '' }}单号：{{ order.logisticsNo }}
+      </div>
     </el-card>
 
     <!-- 商品明细 -->
@@ -48,7 +51,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { apiCancelOrder, apiOrderDetail, apiPayOrder } from '@/api'
+import { apiCancelOrder, apiConfirmReceipt, apiOrderDetail, apiPayOrder } from '@/api'
 import type { OrderVO } from '@/types/api'
 
 const route = useRoute()
@@ -88,6 +91,13 @@ async function cancel() {
   order.value = await apiOrderDetail(order.value!.orderId)
 }
 
+async function confirmReceipt() {
+  await ElMessageBox.confirm('确认已收到商品？', '确认收货', { type: 'info' })
+  await apiConfirmReceipt(order.value!.orderId)
+  ElMessage.success('已确认收货')
+  order.value = await apiOrderDetail(order.value!.orderId)
+}
+
 onUnmounted(() => {
   window.removeEventListener('resize', updateMobile)
 })
@@ -103,7 +113,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 .detail {
   height: 100%;
   overflow-y: auto;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 8px;
   margin: 16px;
   padding: 16px;
@@ -124,7 +134,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 
 .no {
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .ai-source {
@@ -142,7 +152,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 
 .logistics {
   margin-top: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
 }
 
@@ -158,7 +168,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 }
 
 .item-qty {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .item-subtotal {
@@ -169,7 +179,7 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 .total-row {
   text-align: right;
   margin-top: 8px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .total {

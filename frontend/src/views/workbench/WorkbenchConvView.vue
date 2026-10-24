@@ -120,7 +120,7 @@ function avatarText(role: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 8px;
 }
 
@@ -130,7 +130,7 @@ function avatarText(role: string): string {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .title {
@@ -167,7 +167,7 @@ function avatarText(role: string): string {
 
 .avatar {
   flex-shrink: 0;
-  background: #909399;
+  background: var(--el-text-color-secondary, #909399);
   color: #fff;
   font-size: 12px;
 }
@@ -175,7 +175,7 @@ function avatarText(role: string): string {
 .bubble {
   padding: 8px 12px;
   border-radius: 8px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   font-size: 14px;
   white-space: pre-wrap;
   min-width: 0;
@@ -191,7 +191,7 @@ function avatarText(role: string): string {
   gap: 10px;
   align-items: flex-end;
   padding: 12px 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .input-bar .el-button {

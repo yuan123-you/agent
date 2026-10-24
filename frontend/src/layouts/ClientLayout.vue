@@ -28,6 +28,7 @@
             </div>
           </div>
           <div class="quick-links">
+            <ThemeToggle />
             <el-button text :type="route.path.startsWith('/assistant') ? 'primary' : ''" @click="$router.push('/assistant')">
               <el-icon><ChatDotRound /></el-icon>
               <span class="link-text">AI 助手</span>
@@ -60,6 +61,7 @@
       <el-button :icon="ArrowLeft" circle size="small" @click="goBack" />
       <span class="sub-title">{{ subTitle }}</span>
       <div class="spacer" />
+      <ThemeToggle />
       <el-button text :type="route.path.startsWith('/assistant') ? 'primary' : ''"
         @click="$router.push('/assistant')">
         <el-icon><ChatDotRound /></el-icon>
@@ -114,6 +116,7 @@ import { CATEGORIES, categoryName } from '@/constants/categories'
 import { apiCatalogCategories } from '@/api'
 import type { CategoryVO } from '@/types/api'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
+import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 
 interface NavCat { key: string; name: string; icon: string; query: Record<string, string> }
 
@@ -211,8 +214,8 @@ async function onCommand(cmd: string) {
 
 /* ================= 顶栏 ================= */
 .header {
-  background: #fff;
-  border-bottom: 1px solid #eef1f6;
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
   height: auto !important;
   padding: 0;
   box-shadow: 0 1px 4px rgba(30, 40, 80, 0.04);
@@ -288,7 +291,7 @@ async function onCommand(cmd: string) {
 
 .search-hints .hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   cursor: pointer;
 }
 
@@ -334,8 +337,8 @@ async function onCommand(cmd: string) {
   position: sticky;
   top: var(--mall-header-h);
   z-index: 49;
-  background: #fff;
-  border-bottom: 1px solid #eef1f6;
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
   flex-shrink: 0;
 }
 
@@ -354,7 +357,7 @@ async function onCommand(cmd: string) {
   padding: 5px 14px;
   border-radius: 17px;
   font-size: 14px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
@@ -391,8 +394,8 @@ async function onCommand(cmd: string) {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
-  border-bottom: 1px solid #eef1f6;
+  background: var(--mall-surface, #fff);
+  border-bottom: 1px solid var(--el-border-color-lighter, #eef1f6);
   height: 52px;
   padding: 0 16px;
   box-shadow: 0 1px 4px rgba(30, 40, 80, 0.04);

@@ -46,7 +46,7 @@ class OrderLifecycleTest {
         switch (name) {
             case "pay" -> service.pay(7L, 30L);
             case "cancel" -> service.cancel(7L, 30L);
-            case "ship" -> service.ship(30L, "TRACK-30");
+            case "ship" -> service.ship(30L, "TRACK-30", null);
             case "deliver" -> service.deliver(30L);
             default -> throw new AssertionError(name);
         }

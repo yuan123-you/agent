@@ -181,13 +181,14 @@ public class OrderService {
     }
 
     @Transactional
-    public void ship(Long orderId, String logisticsNo) {
+    public void ship(Long orderId, String logisticsNo, String deliveryCompany) {
         OrderInfo order = orderInfoMapper.selectById(orderId);
         if (order == null) {
             throw new BizException(2002, "订单不存在");
         }
         OrderInfo update = new OrderInfo();
         update.setLogisticsNo(logisticsNo);
+        update.setDeliveryCompany(deliveryCompany);
         update.setShippedAt(LocalDateTime.now());
         transition(order, OrderTransition.SHIP, update);
         publishAfterCommit(order);
@@ -199,6 +200,16 @@ public class OrderService {
         if (order == null) {
             throw new BizException(2002, "订单不存在");
         }
+        OrderInfo update = new OrderInfo();
+        update.setDeliveredAt(LocalDateTime.now());
+        transition(order, OrderTransition.DELIVER, update);
+        publishAfterCommit(order);
+    }
+
+    /** 买家确认收货：本人 + 已发货 */
+    @Transactional
+    public void confirmReceipt(Long userId, Long orderId) {
+        OrderInfo order = requireOwned(userId, orderId);
         OrderInfo update = new OrderInfo();
         update.setDeliveredAt(LocalDateTime.now());
         transition(order, OrderTransition.DELIVER, update);

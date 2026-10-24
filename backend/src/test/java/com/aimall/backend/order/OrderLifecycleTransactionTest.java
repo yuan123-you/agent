@@ -233,7 +233,7 @@ class OrderLifecycleTransactionTest {
 
     @Test void shipAndDeliverUseRealGuardedMapperWithTimestamps() {
         jdbc.update("update order_info set status='PAID' where id=30");
-        service.ship(30L, "TRACK-30");
+        service.ship(30L, "TRACK-30", null);
         assertEquals("SHIPPED", jdbc.queryForObject("select status from order_info where id=30", String.class));
         assertEquals("TRACK-30", jdbc.queryForObject("select logistics_no from order_info where id=30", String.class));
         assertNotNull(jdbc.queryForObject("select shipped_at from order_info where id=30", java.sql.Timestamp.class));

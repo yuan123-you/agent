@@ -20,6 +20,11 @@
   --el-color-primary-light-9: #eff3ff;
   --el-color-primary-dark-2: #3a63e0;
 
+  /* 面板/页面底色（浅色主题） */
+  --mall-page-bg: #f5f7fa;
+  --mall-surface: #ffffff;
+  --mall-surface-2: #f8fafd;
+
   /* 圆角与阴影 */
   --mall-radius: 12px;
   --mall-radius-lg: 16px;
@@ -31,6 +36,36 @@
   --mall-container: 1280px;
   --mall-header-h: 64px;
   --mall-catbar-h: 44px;
+}
+
+/* ---------- 深色主题（html.dark，配合 Element dark css-vars） ---------- */
+html.dark {
+  --mall-page-bg: #121317;
+  --mall-surface: #1c1e24;
+  --mall-surface-2: #22252d;
+  --mall-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --mall-shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --mall-shadow-float: 0 4px 16px rgba(79, 124, 255, 0.35);
+
+  /* Element 暗色微调：主色在暗底上略提亮 */
+  --el-color-primary: #6b91ff;
+  --el-bg-color: #1c1e24;
+  --el-bg-color-overlay: #22252d;
+}
+
+html.dark .mall-skeleton {
+  background: linear-gradient(90deg, #23252c, #2b2e37, #23252c);
+  background-size: 200% 100%;
+}
+
+html.dark body {
+  background: var(--mall-page-bg);
+  color: #e5e7eb;
+}
+
+/* 深色下通吃残余的浅色面（scoped 样式已变量化的不必点名） */
+html.dark .el-card {
+  --el-card-bg-color: var(--mall-surface);
 }
 
 * {
@@ -47,9 +82,17 @@ body,
   margin: 0;
   padding: 0;
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
-  background: #f5f7fa;
-  color: #303133;
+  background: var(--mall-page-bg, #f5f7fa);
+  color: var(--el-text-color-primary, #303133);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 通用卡片 ---------- */
+.mall-card {
+  background: var(--mall-surface, #fff);
+  border-radius: var(--mall-radius);
+  box-shadow: var(--mall-shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 /* ---------- 通用自适应容器（买家端页面统一使用） ---------- */
@@ -91,7 +134,7 @@ body,
 
 /* ---------- 通用卡片 ---------- */
 .mall-card {
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: var(--mall-radius);
   box-shadow: var(--mall-shadow-card);
   transition: box-shadow 0.2s ease, transform 0.2s ease;

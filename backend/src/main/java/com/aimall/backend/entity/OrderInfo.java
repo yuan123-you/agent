@@ -38,6 +38,9 @@ public class OrderInfo {
 
     private String logisticsNo;
 
+    /** 物流公司 */
+    private String deliveryCompany;
+
     /** USER / AI */
     private String source;
 

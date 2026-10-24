@@ -18,7 +18,7 @@
 
 .error-page h1 {
   font-size: 64px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   margin: 0;
 }
 </style>

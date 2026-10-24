@@ -115,7 +115,7 @@ onUnmounted(() => {
 }
 
 .sla-card {
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 10px;
   padding: 16px;
   text-align: center;
@@ -131,7 +131,7 @@ onUnmounted(() => {
 .sla-card .label {
   margin-top: 4px;
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 .list {
@@ -154,7 +154,7 @@ onUnmounted(() => {
 
 .title {
   min-width: 0;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   max-width: 300px;
   white-space: nowrap;
@@ -172,7 +172,7 @@ onUnmounted(() => {
 }
 
 .summary-text {
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
   font-size: 13px;
   line-height: 1.6;
 }

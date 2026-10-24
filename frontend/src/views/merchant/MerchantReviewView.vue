@@ -113,7 +113,7 @@ onMounted(load)
 
 .r-time {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
   margin-left: auto;
 }
 
@@ -124,7 +124,7 @@ onMounted(load)
 
 .r-spec {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 4px;
 }
 
@@ -145,7 +145,7 @@ onMounted(load)
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 18px 0 24px;
 }

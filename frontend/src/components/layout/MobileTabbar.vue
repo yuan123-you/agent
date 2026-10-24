@@ -50,7 +50,7 @@ function isActive(tab: (typeof tabs)[number]): boolean {
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid #eef1f6;
+    border-top: 1px solid var(--el-border-color-lighter, #eef1f6);
     padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
     z-index: 100;
   }
@@ -61,7 +61,7 @@ function isActive(tab: (typeof tabs)[number]): boolean {
     flex-direction: column;
     align-items: center;
     gap: 1px;
-    color: #909399;
+    color: var(--el-text-color-secondary, #909399);
     cursor: pointer;
     padding: 3px 0;
     transition: color 0.15s, transform 0.15s;

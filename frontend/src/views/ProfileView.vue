@@ -114,7 +114,7 @@ onMounted(() => {
 
 /* 我的优惠券 */
 .coupon-section {
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: var(--mall-radius);
   padding: 16px;
   margin-bottom: 14px;
@@ -144,7 +144,7 @@ onMounted(() => {
 .my-coupon.used,
 .my-coupon.expired {
   border-color: #eef0f4;
-  background: #fafbfc;
+  background: var(--mall-surface-2, #fafbfc);
   filter: grayscale(0.4);
 }
 
@@ -177,7 +177,7 @@ onMounted(() => {
 
 .mc-rule {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 2px;
 }
 
@@ -185,7 +185,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 12px;
   padding: 20px;
 }
@@ -208,12 +208,12 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 10px;
   padding: 14px 6px;
   cursor: pointer;
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular, #606266);
 }
 
 .entry:hover {
@@ -221,7 +221,7 @@ onMounted(() => {
 }
 
 .menu-card {
-  background: #fff;
+  background: var(--mall-surface, #fff);
   border-radius: 12px;
   margin-top: 14px;
   overflow: hidden;
@@ -254,7 +254,7 @@ onMounted(() => {
 }
 
 .arrow {
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 @media (max-width: 600px) {
   .profile-page {

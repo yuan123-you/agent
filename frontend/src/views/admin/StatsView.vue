@@ -93,7 +93,7 @@ onMounted(async () => {
 }
 
 .stat-label {
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   margin-top: 4px;
 }

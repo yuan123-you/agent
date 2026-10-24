@@ -207,17 +207,17 @@ onMounted(load)
 .addr-list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
 .addr-card {
   display: flex; align-items: flex-start; gap: 8px; padding: 10px;
-  border: 1px solid #ebeef5; border-radius: 8px; cursor: pointer;
-  background: #fff; transition: border-color .15s, box-shadow .15s;
+  border: 1px solid var(--el-border-color-lighter, #ebeef5); border-radius: 8px; cursor: pointer;
+  background: var(--mall-surface, #fff); transition: border-color .15s, box-shadow .15s;
 }
 .addr-card.selected { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary); }
 .addr-radio { margin-top: 2px; }
 .addr-info { flex: 1; min-width: 0; }
 .addr-line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.addr-line1 span { color: #606266; font-size: 12px; }
-.addr-loc { margin-top: 4px; color: #909399; font-size: 13px; line-height: 1.5; }
+.addr-line1 span { color: var(--el-text-color-regular, #606266); font-size: 12px; }
+.addr-loc { margin-top: 4px; color: var(--el-text-color-secondary, #909399); font-size: 13px; line-height: 1.5; }
 .addr-ops { margin-top: 4px; display: flex; gap: 4px; }
-.addr-empty { color: #909399; font-size: 13px; padding: 10px 0; text-align: center; }
+.addr-empty { color: var(--el-text-color-secondary, #909399); font-size: 13px; padding: 10px 0; text-align: center; }
 .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .region-row { display: flex; gap: 8px; width: 100%; }
 .region-row .el-cascader { flex: 1; }

@@ -122,7 +122,7 @@ watch(() => props.amount, load)
 
 .coupon-rule {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   margin-top: 2px;
 }
 </style>

@@ -374,12 +374,12 @@ function shortTime(t?: string): string {
 .chat-view {
   display: flex;
   height: 100%;
-  background: #fff;
+  background: var(--mall-surface, #fff);
 }
 
 .conv-panel {
   width: 260px;
-  border-right: 1px solid #e4e7ed;
+  border-right: 1px solid var(--el-border-color, #e4e7ed);
   display: flex;
   flex-direction: column;
   padding: 12px;
@@ -406,7 +406,7 @@ function shortTime(t?: string): string {
 }
 
 .conv-item:hover {
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
 }
 
 .conv-item.active {
@@ -443,7 +443,7 @@ function shortTime(t?: string): string {
 
 .time {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 .chat-panel {
@@ -458,7 +458,7 @@ function shortTime(t?: string): string {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .chat-header .title {
@@ -475,7 +475,7 @@ function shortTime(t?: string): string {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   border: 1px solid #dcdfe6;
   border-radius: 12px;
   padding: 3px 8px 3px 6px;
@@ -494,7 +494,7 @@ function shortTime(t?: string): string {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #c0c4cc;
+  background: var(--el-text-color-placeholder, #c0c4cc);
 }
 
 .web-search-switch.on .switch-dot {
@@ -541,7 +541,7 @@ function shortTime(t?: string): string {
 .bubble {
   padding: 10px 14px;
   border-radius: 10px;
-  background: #f5f7fa;
+  background: var(--mall-surface-2, #f5f7fa);
   font-size: 14px;
   min-width: 0;
 }
@@ -564,7 +564,7 @@ function shortTime(t?: string): string {
 }
 
 .user-avatar {
-  background: #909399;
+  background: var(--el-text-color-secondary, #909399);
 }
 
 .input-bar {
@@ -572,7 +572,7 @@ function shortTime(t?: string): string {
   gap: 10px;
   align-items: flex-end;
   padding: 12px 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
 .input-actions {
@@ -627,7 +627,7 @@ function shortTime(t?: string): string {
     bottom: 56px;
     width: 78%;
     max-width: 320px;
-    background: #fff;
+    background: var(--mall-surface, #fff);
     z-index: 31;
     transform: translateX(-100%);
     transition: transform 0.2s ease;

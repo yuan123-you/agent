@@ -50,6 +50,9 @@
     <!-- 发货弹窗 -->
     <el-dialog v-model="shipDialog" title="订单发货" width="min(380px, 92vw)">
       <el-form label-width="80px">
+        <el-form-item label="物流公司">
+          <el-input v-model="deliveryCompany" placeholder="如：顺丰速运（可留空）" />
+        </el-form-item>
         <el-form-item label="物流单号">
           <el-input v-model="logisticsNo" placeholder="留空自动生成" />
         </el-form-item>
@@ -77,6 +80,7 @@ const page = ref(1)
 const total = ref(0)
 const shipDialog = ref(false)
 const logisticsNo = ref('')
+const deliveryCompany = ref('')
 const currentOrder = ref<OrderVO | null>(null)
 
 function reload() {
@@ -114,12 +118,13 @@ function loadMore() {
 function ship(row: OrderVO) {
   currentOrder.value = row
   logisticsNo.value = ''
+  deliveryCompany.value = ''
   shipDialog.value = true
 }
 
 async function confirmShip() {
   if (!currentOrder.value) return
-  await apiAdminShip(currentOrder.value.orderId, logisticsNo.value.trim())
+  await apiAdminShip(currentOrder.value.orderId, logisticsNo.value.trim(), deliveryCompany.value.trim() || undefined)
   ElMessage.success('发货成功')
   shipDialog.value = false
   reload()
@@ -169,7 +174,7 @@ onMounted(load)
 
 .load-state {
   text-align: center;
-  color: #909399;
+  color: var(--el-text-color-secondary, #909399);
   font-size: 13px;
   padding: 18px 0 24px;
 }
