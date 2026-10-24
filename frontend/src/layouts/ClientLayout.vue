@@ -48,9 +48,6 @@
               <span>搜索</span>
             </button>
           </div>
-          <div class="search-hot">
-            <span v-for="c in hotWords" :key="c" class="hot-word" @click="searchWord(c)">{{ c }}</span>
-          </div>
         </div>
         <button class="cart-entry" @click="$router.push('/cart')">
           <el-icon :size="20"><ShoppingCart /></el-icon>
@@ -174,8 +171,6 @@ const navCats = ref<NavCat[]>(
   })),
 )
 
-const hotWords = computed(() => navCats.value.slice(0, 5).map((c) => c.name))
-
 onMounted(async () => {
   try {
     const tree = await apiCatalogCategories()
@@ -219,10 +214,6 @@ function goBack() {
 
 function doSearch() {
   router.push({ path: '/products', query: keyword.value.trim() ? { keyword: keyword.value.trim() } : {} })
-}
-
-function searchWord(word: string) {
-  router.push({ path: '/products', query: { keyword: word } })
 }
 
 function goCategory(c: NavCat) {
@@ -406,23 +397,6 @@ async function onCommand(cmd: string) {
 
 .search-btn:hover {
   filter: brightness(1.08);
-}
-
-.search-hot {
-  display: flex;
-  gap: 12px;
-  margin-top: 6px;
-  padding-left: 4px;
-}
-
-.hot-word {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  cursor: pointer;
-}
-
-.hot-word:hover {
-  color: var(--el-color-primary);
 }
 
 /* 购物车入口 */
@@ -691,7 +665,6 @@ async function onCommand(cmd: string) {
 @media (max-width: 768px) {
   .shop-topbar,
   .all-cats,
-  .search-hot,
   .shop-footer,
   .cart-entry span,
   .logo-words {

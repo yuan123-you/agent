@@ -43,7 +43,7 @@ describe('image loading integration', () => {
     expect(read('../main.ts')).toContain('registerImageCache()')
   })
   it.each([
-    '../components/product/ProductCard.vue', '../views/CartView.vue',
+    '../views/CartView.vue',
     '../views/FavoritesView.vue', '../views/HistoryView.vue', '../views/merchant/MerchantProductView.vue',
   ])('defers and asynchronously decodes list images in %s', path => {
     const tags = read(path).match(/<el-image\b[^>]*>/g) || []

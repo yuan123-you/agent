@@ -11,7 +11,7 @@
       </aside>
 
       <div class="hero-banner">
-        <el-carousel :interval="4500" trigger="click" arrow="hover" :height="bannerHeight">
+        <el-carousel :interval="4500" trigger="click" arrow="hover" :height="bannerHeight" class="hero-carousel">
           <el-carousel-item v-for="b in banners" :key="b.title">
             <div class="banner" :style="{ background: b.bg }" @click="$router.push(b.link)">
               <div class="banner-content">
@@ -127,33 +127,19 @@
       </div>
     </section>
 
-    <!-- ============ 商品楼层（加载中显示骨架，避免首屏空白断层） ============ -->
-    <section v-if="loading && floors.length === 0" class="container floor">
-      <div class="floor-skeleton">
-        <div v-for="n in 10" :key="n" class="mall-skeleton sk-card" />
-      </div>
-    </section>
-
-    <section v-for="f in floors" :key="f.code" class="container floor">
-      <div class="floor-head">
-        <h3><i class="bar-accent" />{{ f.name }}</h3>
-        <el-button text type="primary" @click="$router.push(`/products?category=${f.code}`)">
-          更多 ›
-        </el-button>
-      </div>
-      <div class="floor-grid">
-        <ProductCard v-for="p in f.products" :key="p.id" :product="p" />
-      </div>
-    </section>
-
-    <!-- ============ 猜你喜欢 ============ -->
+    <!-- ============ 猜你喜欢：全分类混合信息流 ============ -->
     <section class="container floor">
       <div class="floor-head">
         <h3><i class="bar-accent" />猜你喜欢</h3>
+        <el-button text type="primary" @click="$router.push('/products')">查看全部 ›</el-button>
       </div>
-      <div class="floor-grid like-grid">
-        <ProductCard v-for="p in likes" :key="p.id" :product="p" />
+      <div v-if="feedLoading || loading" class="floor-skeleton">
+        <div v-for="n in 10" :key="n" class="mall-skeleton sk-card" />
       </div>
+      <div v-else class="floor-grid feed-grid">
+        <ProductCard v-for="p in feed" :key="p.id" :product="p" />
+      </div>
+      <div v-if="!loading && feed.length === 0" class="feed-empty">暂无推荐商品，去<a class="ai-link" @click="$router.push('/products')">全部商品</a>逛逛</div>
     </section>
   </div>
 </template>
@@ -176,7 +162,7 @@ const onResize = () => (windowWidth.value = window.innerWidth)
 window.addEventListener('resize', onResize)
 
 const bannerHeight = computed(() =>
-  windowWidth.value <= 768 ? '150px' : windowWidth.value <= 1199 ? '200px' : '320px',
+  windowWidth.value <= 768 ? '150px' : windowWidth.value <= 1199 ? '260px' : '100%',
 )
 
 const banners = [
@@ -185,10 +171,10 @@ const banners = [
   { title: '生鲜直达', desc: '产地直发 · 新鲜到家', emoji: '🍎', bg: 'linear-gradient(120deg, #ff7a59, #ffb347)', link: '/products?category=FOOD' },
 ]
 
-// 楼层：4 个主力分类，每层 8 件
-const floorCodes = ['PHONE', 'APPLIANCE', 'CLOTHING', 'SPORTS']
-const floors = ref<{ code: string; name: string; icon: string; products: ProductVO[] }[]>([])
-const likes = ref<ProductVO[]>([])
+// 猜你喜欢：全分类混合信息流（主力类目交错混排，保证各类目均匀出现）
+const FEED_CODES = ['PHONE', 'APPLIANCE', 'CLOTHING', 'SPORTS', 'FOOD', 'BEAUTY', 'HOME', 'BOOK']
+const feed = ref<ProductVO[]>([])
+const feedLoading = ref(false)
 
 // 分类（宫格 + 左侧竖菜单共用）：商城目录优先，为空时回落到内置常量
 interface CatCell { key: string; name: string; icon: string; link: string }
@@ -252,21 +238,26 @@ onMounted(async () => {
       }
     })
     .catch(() => {})
+  feedLoading.value = true
+  feedLoading.value = true
   try {
-    const results = await Promise.all([
-      ...floorCodes.map((code) =>
-        apiProducts({ category: code, size: 8, sort: 'created_desc' })
+    const results = await Promise.all(
+      FEED_CODES.map((code) =>
+        apiProducts({ category: code, size: 8, sort: 'sales_desc' })
           .catch(() => ({ records: [] as ProductVO[] })),
       ),
-      apiProducts({ size: 12, sort: 'price_asc' }).catch(() => ({ records: [] as ProductVO[] })),
-    ])
-    floors.value = floorCodes.map((code, i) => {
-      const def = CATEGORIES.find((c) => c.code === code)!
-      return { code, name: def.name, icon: def.icon, products: results[i].records }
-    })
-    likes.value = results[results.length - 1].records
+    )
+    // 类目交错混排：每个类目取 1 件轮流填充，全分类均匀分布
+    const lists = results.map((r) => r.records)
+    const maxLen = Math.max(0, ...lists.map((l) => l.length))
+    const mixed: ProductVO[] = []
+    for (let i = 0; i < maxLen; i++) {
+      for (const l of lists) if (l[i]) mixed.push(l[i])
+    }
+    feed.value = mixed
   } finally {
     loading.value = false
+    feedLoading.value = false
   }
 })
 
@@ -343,6 +334,11 @@ onUnmounted(() => {
   min-width: 0;
   border-radius: var(--mall-radius);
   overflow: hidden;
+}
+
+.hero-banner :deep(.hero-carousel),
+.hero-banner :deep(.el-carousel__container) {
+  height: 100% !important;
 }
 
 .banner {
@@ -438,6 +434,7 @@ onUnmounted(() => {
 }
 
 .notice-panel {
+  flex: 1;
   padding: 14px 16px;
 }
 
@@ -780,6 +777,18 @@ onUnmounted(() => {
   margin-top: 2px;
 }
 
+/* 混合信息流 */
+.feed-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.feed-empty {
+  text-align: center;
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 13px;
+  padding: 40px 0;
+}
+
 /* 楼层骨架屏 */
 .floor-skeleton {
   display: grid;
@@ -799,9 +808,7 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.like-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
+
 
 /* ================= 平板 ================= */
 @media (max-width: 1199px) and (min-width: 769px) {
@@ -833,7 +840,7 @@ onUnmounted(() => {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .like-grid {
+  .feed-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
@@ -908,7 +915,7 @@ onUnmounted(() => {
   }
 
   .floor-grid,
-  .like-grid {
+  .feed-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }

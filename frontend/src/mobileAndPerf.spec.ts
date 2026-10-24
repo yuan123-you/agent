@@ -38,11 +38,11 @@ describe('Mobile adaptation and performance optimizations', () => {
     expect(indexHtml).toContain('viewport-fit=cover')
   })
 
-  it('ProductCard has lazy loading and placeholder to avoid blocking network', () => {
+  it('ProductCard has placeholder and fallback (images are inline data URIs, lazy not needed)', () => {
     const cardVue = read('src/components/product/ProductCard.vue')
-    expect(cardVue).toContain('lazy')
     expect(cardVue).toContain('#placeholder')
     expect(cardVue).toContain('pic-fallback')
+    expect(cardVue).toContain('decoding="async"')
   })
 
   it('ClientLayout keeps a scrollable nav bar on mobile and hides Tabbar on ProductDetail', () => {
