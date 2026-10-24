@@ -193,6 +193,8 @@ onMounted(async () => {
 
 const SUB_TITLES: Record<string, string> = {
   '/assistant': 'AI 购物助手',
+  '/seckill': '限时秒杀',
+  '/coupons': '领券中心',
   '/products': '商品列表',
   '/orders': '我的订单',
   '/cart': '购物车',

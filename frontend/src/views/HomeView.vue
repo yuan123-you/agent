@@ -67,15 +67,19 @@
 
     <!-- ============ 限时秒杀专区（模块化：倒计时面板 + 商品网格） ============ -->
     <section v-if="seckills.length" id="seckill-zone" class="container floor">
+      <div class="floor-head">
+        <h3><i class="bar-accent" />限时秒杀 <span v-if="countdownText" class="countdown">{{ countdownText }}</span></h3>
+        <el-button text type="primary" @click="$router.push('/seckill')">更多 ›</el-button>
+      </div>
       <div class="seckill-zone">
         <div class="seckill-side">
           <div class="ss-flash">⚡</div>
-          <div class="ss-title">限时秒杀</div>
+          <div class="ss-title">天天秒杀</div>
           <div class="ss-sub">品牌好物 · 低价到底</div>
           <div class="ss-countdown" v-if="countdownText">{{ countdownText }}</div>
         </div>
         <div class="seckill-goods">
-          <div v-for="s in seckills.slice(0, 5)" :key="s.seckillId" class="sg-card"
+          <div v-for="s in seckills.slice(0, 6)" :key="s.seckillId" class="sg-card"
             @click="$router.push(`/products/${s.productId}`)">
             <el-image :src="s.imageUrl" fit="cover" class="sg-pic" lazy decoding="async" />
             <div class="sg-name">{{ s.name }}</div>
@@ -98,6 +102,7 @@
     <section v-if="coupons.length" id="coupon-zone" class="container floor">
       <div class="floor-head">
         <h3><i class="bar-accent" />领券中心</h3>
+        <el-button text type="primary" @click="$router.push('/coupons')">更多 ›</el-button>
       </div>
       <div class="coupon-row">
         <div v-for="c in coupons" :key="c.couponId" class="coupon-card">
@@ -223,7 +228,7 @@ async function receive(c: CouponVO) {
 
 onMounted(async () => {
   timer = window.setInterval(() => (nowTick.value = Date.now()), 1000)
-  apiSeckills().then((list) => (seckills.value = (list || []).slice(0, 10))).catch(() => {})
+  apiSeckills().then((list) => (seckills.value = list || [])).catch(() => {})
   apiReceivableCoupons().then((list) => (coupons.value = (list || []).slice(0, 8))).catch(() => {})
   loading.value = true
   apiCatalogCategories()
@@ -593,7 +598,7 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   background: #f0f1f4;
 }
