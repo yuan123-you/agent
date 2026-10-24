@@ -1,7 +1,7 @@
 <template>
   <div class="product-card mall-card" @click="$router.push(`/products/${product.id}`)">
     <div class="pic-wrap">
-      <el-image :src="product.imageUrl" fit="cover" class="pic" lazy decoding="async">
+      <el-image :src="product.imageUrl" fit="cover" class="pic" decoding="async">
         <template #placeholder>
           <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
         </template>
