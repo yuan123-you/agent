@@ -86,8 +86,7 @@ html.dark .el-card {
 }
 
 html,
-body,
-#app {
+body {
   height: 100%;
   width: 100%;
   min-width: 0;
@@ -98,6 +97,16 @@ body,
   background: var(--mall-page-bg, #f5f7fa);
   color: var(--el-text-color-primary, #303133);
   -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100%;
+  width: 100%;
+}
+
+#app {
+  min-height: 100%;
+  width: 100%;
 }
 
 /* 顶部深色通栏（京东式） */

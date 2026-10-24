@@ -253,15 +253,14 @@ async function onCommand(cmd: string) {
 
 <style scoped>
 .client-layout {
-  height: 100%;
+  min-height: 100%;
   flex-direction: column;
 }
 
 .main {
   padding: 0;
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
 }
 
 /* ================= 顶部通栏 ================= */
