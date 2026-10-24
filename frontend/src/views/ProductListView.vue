@@ -76,7 +76,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { apiCatalogBrands, apiCatalogCategories, apiProducts } from '@/api'
 import ProductCard from '@/components/product/ProductCard.vue'
-import { CATEGORIES, categoryName } from '@/constants/categories'
+import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
 import type { BrandVO, CategoryVO, ProductVO } from '@/types/api'
 
 const route = useRoute()
@@ -220,7 +220,7 @@ onMounted(() => {
         sideCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
           key: String(c.id),
           name: categoryName(c.name),
-          icon: c.icon || '',
+          icon: c.icon || categoryIcon(c.name),
           query: { categoryId: String(c.id) },
         }))
       }

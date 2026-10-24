@@ -28,3 +28,11 @@ export const CATEGORIES: CategoryDef[] = [
 export function categoryName(code: string): string {
   return CATEGORIES.find((c) => c.code === code)?.name || code
 }
+
+/** 按分类名/编码取图标：目录 icon 为空时回退内置映射（种子分类名存的是类目 code） */
+export function categoryIcon(nameOrCode: string): string {
+  const byCode = CATEGORIES.find((c) => c.code === nameOrCode)
+  if (byCode) return byCode.icon
+  const byName = CATEGORIES.find((c) => c.name === nameOrCode)
+  return byName?.icon || '🛍️'
+}

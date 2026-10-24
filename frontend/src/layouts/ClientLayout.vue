@@ -143,7 +143,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ChatDotRound, Menu, Search, ShoppingCart } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { CATEGORIES, categoryName } from '@/constants/categories'
+import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
 import { apiCartList, apiCatalogCategories } from '@/api'
 import type { CategoryVO } from '@/types/api'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
@@ -183,7 +183,7 @@ onMounted(async () => {
       navCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
         key: String(c.id),
         name: categoryName(c.name),
-        icon: c.icon || '',
+        icon: c.icon || categoryIcon(c.name),
         query: { categoryId: String(c.id) },
       }))
     }
@@ -691,11 +691,33 @@ async function onCommand(cmd: string) {
 /* ================= 手机 ≤768 ================= */
 @media (max-width: 768px) {
   .shop-topbar,
-  .shop-nav,
-  .search-hot,
+  .all-cats,
   .cart-entry span,
   .logo-words {
     display: none;
+  }
+
+  /* 手机端频道条：横向滑动 */
+  .nav-inner {
+    padding: 0 8px;
+    height: 38px;
+  }
+
+  .nav-links {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link {
+    padding: 0 12px;
+    font-size: 13px;
+    height: 38px;
+    line-height: 38px;
   }
 
   .header-inner {

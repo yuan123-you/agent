@@ -45,12 +45,13 @@ describe('Mobile adaptation and performance optimizations', () => {
     expect(cardVue).toContain('pic-fallback')
   })
 
-  it('ClientLayout hides full shop nav on mobile and hides Tabbar on ProductDetail', () => {
+  it('ClientLayout keeps a scrollable nav bar on mobile and hides Tabbar on ProductDetail', () => {
     const clientLayout = read('src/layouts/ClientLayout.vue')
     expect(clientLayout).toContain('isProductDetail')
     expect(clientLayout).toContain('MobileTabbar v-if="!isProductDetail"')
-    // 手机端隐藏顶部通栏与主题色导航条，由底部 Tabbar 承担导航
-    expect(clientLayout).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.shop-topbar,[\s\S]*?\.shop-nav,/)
+    // 手机端隐藏顶部通栏与全部分类下拉，导航条改为横滑频道条
+    expect(clientLayout).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.shop-topbar,[\s\S]*?\.all-cats,/)
+    expect(clientLayout).toMatch(/\.nav-links \{[\s\S]*?overflow-x: auto/)
   })
 
   it('ProductDetailView provides dedicated mobile action bar and responsive layout', () => {

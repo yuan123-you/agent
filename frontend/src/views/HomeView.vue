@@ -156,7 +156,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiCatalogCategories, apiProducts, apiReceivableCoupons, apiReceiveCoupon, apiSeckills } from '@/api'
-import { CATEGORIES, categoryName } from '@/constants/categories'
+import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
 import { useAuthStore } from '@/stores/auth'
 import ProductCard from '@/components/product/ProductCard.vue'
 import type { CategoryVO, CouponVO, ProductVO, SeckillVO } from '@/types/api'
@@ -233,7 +233,7 @@ onMounted(async () => {
         catCells.value = tree.slice(0, 16).map((c: CategoryVO) => ({
           key: String(c.id),
           name: categoryName(c.name),
-          icon: c.icon || '🛍️',
+          icon: c.icon || categoryIcon(c.name),
           link: `/products?categoryId=${c.id}`,
         }))
       }
