@@ -692,6 +692,8 @@ async function onCommand(cmd: string) {
 @media (max-width: 768px) {
   .shop-topbar,
   .all-cats,
+  .search-hot,
+  .shop-footer,
   .cart-entry span,
   .logo-words {
     display: none;

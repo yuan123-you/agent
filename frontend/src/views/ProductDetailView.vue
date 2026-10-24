@@ -246,6 +246,7 @@ import { categoryName } from '@/constants/categories'
 import type { ProductVO, SkuVO } from '@/types/api'
 
 const route = useRoute()
+const auth = useAuthStore()
 const router = useRouter()
 
 const product = ref<ProductVO | null>(null)
@@ -375,8 +376,11 @@ onMounted(async () => {
     return
   }
   // 收藏状态 + 浏览历史上报 + SKU 列表 + 秒杀（失败不影响页面）
-  apiFavoriteStatus(id).then((s) => (favorited.value = s.favorited)).catch(() => {})
-  apiHistoryRecord(id).catch(() => {})
+  // 收藏状态/浏览历史需登录：游客浏览商品不触发 401（点收藏/加购/下单时再引导登录）
+  if (auth.isCustomer) {
+    apiFavoriteStatus(id).then((s) => (favorited.value = s.favorited)).catch(() => {})
+    apiHistoryRecord(id).catch(() => {})
+  }
   apiCatalogProductSkus(id).then((list) => {
     skus.value = list || []
     // 默认选中第一个有库存的 SKU 组合
