@@ -12,7 +12,7 @@
       <span v-if="hot" class="hot-tag">🔥 热卖</span>
     </div>
     <div class="name">{{ product.name }}</div>
-    <div class="points">{{ product.sellingPoints }}</div>
+    <div v-if="showPoints" class="points">{{ product.sellingPoints }}</div>
     <div class="row">
       <span class="price"><i>￥</i>{{ product.price }}</span>
       <span class="meta">已售 {{ product.sales || 0 }}</span>
@@ -24,7 +24,9 @@
 import { computed } from 'vue'
 import type { ProductVO } from '@/types/api'
 
-const props = defineProps<{ product: ProductVO }>()
+const props = withDefaults(defineProps<{ product: ProductVO; showPoints?: boolean }>(), {
+  showPoints: false,
+})
 
 /** 销量门槛热卖标签 */
 const hot = computed(() => (props.product.sales || 0) >= 5000)
@@ -139,10 +141,6 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
 
   .name {
     font-size: 13px;
-  }
-
-  .points {
-    display: none; /* 手机端收起卖点，卡片更聚焦价格 */
   }
 
   .price {

@@ -116,6 +116,13 @@
       <router-view />
     </el-main>
 
+    <!-- 返回顶部（滚动超过一屏显示） -->
+    <transition name="fade-up">
+      <div v-if="showBackTop" class="back-top" @click="scrollToTop">
+        <el-icon :size="18"><Top /></el-icon>
+      </div>
+    </transition>
+
     <footer v-if="isHome" class="shop-footer">
       <div class="footer-inner">
         <div class="footer-brand">
@@ -136,9 +143,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ChatDotRound, Menu, Search, ShoppingCart } from '@element-plus/icons-vue'
+import { ArrowLeft, ChatDotRound, Menu, Search, ShoppingCart, Top } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
 import { apiCartList, apiCatalogCategories } from '@/api'
@@ -154,6 +161,22 @@ const router = useRouter()
 const keyword = ref('')
 const catsOpen = ref(false)
 const cartCount = ref(0)
+const showBackTop = ref(false)
+
+/** main 为滚动容器（首页整页滚动时监听 window） */
+function onScroll() {
+  const scroller = document.querySelector('.client-layout .main') as HTMLElement | null
+  const scrollTop = scroller ? scroller.scrollTop : window.scrollY
+  showBackTop.value = scrollTop > 400
+}
+
+function scrollToTop() {
+  const scroller = document.querySelector('.client-layout .main') as HTMLElement | null
+  if (scroller && scroller.scrollHeight > scroller.clientHeight) {
+    scroller.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 /** 仅首页显示完整电商头部；其余页面用精简子头部 */
 const isHome = computed(() => route.path === '/')
@@ -172,6 +195,7 @@ const navCats = ref<NavCat[]>(
 )
 
 onMounted(async () => {
+  window.addEventListener('scroll', onScroll, { passive: true })
   try {
     const tree = await apiCatalogCategories()
     if (tree && tree.length) {
@@ -595,6 +619,42 @@ async function onCommand(cmd: string) {
   background: var(--mall-gradient);
   color: #fff;
   font-weight: 600;
+}
+
+/* ================= 返回顶部 ================= */
+.back-top {
+  position: fixed;
+  right: 24px;
+  bottom: 96px;
+  z-index: 90;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--mall-surface, #fff);
+  border: 1px solid var(--el-border-color-lighter, #eceef2);
+  box-shadow: var(--mall-shadow-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-secondary, #909399);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-top:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 
 /* ================= 页脚 ================= */
