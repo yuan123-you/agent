@@ -17,7 +17,7 @@ backend/.env
 *.iml
 
 # 运行时数据
-data/
+/data/
 *.log
 
 # 系统
