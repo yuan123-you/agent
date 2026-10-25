@@ -60,6 +60,10 @@ instance.interceptors.response.use(
     return body
   },
   async (error) => {
+    // 静默处理取消与中断请求
+    if (axios.isCancel(error) || error?.name === 'CanceledError' || error?.name === 'AbortError') {
+      return Promise.reject(error)
+    }
     const status = error.response?.status
     const body = error.response?.data
     const code = body?.code

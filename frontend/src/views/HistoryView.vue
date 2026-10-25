@@ -1,10 +1,14 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
     <div class="page">
-    <div class="head">
-      <h3 class="page-title">浏览历史（{{ total }}）</h3>
-      <el-button v-if="products.length > 0" text type="danger" @click="clear">清空历史</el-button>
-    </div>
+    <div class="page-header-row">
+        <button class="translucent-circle-back" title="返回" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <h3 class="page-title">浏览历史（{{ total }}）</h3>
+        <div style="flex: 1" />
+        <el-button v-if="products.length > 0" text type="danger" size="small" @click="clear">清空历史</el-button>
+      </div>
     <div class="list">
       <div v-for="p in products" :key="p.id" class="his-item" @click="$router.push(`/products/${p.id}`)">
         <el-image :src="p.imageUrl" fit="cover" class="pic" lazy decoding="async">

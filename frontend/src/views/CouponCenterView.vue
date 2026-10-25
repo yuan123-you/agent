@@ -3,6 +3,9 @@
     <!-- 极简轻奢页头（彻底移除突兀黑底大卡片，回归主流电商极简轻量化） -->
     <div class="cc-minimal-header">
       <div class="cmh-title-row">
+        <button class="translucent-circle-back" title="返回" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
         <span class="cmh-icon">🎫</span>
         <div class="cmh-text">
           <h2 class="cmh-title">领券中心</h2>

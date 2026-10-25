@@ -1,6 +1,11 @@
 <template>
   <div v-if="order" class="page detail">
-    <h3 class="page-title">订单详情</h3>
+    <div class="page-header-row">
+      <button class="translucent-circle-back" title="返回" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
+      <h3 class="page-title">订单详情</h3>
+    </div>
 
     <!-- 状态时间线 -->
     <el-card shadow="never" class="card">

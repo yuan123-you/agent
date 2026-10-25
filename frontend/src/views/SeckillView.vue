@@ -3,6 +3,9 @@
     <!-- 极简秒杀页头 (彻底移除突兀黑底大卡片) -->
     <div class="sk-minimal-header">
       <div class="smh-left">
+        <button class="translucent-circle-back" title="返回" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
         <span class="smh-icon">⚡</span>
         <div class="smh-text">
           <h2 class="smh-title">限时秒杀</h2>

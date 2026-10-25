@@ -430,3 +430,103 @@ button,
     min-height: 32px;
   }
 }
+
+/* ================= 全局统一半透明圆形返回按钮 ================= */
+.translucent-circle-back {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: #18181b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.translucent-circle-back:hover {
+  background: rgba(0, 0, 0, 0.15);
+  transform: scale(1.05);
+}
+
+.translucent-circle-back:active {
+  transform: scale(0.95);
+}
+
+html.dark .translucent-circle-back {
+  background: rgba(255, 255, 255, 0.15);
+  color: #f4f4f5;
+}
+
+/* ================= 统一单行页面头部（消除重复标题，返回按钮置于同一行） ================= */
+.page-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.page-header-row .page-title {
+  margin: 0 !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+}
+
+/* ================= el-tabs__header 在移动端严格单行等分全宽，彻底消除滑动箭头与截断 ================= */
+.orders-nav-tabs .el-tabs__header.is-top,
+.orders-nav-tabs :deep(.el-tabs__header.is-top) {
+  margin: 0 0 12px 0 !important;
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5) !important;
+}
+
+.orders-nav-tabs .el-tabs__nav-wrap,
+.orders-nav-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.orders-nav-tabs .el-tabs__nav-prev,
+.orders-nav-tabs .el-tabs__nav-next,
+.orders-nav-tabs :deep(.el-tabs__nav-prev),
+.orders-nav-tabs :deep(.el-tabs__nav-next) {
+  display: none !important;
+}
+
+.orders-nav-tabs .el-tabs__nav-scroll,
+.orders-nav-tabs :deep(.el-tabs__nav-scroll) {
+  overflow: visible !important;
+  width: 100% !important;
+}
+
+.orders-nav-tabs .el-tabs__nav,
+.orders-nav-tabs :deep(.el-tabs__nav) {
+  display: flex !important;
+  width: 100% !important;
+  float: none !important;
+}
+
+.orders-nav-tabs .el-tabs__item,
+.orders-nav-tabs :deep(.el-tabs__item) {
+  flex: 1 1 0% !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 2px !important;
+  text-align: center !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 420px) {
+  .orders-nav-tabs .el-tabs__item,
+  .orders-nav-tabs :deep(.el-tabs__item) {
+    font-size: 12px !important;
+    padding: 0 1px !important;
+  }
+}

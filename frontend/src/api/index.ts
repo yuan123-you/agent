@@ -197,19 +197,23 @@ export const apiAddressDelete = (id: number) => del<void>(`/addresses/${id}`)
 export function subscribeOrderStatus(onEvent: (o: { orderId: number; orderNo: string; status: string }) => void): { stop: () => void } {
   const controller = new AbortController()
   const token = localStorage.getItem('token') || ''
+  if (!token) {
+    return { stop: () => {} }
+  }
   const run = async () => {
     try {
       const resp = await fetch(`${API_BASE}/orders/subscribe`, {
         headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
+      if (!resp.ok) return
       const reader = resp.body?.getReader()
       if (!reader) return
       const decoder = new TextDecoder()
       let buffer = ''
       let event = ''
       let data = ''
-      while (true) {
+      while (!controller.signal.aborted) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -227,15 +231,21 @@ export function subscribeOrderStatus(onEvent: (o: { orderId: number; orderNo: st
             event = line.slice(6).trim()
           } else if (line.startsWith('data:')) {
             data += line.slice(5).trimStart()
-          } else if (line.startsWith(':')) {
-            // 心跳注释，忽略
           }
         }
       }
-    } catch { /* aborted */ }
+    } catch {
+      // AbortError is normal during navigation teardown
+    }
   }
-  run()
-  return { stop: () => controller.abort() }
+  run().catch(() => {})
+  return {
+    stop: () => {
+      try {
+        if (!controller.signal.aborted) controller.abort()
+      } catch {}
+    },
+  }
 }
 
 // ---------- 会话与消息 ----------

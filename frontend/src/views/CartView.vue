@@ -1,5 +1,11 @@
 <template>
   <div class="page cart-page">
+    <div class="page-header-row" style="padding: 10px 14px 0;">
+      <button class="translucent-circle-back" title="返回" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
+      <h3 class="page-title">我的购物车</h3>
+    </div>
     <div class="cart-body">
       <!-- 商品列表 -->
       <div class="list">

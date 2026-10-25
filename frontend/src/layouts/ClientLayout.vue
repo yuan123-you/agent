@@ -63,15 +63,7 @@
       </div>
     </header>
 
-    <!-- 子页面精简头部（非首页且非分类页时显示回退） -->
-    <header v-else-if="route.path !== '/products' && !isProductDetail" class="sub-header">
-      <button class="translucent-circle-back" title="返回" @click="goBack">
-        <el-icon><ArrowLeft /></el-icon>
-      </button>
-      <span v-if="route.path !== '/products'" class="sub-title">{{ subTitle }}</span>
-      <div class="spacer" />
-      <ThemeToggle />
-    </header>
+    
 
     <el-main class="main" :class="{ 'no-tabbar-pad': isProductDetail }">
       <router-view />
@@ -95,7 +87,6 @@ import { ArrowLeft, Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
-import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 import FloatingDock from '@/components/layout/FloatingDock.vue'
 import CartDrawer from '@/components/cart/CartDrawer.vue'
 
@@ -147,7 +138,9 @@ const isHome = computed(() => route.path === '/')
 const isProductDetail = computed(() => /^\/products\/\d+/.test(route.path))
 
 onMounted(() => {
-  cart.fetchCart()
+  if (localStorage.getItem('token')) {
+    cart.fetchCart()
+  }
 })
 
 const SUB_TITLES: Record<string, string> = {

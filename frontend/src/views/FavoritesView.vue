@@ -1,7 +1,12 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
     <div class="page">
-    <h3 class="page-title">我的收藏（{{ total }}）</h3>
+    <div class="page-header-row">
+        <button class="translucent-circle-back" title="返回" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <h3 class="page-title">我的收藏（{{ total }}）</h3>
+      </div>
     <div class="grid">
       <div v-for="p in products" :key="p.id" class="fav-card" @click="$router.push(`/products/${p.id}`)">
         <el-image :src="p.imageUrl" fit="cover" class="pic" lazy decoding="async">

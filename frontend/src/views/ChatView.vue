@@ -4,14 +4,21 @@
     <div v-if="showConvList" class="conv-mask" @click="showConvList = false"></div>
     <!-- 左侧会话列表（移动端为抽屉） -->
     <aside class="conv-panel" :class="{ 'mobile-open': showConvList }">
-      <el-button type="primary" class="new-btn" @click="chat.createConversation()">+ 新对话</el-button>
+      <div class="conv-panel-header">
+        <div class="cph-left">
+          <el-icon :size="18"><ChatDotRound /></el-icon>
+          <span class="cph-title">历史对话</span>
+        </div>
+        <button class="cph-close-btn mobile-only" title="关闭" @click="showConvList = false">✕</button>
+      </div>
+      <button class="new-conv-pill-btn" @click="handleCreateConv">+ 新建对话</button>
       <div class="conv-list">
         <div
           v-for="c in chat.conversations"
           :key="c.conversationId"
           class="conv-item"
           :class="{ active: chat.current?.conversationId === c.conversationId }"
-          @click="openConv(c.conversationId)"
+          @click="handleSelectConv(c.conversationId)"
         >
           <div class="conv-title">
             <el-icon v-if="isStreaming(c.conversationId)" class="is-loading conv-spinner">
@@ -23,7 +30,7 @@
             <el-tag v-if="c.status !== 'ACTIVE'" size="small" :type="statusTag(c.status)">
               {{ statusText(c.status) }}
             </el-tag>
-            <span class="time">{{ shortTime(c.updatedAt) }}</span>
+            <span class="time">{{ formatConvTime(c.updatedAt) }}</span>
           </div>
         </div>
         <el-empty v-if="chat.conversations.length === 0" description="暂无会话" :image-size="60" />
@@ -34,6 +41,9 @@
     <section class="chat-panel">
       <template v-if="chat.current">
         <header class="chat-header">
+          <button class="translucent-circle-back" title="返回" @click="goBack">
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
           <el-button class="conv-toggle" size="small" @click="showConvList = true">
             <el-icon><Menu /></el-icon>
           </el-button>
@@ -168,7 +178,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Link, Loading, Menu, Service } from '@element-plus/icons-vue'
+import { ArrowLeft, ChatDotRound, Link, Loading, Menu, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import AiMessage from '@/components/chat/AiMessage.vue'
@@ -399,15 +409,106 @@ function statusTag(status: string): 'warning' | 'success' | 'info' {
 }
 
 function shortTime(t?: string): string {
-  return (t || '').slice(5, 16)
+  return (t || '').slice(5, 16).replace('T', ' ')
+}
+
+function formatConvTime(t?: string): string {
+  if (!t) return ''
+  const d = new Date(t)
+  if (isNaN(d.getTime())) return t.slice(5, 16).replace('T', ' ')
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${m}-${day} ${h}:${min}`
+}
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+
+function handleSelectConv(id: number) {
+  openConv(id)
+  showConvList.value = false
+}
+
+async function handleCreateConv() {
+  await chat.createConversation()
+  showConvList.value = false
 }
 </script>
 
 <style scoped>
 .chat-view {
   display: flex;
-  height: 100%;
+  height: calc(100vh - 56px - env(safe-area-inset-bottom));
+  height: calc(100dvh - 56px - env(safe-area-inset-bottom));
+  overflow: hidden;
+  position: relative;
   background: var(--mall-surface, #fff);
+}
+
+@media (min-width: 769px) {
+  .chat-view {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+.conv-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+}
+
+.cph-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #18181b;
+}
+
+html.dark .cph-left {
+  color: #f4f4f5;
+}
+
+.cph-close-btn {
+  border: none;
+  background: transparent;
+  color: #71717a;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.new-conv-pill-btn {
+  width: 100%;
+  height: 38px;
+  border: none;
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+html.dark .new-conv-pill-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.new-conv-pill-btn:hover {
+  opacity: 0.9;
 }
 
 .conv-panel {
@@ -483,7 +584,10 @@ function shortTime(t?: string): string {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-width: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 .chat-header {
@@ -539,9 +643,10 @@ function shortTime(t?: string): string {
 }
 
 .msg-list {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
-  padding: 16px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -602,10 +707,13 @@ function shortTime(t?: string): string {
 
 .input-bar {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-end;
-  padding: 12px 16px;
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--mall-border-light, #f4f4f5);
+  background: var(--mall-surface, #ffffff);
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .input-actions {

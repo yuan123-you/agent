@@ -21,7 +21,7 @@
       <el-header class="header">
         <!-- 移动端汉堡入口 -->
         <el-button class="menu-toggle" text :icon="Menu" @click="drawer = true" />
-        <ThemeToggle /><span class="title mobile-only">AI Mall 控制台</span>
+        <span class="title mobile-only">AI Mall 控制台</span>
         <span class="spacer" />
         <span class="welcome">{{ auth.user?.nickname }}（{{ roleText }}）</span>
         <el-button link type="danger" @click="logout">退出登录</el-button>
@@ -58,7 +58,6 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Menu } from '@element-plus/icons-vue'
-import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { consoleActiveMenu } from './consoleLayout'
 

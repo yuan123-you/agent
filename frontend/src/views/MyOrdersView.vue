@@ -1,8 +1,13 @@
 <template>
   <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
     <div class="page orders">
-    <h3 class="page-title">我的订单</h3>
-    <el-tabs v-model="status" @tab-change="reload">
+    <div class="page-header-row">
+        <button class="translucent-circle-back" title="返回" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+        <h3 class="page-title">我的订单</h3>
+      </div>
+    <el-tabs v-model="status" class="orders-nav-tabs" @tab-change="reload">
       <el-tab-pane label="全部" name="" />
       <el-tab-pane label="待支付" name="PENDING_PAYMENT" />
       <el-tab-pane label="已支付" name="PAID" />

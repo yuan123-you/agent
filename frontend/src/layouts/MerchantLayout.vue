@@ -19,7 +19,7 @@
     <el-container>
       <el-header class="header">
         <el-button class="menu-toggle" text :icon="Menu" @click="drawer = true" />
-        <ThemeToggle /><span class="title mobile-only">🏪 卖家中心</span>
+        <span class="title mobile-only">🏪 卖家中心</span>
         <span class="spacer" />
         <span class="welcome">{{ profile?.shopName || auth.user?.nickname }}</span>
         <el-button link type="danger" @click="logout">退出</el-button>
@@ -51,7 +51,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Menu } from '@element-plus/icons-vue'
-import ThemeToggle from '@/components/layout/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 import { apiMerchantProfile } from '@/api'
 

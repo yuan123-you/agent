@@ -1,11 +1,25 @@
 <template>
   <div class="page addresses-page">
+    <div class="page-header-row">
+      <button class="translucent-circle-back" title="返回" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
+      <h3 class="page-title">收货地址管理</h3>
+    </div>
     <AddressBook />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import AddressBook from '@/components/address/AddressBook.vue'
+
+const router = useRouter()
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/profile')
+}
 </script>
 
 <style scoped>
