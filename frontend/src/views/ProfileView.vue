@@ -25,34 +25,14 @@
         <el-icon :size="22"><Clock /></el-icon>
         <span>浏览历史</span>
       </div>
-      <div class="entry" @click="$router.push('/cart')">
-        <el-icon :size="22"><ShoppingCart /></el-icon>
-        <span>购物车</span>
+      <div class="entry" @click="$router.push('/my-coupons')">
+        <el-icon :size="22"><Ticket /></el-icon>
+        <span>我的优惠券</span>
       </div>
       <div class="entry" @click="$router.push('/addresses')">
         <el-icon :size="22"><Location /></el-icon>
         <span>收货地址</span>
       </div>
-    </div>
-
-    <!-- 我的优惠券 -->
-    <div class="coupon-section">
-      <h3 class="section-title">🎫 我的优惠券</h3>
-      <div v-if="coupons.length" class="coupon-list">
-        <div v-for="c in coupons" :key="c.userCouponId" class="my-coupon" :class="c.status.toLowerCase()">
-          <div class="mc-amount"><i>￥</i>{{ c.discountValue }}</div>
-          <div class="mc-info">
-            <div class="mc-name">{{ c.name }}</div>
-            <div class="mc-rule">
-              {{ (c.minAmount || 0) > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }} · {{ (c.expireAt || '').slice(0, 10) }} 到期
-            </div>
-          </div>
-          <el-tag size="small" :type="c.status === 'UNUSED' ? 'danger' : 'info'" effect="plain">
-            {{ c.status === 'UNUSED' ? '可用' : c.status === 'USED' ? '已使用' : '已过期' }}
-          </el-tag>
-        </div>
-      </div>
-      <el-empty v-else description="还没有优惠券，去领券中心逛逛" :image-size="56" />
     </div>
 
     <!-- 菜单 -->
@@ -80,7 +60,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ArrowRight, ChatDotRound, Clock, Goods, Location, ShoppingBag, ShoppingCart, Star, SwitchButton,
+  ArrowRight, ChatDotRound, Clock, Goods, Location, ShoppingBag, Star, SwitchButton, Ticket,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { apiMyCoupons } from '@/api'

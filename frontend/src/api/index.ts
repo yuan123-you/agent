@@ -154,6 +154,7 @@ export interface CreateOrderPayload extends CheckoutDeliveryPayload {
 }export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
 export const apiPayOrder = (id: number) => post<void>(`/orders/${id}/pay`)
 export const apiCancelOrder = (id: number) => post<void>(`/orders/${id}/cancel`)
+export const apiOrderSimulateShip = (id: number) => post<void>(`/orders/${id}/simulate-ship`)
 export const apiConfirmReceipt = (id: number) => post<void>(`/orders/${id}/confirm`)
 export const apiMyOrders = (params: Record<string, unknown>) =>
   get<PageResult<OrderVO>>('/orders/my', { params })

@@ -59,6 +59,15 @@ public class OrderController {
         return ApiResponse.ok();
     }
 
+    /** 模拟商家发货（仅本人已支付订单：PAID -> SHIPPED） */
+    @PostMapping("/{id}/simulate-ship")
+    public ApiResponse<Void> simulateShip(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+        OrderInfo order = orderService.requireOwned(userId, id);
+        String sfNo = "SF" + (System.currentTimeMillis() % 10000000000L);
+        orderService.ship(order.getId(), sfNo, "顺丰速运");
+        return ApiResponse.ok();
+    }
+
     /** 买家确认收货（仅本人已发货订单：SHIPPED -> DELIVERED） */
     @PostMapping("/{id}/confirm")
     public ApiResponse<Void> confirmReceipt(@AuthenticationPrincipal Long userId, @PathVariable Long id) {

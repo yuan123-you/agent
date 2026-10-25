@@ -69,7 +69,6 @@
           :class="{ active: activeCategoryCode === cat.code }"
           @click="selectCategory(cat.code)"
         >
-          <span class="mct-icon">{{ cat.icon }}</span>
           <span>{{ cat.name }}</span>
         </span>
       </div>
@@ -832,10 +831,10 @@ html.dark .main-cat-bar-wrap {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 8px 16px;
+  padding: 5px 10px;
 }
 
 .main-cat-bar::-webkit-scrollbar {
@@ -845,11 +844,10 @@ html.dark .main-cat-bar-wrap {
 .main-cat-tab {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: #71717a;
-  padding: 6px 14px;
+  padding: 4px 9px;
   border-radius: 9999px;
   cursor: pointer;
   white-space: nowrap;

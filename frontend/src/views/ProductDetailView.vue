@@ -508,7 +508,7 @@ function handleConfirmBuyNow() {
   }
   showSpec.value = false
   handleConfirmAddToCart()
-  router.push('/cart')
+  router.push({ path: '/cart', query: { checkout: '1' } })
 }
 
 function openCartFromMobile() {

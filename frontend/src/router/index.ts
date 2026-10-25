@@ -18,6 +18,7 @@ const router = createRouter({
         { path: 'products', component: () => import('@/views/ProductListView.vue'), meta: { public: true } },
         { path: 'seckill', component: () => import('@/views/SeckillView.vue'), meta: { public: true } },
         { path: 'coupons', component: () => import('@/views/CouponCenterView.vue'), meta: { public: true } },
+        { path: 'my-coupons', component: () => import('@/views/MyCouponsView.vue'), meta: { customer: true } },
         { path: 'products/:id', component: () => import('@/views/ProductDetailView.vue'), meta: { public: true } },
         { path: 'orders', component: () => import('@/views/MyOrdersView.vue'), meta: { customer: true } },
         { path: 'orders/:id', component: () => import('@/views/OrderDetailView.vue'), meta: { customer: true } },

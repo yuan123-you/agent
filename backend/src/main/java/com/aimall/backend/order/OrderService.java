@@ -34,6 +34,11 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class OrderService {
 
+    private String safeProductImage(String url) {
+        if (url == null) return null;
+        return url.length() > 2000 ? url.substring(0, 2000) : url;
+    }
+
     private final OrderInfoMapper orderInfoMapper;
     private final OrderItemMapper orderItemMapper;
     private final ProductMapper productMapper;
@@ -103,7 +108,7 @@ public class OrderService {
         item.setSkuSp(sku != null ? sku.getSpData() : null);
         item.setSeckillId(seckill != null ? seckill.getId() : null);
         item.setProductName(product.getName());
-        item.setProductImage(product.getImageUrl());
+        item.setProductImage(safeProductImage(product.getImageUrl()));
         item.setPrice(unitPrice);
         item.setQuantity(req.getQuantity());
         item.setSubtotal(subtotal);
@@ -309,7 +314,7 @@ public class OrderService {
             item.setSkuSp(sku != null ? sku.getSpData() : null);
             item.setSeckillId(seckill != null ? seckill.getId() : null);
             item.setProductName(product.getName());
-            item.setProductImage(product.getImageUrl());
+            item.setProductImage(safeProductImage(product.getImageUrl()));
             item.setPrice(unitPrice);
             item.setQuantity(ci.quantity());
             item.setSubtotal(subtotal);

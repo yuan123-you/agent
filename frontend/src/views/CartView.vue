@@ -43,27 +43,99 @@
       </el-button>
     </div>
 
-    <!-- 收货信息弹窗 -->
-    <el-dialog v-model="showCheckout" title="确认订单" width="460px">
-      <el-form label-width="80px">
-        <el-form-item label="商品">
-          <span>共 {{ checkedCount }} 件，合计 <b class="amount">￥{{ totalAmount }}</b></span>
-        </el-form-item>
-        <el-form-item label="优惠券">
-          <CouponPicker v-model="selectedCouponId" :amount="totalAmount"
-            @discount="(v) => (couponDiscountValue = v)" />
-        </el-form-item>
-        <el-form-item label="应付">
-          <span class="amount">￥{{ payableAmount }}</span>
-          <span v-if="couponDiscountValue > 0" class="discount-note">已优惠 ￥{{ couponDiscountValue }}</span>
-        </el-form-item>
-        <el-form-item label="收货地址" class="addr-form-item">
+    <!-- 确认订单弹窗 (对标三大电商平台专业收银台设计) -->
+    <el-dialog
+      v-model="showCheckout"
+      title="确认订单"
+      width="min(500px, 94vw)"
+      class="checkout-pro-dialog"
+      destroy-on-close
+    >
+      <div class="checkout-pro-body">
+        <!-- 1. 收货地址卡片 -->
+        <div class="cp-section-card">
+          <div class="cp-card-label">📍 收货地址</div>
           <CheckoutAddressPicker v-model="selectedAddressId" />
-        </el-form-item>
-      </el-form>
+        </div>
+
+        <!-- 2. 商品清单与配送履约 -->
+        <div class="cp-section-card">
+          <div class="cp-card-label">🛍️ 选购商品 ({{ checkedCount }}件)</div>
+          <div class="cp-items-scroll">
+            <div
+              v-for="row in items.filter(i => i.checked === 1)"
+              :key="row.cartItemId"
+              class="cp-item-row"
+            >
+              <el-image :src="row.imageUrl" fit="cover" class="cp-item-img" lazy decoding="async">
+                <template #error><div class="cp-fb">🛍️</div></template>
+              </el-image>
+              <div class="cp-item-info">
+                <div class="cpi-name">{{ row.name }}</div>
+                <div class="cpi-spec">{{ row.skuSp ? spText(row.skuSp) : '官方标配' }}</div>
+                <div class="cpi-bottom">
+                  <span class="cpi-price">￥{{ row.price }}</span>
+                  <span class="cpi-qty">× {{ row.quantity }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cp-delivery-badge">
+            <span>🚚 顺丰速运 · 极速出库</span>
+            <span>📦 赠退货运费险</span>
+          </div>
+        </div>
+
+        <!-- 3. 优惠券选择 -->
+        <div class="cp-section-card">
+          <div class="cp-card-label">🎫 优惠券抵扣</div>
+          <CouponPicker
+            v-model="selectedCouponId"
+            :amount="totalAmount"
+            @discount="(v) => (couponDiscountValue = v)"
+          />
+        </div>
+
+        <!-- 4. 金额明细 -->
+        <div class="cp-calc-card">
+          <div class="cpc-row">
+            <span>商品总额</span>
+            <span>￥{{ totalAmount.toFixed(2) }}</span>
+          </div>
+          <div class="cpc-row">
+            <span>运费</span>
+            <span class="free-text">免运费</span>
+          </div>
+          <div v-if="couponDiscountValue > 0" class="cpc-row discount">
+            <span>优惠券立减</span>
+            <span>-￥{{ couponDiscountValue.toFixed(2) }}</span>
+          </div>
+          <div class="cpc-row total">
+            <span>实付款</span>
+            <span class="cpc-total-val">￥{{ payableAmount }}</span>
+          </div>
+        </div>
+      </div>
+
       <template #footer>
-        <el-button @click="showCheckout = false">取消</el-button>
-        <el-button type="danger" :loading="submitting" :disabled="!selectedAddressId" @click="submit">模拟支付</el-button>
+        <div class="checkout-footer-row">
+          <div class="cfr-left">
+            <span class="cfr-label">实付：</span>
+            <span class="cfr-price">￥{{ payableAmount }}</span>
+          </div>
+          <div class="cfr-right">
+            <el-button @click="showCheckout = false">取消</el-button>
+            <el-button
+              type="danger"
+              class="cfr-pay-btn"
+              :loading="submitting"
+              :disabled="!selectedAddressId"
+              @click="submit"
+            >
+              立即支付 ￥{{ payableAmount }}
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -71,7 +143,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
 import CouponPicker from '@/components/mall/CouponPicker.vue'
@@ -81,6 +153,7 @@ import {
 } from '@/api'
 
 const router = useRouter()
+const route = useRoute()
 const items = ref<CartRow[]>([])
 const loading = ref(false)
 const totalAmount = ref(0)
@@ -174,7 +247,12 @@ function spText(spData?: string): string {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (route.query.checkout === '1' && items.value.length > 0) {
+    openCheckout()
+  }
+})
 </script>
 
 <style scoped>
@@ -350,5 +428,199 @@ onMounted(load)
   }
 }
 
+
+/* ================= 确认订单收银台 (三大电商平台专业重构) ================= */
+.checkout-pro-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cp-section-card {
+  padding: 12px 14px;
+  background: var(--mall-surface-2, #f4f4f5);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html.dark .cp-section-card {
+  background: #18181b;
+}
+
+.cp-card-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #71717a;
+}
+
+.cp-items-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.cp-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.cp-item-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.cp-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e4e4e7;
+  font-size: 16px;
+}
+
+.cp-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cpi-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #18181b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.dark .cpi-name {
+  color: #f4f4f5;
+}
+
+.cpi-spec {
+  font-size: 10px;
+  color: #a1a1aa;
+}
+
+.cpi-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.cpi-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mall-price, #e11d48);
+}
+
+.cpi-qty {
+  font-size: 11px;
+  color: #71717a;
+}
+
+.cp-delivery-badge {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  color: #059669;
+  padding-top: 4px;
+}
+
+.cp-calc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--mall-surface-2, #f4f4f5);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #71717a;
+}
+
+html.dark .cp-calc-card {
+  background: #18181b;
+}
+
+.cpc-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cpc-row .free-text {
+  color: #059669;
+}
+
+.cpc-row.discount {
+  color: var(--mall-price, #e11d48);
+}
+
+.cpc-row.total {
+  font-size: 13px;
+  font-weight: 700;
+  color: #18181b;
+  padding-top: 4px;
+  border-top: 1px dashed #d4d4d8;
+}
+
+html.dark .cpc-row.total {
+  color: #f4f4f5;
+  border-top-color: #27272a;
+}
+
+.cpc-total-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--mall-price, #e11d48);
+}
+
+.checkout-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.cfr-left {
+  display: flex;
+  align-items: baseline;
+}
+
+.cfr-label {
+  font-size: 12px;
+  color: #71717a;
+}
+
+.cfr-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--mall-price, #e11d48);
+}
+
+.cfr-right {
+  display: flex;
+  gap: 8px;
+}
+
+.cfr-pay-btn {
+  background: var(--mall-price, #e11d48) !important;
+  border-color: var(--mall-price, #e11d48) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-radius: 9999px !important;
+  padding: 0 18px !important;
+}
 </style>
 
