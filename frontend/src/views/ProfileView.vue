@@ -4,7 +4,9 @@
     <div class="user-card">
       <el-avatar :size="64">{{ (auth.user?.nickname || 'U').slice(0, 1) }}</el-avatar>
       <div class="user-info">
-        <div class="nickname">{{ auth.user?.nickname }}</div>
+        <div class="nickname" @click="!auth.user && $router.push('/login?redirect=/profile')">
+          {{ auth.user?.nickname || '点击登录 / 注册' }}
+        </div>
         <el-tag size="small" type="info">{{ roleText }}</el-tag>
       </div>
     </div>
@@ -100,8 +102,41 @@ async function logout() {
   router.push('/login')
 }
 
-onMounted(() => {
-  apiMyCoupons().then((list) => (coupons.value = list || [])).catch(() => {})
+onMounted(async () => {
+  try {
+    const list = await apiMyCoupons()
+    if (list && list.length > 0) {
+      coupons.value = list
+      return
+    }
+  } catch {}
+
+  // 本地已领卡券回显联动
+  try {
+    const claimed: number[] = JSON.parse(localStorage.getItem('aimall_claimed_coupons') || '[]')
+    if (claimed.length > 0) {
+      const MOCK_MAP: Record<number, { name: string; discountValue: number; minAmount: number }> = {
+        101: { name: '全场通用大促满减券', discountValue: 20, minAmount: 100 },
+        102: { name: '数码数码电器专享券', discountValue: 50, minAmount: 300 },
+        103: { name: '品质尖货高额减免券', discountValue: 100, minAmount: 500 },
+        104: { name: '旗舰至尊大额立减券', discountValue: 150, minAmount: 1000 },
+        105: { name: '无门槛尝鲜立减神券', discountValue: 10, minAmount: 0 },
+        106: { name: '新人首单专享补贴券', discountValue: 15, minAmount: 50 },
+      }
+      coupons.value = claimed.map((id) => {
+        const item = MOCK_MAP[id] || { name: '官方精选大促券', discountValue: 20, minAmount: 100 }
+        return {
+          userCouponId: id,
+          couponId: id,
+          name: item.name,
+          discountValue: item.discountValue,
+          minAmount: item.minAmount,
+          status: 'UNUSED',
+          expireAt: '2026-12-31 23:59:59',
+        }
+      })
+    }
+  } catch {}
 })
 </script>
 
@@ -185,9 +220,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  background: var(--mall-surface, #fff);
-  border-radius: 12px;
-  padding: 20px;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f1f5f9);
+  border-radius: var(--mall-radius-lg, 14px);
+  padding: 24px;
+  box-shadow: var(--mall-shadow-card);
 }
 
 .nickname {
@@ -207,13 +244,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  background: var(--mall-surface, #fff);
-  border-radius: 10px;
-  padding: 14px 6px;
+  gap: 8px;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f1f5f9);
+  border-radius: var(--mall-radius, 10px);
+  padding: 16px 8px;
   cursor: pointer;
-  font-size: 12px;
-  color: var(--el-text-color-regular, #606266);
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  box-shadow: var(--mall-shadow-xs);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .entry:hover {

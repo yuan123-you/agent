@@ -1,201 +1,212 @@
 <template>
-  <div class="home" v-loading="loading">
-    <!-- ============ 第一屏：分类竖菜单 + 轮播 + 用户卡 ============ -->
-    <section class="container hero-zone">
-      <aside class="side-cats desktop-only">
-        <div v-for="c in catCells" :key="c.key" class="side-cat" @click="$router.push(c.link)">
-          <span class="sc-icon">{{ c.icon }}</span>
-          <span class="sc-name">{{ c.name }}</span>
-          <span class="sc-arrow">›</span>
+  <div class="home">
+    <!-- ============ 现代电商主流方案：金刚区快捷入口 (5列图标导航) ============ -->
+    <section class="mainstream-quick-nav container">
+      <div class="quick-nav-grid">
+        <div class="qn-item" @click="$router.push('/seckill')">
+          <div class="qn-icon-box qn-seckill"><span class="qn-emoji">⚡</span></div>
+          <span class="qn-label">限时秒杀</span>
         </div>
-      </aside>
+        <div class="qn-item" @click="$router.push('/coupons')">
+          <div class="qn-icon-box qn-coupon"><span class="qn-emoji">🎫</span></div>
+          <span class="qn-label">领券中心</span>
+        </div>
+        <div class="qn-item" @click="$router.push('/assistant')">
+          <div class="qn-icon-box qn-ai"><span class="qn-emoji">✨</span></div>
+          <span class="qn-label">AI 导购</span>
+        </div>
+        <div class="qn-item" @click="$router.push('/products')">
+          <div class="qn-icon-box qn-cat"><span class="qn-emoji">🛍️</span></div>
+          <span class="qn-label">全部分类</span>
+        </div>
+        <div class="qn-item" @click="goToOrders">
+          <div class="qn-icon-box qn-order"><span class="qn-emoji">📦</span></div>
+          <span class="qn-label">我的订单</span>
+        </div>
+      </div>
+    </section>
 
-      <div class="hero-banner">
-        <el-carousel :interval="4500" trigger="click" arrow="hover" :height="bannerHeight" class="hero-carousel">
-          <el-carousel-item v-for="b in banners" :key="b.title">
-            <div class="banner" :style="{ background: b.bg }" @click="$router.push(b.link)">
-              <div class="banner-content">
-                <h2>{{ b.title }}</h2>
-                <p>{{ b.desc }}</p>
-                <span class="banner-cta">立即查看 →</span>
+    <!-- ============ 现代电商主流方案：双子星特惠/活动微卡片 (紧凑单行自适应，绝不换行) ============ -->
+    <section class="mainstream-dual-promo container">
+      <div class="dual-promo-grid">
+        <!-- 专区 1: 限时秒杀 -->
+        <div class="dp-card dp-seckill" @click="$router.push('/seckill')">
+          <div class="dp-card-head">
+            <span class="dp-title">⚡ 秒杀</span>
+            <span class="dp-timer">{{ countdownText }}</span>
+          </div>
+          <div class="dp-sub">品牌尖货 · 整点直降</div>
+        </div>
+
+        <!-- 专区 2: 超值礼券 -->
+        <div class="dp-card dp-coupon" @click="$router.push('/coupons')">
+          <div class="dp-card-head">
+            <span class="dp-title">🎫 领券</span>
+            <span class="dp-badge-free">最高减 100</span>
+          </div>
+          <div class="dp-sub">每日神券 · 下单立减</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 核心商品真实双列瀑布流 (Masonry Waterfall，严格一行2列) ============ -->
+    <main class="feed-container container">
+      <!-- 初始全屏骨架屏测试 -->
+      <div v-if="initialLoading" class="waterfall-container">
+        <div class="waterfall-column">
+          <div v-for="n in 3" :key="'sk-l-' + n" class="skeleton-card">
+            <div class="sk-img mall-skeleton" :style="{ aspectRatio: n % 2 === 0 ? '3/4' : '1/1' }" />
+            <div class="sk-info">
+              <div class="sk-line-1 mall-skeleton" />
+              <div class="sk-line-2 mall-skeleton" />
+              <div class="sk-line-3 mall-skeleton" />
+            </div>
+          </div>
+        </div>
+        <div class="waterfall-column">
+          <div v-for="n in 3" :key="'sk-r-' + n" class="skeleton-card">
+            <div class="sk-img mall-skeleton" :style="{ aspectRatio: n % 2 === 0 ? '1/1' : '4/5' }" />
+            <div class="sk-info">
+              <div class="sk-line-1 mall-skeleton" />
+              <div class="sk-line-2 mall-skeleton" />
+              <div class="sk-line-3 mall-skeleton" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 真实高低错落双列瀑布流 -->
+      <div v-else class="waterfall-container">
+        <!-- 左列瀑布流 -->
+        <div class="waterfall-column">
+          <div
+            v-for="p in leftColumnProducts"
+            :key="p.id"
+            class="pdd-card"
+            @click="$router.push(`/products/${p.id}`)"
+          >
+            <div class="pdd-pic-wrap" :style="{ aspectRatio: p.aspectRatio || '1/1' }">
+              <el-image
+                :src="p.imageUrl"
+                fit="cover"
+                class="pdd-pic"
+                lazy
+                decoding="async"
+              >
+                <template #placeholder>
+                  <div class="pdd-placeholder mall-skeleton" />
+                </template>
+                <template #error>
+                  <div class="pdd-error-fallback">{{ p.name.slice(0, 1) }}</div>
+                </template>
+              </el-image>
               </div>
-              <div class="banner-emoji">{{ b.emoji }}</div>
+
+            <div class="pdd-info">
+              <div class="pdd-brand" v-if="p.brand">{{ p.brand }}</div>
+              <div class="pdd-title" :title="p.name">{{ p.name }}</div>
+
+              <div class="pdd-bottom">
+                <div class="pdd-price-group">
+                  <span class="pdd-price"><i>￥</i>{{ p.price }}</span>
+                  </div>
+                <span class="pdd-sales">销量 {{ formatSales(p.sales) }}</span>
+              </div>
             </div>
-          </el-carousel-item>
-        </el-carousel>
-      </div>
-
-      <aside class="side-user tablet-only-none">
-        <div class="user-panel mall-card">
-          <template v-if="auth.user">
-            <el-avatar :size="44" class="up-avatar">{{ auth.user.nickname.slice(0, 1) }}</el-avatar>
-            <div class="up-hello">Hi，{{ auth.user.nickname }}</div>
-            <div class="up-sub">欢迎回到 AI Mall</div>
-          </template>
-          <template v-else>
-            <div class="up-hello">Hi，欢迎来到 AI Mall</div>
-            <div class="up-sub">登录后享专属优惠</div>
-            <el-button type="danger" round class="up-login" @click="$router.push('/login')">
-              登录 / 注册
-            </el-button>
-          </template>
-          <div class="up-links">
-            <span @click="$router.push('/orders')">我的订单</span>
-            <span @click="$router.push('/favorites')">我的收藏</span>
-            <span @click="$router.push('/cart')">购物车</span>
-            <span @click="scrollToCoupons">领券中心</span>
           </div>
         </div>
-        <div class="notice-panel mall-card">
-          <div class="notice-title">🛎️ 商城公告</div>
-          <div class="notice-item">全场满 100 减 20 优惠券限时领取</div>
-          <div class="notice-item">品牌秒杀专区每日上新</div>
-          <div class="notice-item">AI 助手帮你找货 · 秒回价保咨询</div>
-        </div>
-      </aside>
-    </section>
 
-    <!-- ============ 分类金刚区（平板/手机；桌面在左侧竖菜单） ============ -->
-    <section class="container cat-grid-zone mobile-tablet-only">
-      <div class="cat-grid">
-        <div v-for="c in catCells" :key="c.key" class="cat-cell" @click="$router.push(c.link)">
-          <span class="cat-icon">{{ c.icon }}</span>
-          <span class="cat-name">{{ c.name }}</span>
-        </div>
-      </div>
-    </section>
+        <!-- 右列瀑布流 -->
+        <div class="waterfall-column">
+          <div
+            v-for="p in rightColumnProducts"
+            :key="p.id"
+            class="pdd-card"
+            @click="$router.push(`/products/${p.id}`)"
+          >
+            <div class="pdd-pic-wrap" :style="{ aspectRatio: p.aspectRatio || '1/1' }">
+              <el-image
+                :src="p.imageUrl"
+                fit="cover"
+                class="pdd-pic"
+                lazy
+                decoding="async"
+              >
+                <template #placeholder>
+                  <div class="pdd-placeholder mall-skeleton" />
+                </template>
+                <template #error>
+                  <div class="pdd-error-fallback">{{ p.name.slice(0, 1) }}</div>
+                </template>
+              </el-image>
+              </div>
 
-    <!-- ============ 限时秒杀专区（模块化：倒计时面板 + 商品网格） ============ -->
-    <section v-if="seckills.length" id="seckill-zone" class="container floor">
-      <div class="floor-head">
-        <h3><i class="bar-accent" />限时秒杀 <span v-if="countdownText" class="countdown">{{ countdownText }}</span></h3>
-        <el-button text type="primary" @click="$router.push('/seckill')">更多 ›</el-button>
-      </div>
-      <div class="seckill-zone">
-        <div class="seckill-side">
-          <div class="ss-flash">⚡</div>
-          <div class="ss-title">天天秒杀</div>
-          <div class="ss-sub">品牌好物 · 低价到底</div>
-          <div class="ss-countdown" v-if="countdownText">{{ countdownText }}</div>
-        </div>
-        <div class="seckill-goods">
-          <div v-for="s in seckills.slice(0, 6)" :key="s.seckillId" class="sg-card"
-            @click="$router.push(`/products/${s.productId}`)">
-            <el-image :src="s.imageUrl" fit="cover" class="sg-pic" lazy decoding="async" />
-            <div class="sg-name">{{ s.name }}</div>
-            <div class="sg-price-row">
-              <span class="sg-now"><i>￥</i>{{ s.seckillPrice }}</span>
-              <span class="sg-old">￥{{ s.originalPrice }}</span>
+            <div class="pdd-info">
+              <div class="pdd-brand" v-if="p.brand">{{ p.brand }}</div>
+              <div class="pdd-title" :title="p.name">{{ p.name }}</div>
+
+              <div class="pdd-bottom">
+                <div class="pdd-price-group">
+                  <span class="pdd-price"><i>￥</i>{{ p.price }}</span>
+                  </div>
+                <span class="pdd-sales">销量 {{ formatSales(p.sales) }}</span>
+              </div>
             </div>
-            <div class="sg-progress">
-              <div class="sg-bar" :style="{ width: stockPercent(s) }" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 滑动触底加载中过渡骨架屏 (左右各一卡片) -->
+      <div v-if="loadingMore" class="waterfall-container loading-more-waterfall">
+        <div class="waterfall-column">
+          <div class="skeleton-card">
+            <div class="sk-img mall-skeleton" style="aspect-ratio: 4/5" />
+            <div class="sk-info">
+              <div class="sk-line-1 mall-skeleton" />
+              <div class="sk-line-2 mall-skeleton" />
+              <div class="sk-line-3 mall-skeleton" />
             </div>
-            <button class="sg-buy" :class="{ soon: !s.started }">
-              {{ s.started ? '马上抢' : '即将开始' }}
-            </button>
+          </div>
+        </div>
+        <div class="waterfall-column">
+          <div class="skeleton-card">
+            <div class="sk-img mall-skeleton" style="aspect-ratio: 1/1" />
+            <div class="sk-info">
+              <div class="sk-line-1 mall-skeleton" />
+              <div class="sk-line-2 mall-skeleton" />
+              <div class="sk-line-3 mall-skeleton" />
+            </div>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- ============ 领券中心 ============ -->
-    <section v-if="coupons.length" id="coupon-zone" class="container floor">
-      <div class="floor-head">
-        <h3><i class="bar-accent" />领券中心</h3>
-        <el-button text type="primary" @click="$router.push('/coupons')">更多 ›</el-button>
+      <!-- 触底状态提示 -->
+      <div v-if="isFinished && displayedProducts.length > 0" class="feed-end">
+        — 已经到底了 · 甄选好物已全部加载完毕 (共 {{ displayedProducts.length }} 款) —
       </div>
-      <div class="coupon-row">
-        <div v-for="c in coupons" :key="c.couponId" class="coupon-card">
-          <div class="coupon-left">
-            <div class="coupon-val"><i>￥</i>{{ c.discountValue }}</div>
-            <div class="coupon-rule">{{ c.minAmount > 0 ? `满${c.minAmount}可用` : '无门槛' }}</div>
-          </div>
-          <div class="coupon-right">
-            <div class="coupon-name">{{ c.name }}</div>
-            <el-button size="small" type="danger" round :disabled="c.received" @click="receive(c)">
-              {{ c.received ? '已领取' : '立即领取' }}
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ AI 助手入口 ============ -->
-    <section class="container floor">
-      <div class="ai-entry" @click="$router.push('/assistant')">
-        <span class="ai-emoji">🤖</span>
-        <div class="ai-text">
-          <div class="ai-title">AI 购物助手</div>
-          <div class="ai-desc">告诉我想买什么，帮你找商品、查订单、答政策</div>
-        </div>
-        <el-button type="primary" round>去咨询</el-button>
-      </div>
-    </section>
-
-    <!-- ============ 猜你喜欢：全分类混合信息流 ============ -->
-    <section class="container floor">
-      <div class="floor-head">
-        <h3><i class="bar-accent" />猜你喜欢</h3>
-        <el-button text type="primary" @click="$router.push('/products')">查看全部 ›</el-button>
-      </div>
-      <div v-if="feedLoading || loading" class="floor-skeleton">
-        <div v-for="n in 10" :key="n" class="mall-skeleton sk-card" />
-      </div>
-      <div v-else class="floor-grid feed-grid">
-        <ProductCard v-for="p in feed" :key="p.id" :product="p" />
-      </div>
-      <div v-if="!loading && feed.length === 0" class="feed-empty">暂无推荐商品，去<a class="ai-link" @click="$router.push('/products')">全部商品</a>逛逛</div>
-    </section>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { apiCatalogCategories, apiProducts, apiReceivableCoupons, apiReceiveCoupon, apiSeckills } from '@/api'
-import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
-import { useAuthStore } from '@/stores/auth'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import ProductCard from '@/components/product/ProductCard.vue'
-import type { CategoryVO, CouponVO, ProductVO, SeckillVO } from '@/types/api'
+import { ElMessage } from 'element-plus'
+import { MASSIVE_PRODUCTS, type EnhancedProduct } from '@/data/products'
 
-const auth = useAuthStore()
 const router = useRouter()
-const loading = ref(false)
-const windowWidth = ref(window.innerWidth)
-const onResize = () => (windowWidth.value = window.innerWidth)
-window.addEventListener('resize', onResize)
 
-const bannerHeight = computed(() =>
-  windowWidth.value <= 768 ? '150px' : windowWidth.value <= 1199 ? '260px' : '100%',
-)
+const initialLoading = ref(true)
+const loadingMore = ref(false)
+const currentPage = ref(1)
+const PAGE_SIZE = 12
 
-const banners = [
-  { title: '数码焕新季', desc: '旗舰影像 · 折上折', emoji: '📱', bg: 'linear-gradient(120deg, #e4393c, #ff7a59)', link: '/products?category=PHONE' },
-  { title: '家电狂欢周', desc: '一级能效 · 以旧换新', emoji: '🧺', bg: 'linear-gradient(120deg, #12b7a3, #48c9b0)', link: '/products?category=APPLIANCE' },
-  { title: '生鲜直达', desc: '产地直发 · 新鲜到家', emoji: '🍎', bg: 'linear-gradient(120deg, #ff7a59, #ffb347)', link: '/products?category=FOOD' },
-]
-
-// 猜你喜欢：全分类混合信息流（主力类目交错混排，保证各类目均匀出现）
-const FEED_CODES = ['PHONE', 'APPLIANCE', 'CLOTHING', 'SPORTS', 'FOOD', 'BEAUTY', 'HOME', 'BOOK']
-const feed = ref<ProductVO[]>([])
-const feedLoading = ref(false)
-
-// 分类（宫格 + 左侧竖菜单共用）：商城目录优先，为空时回落到内置常量
-interface CatCell { key: string; name: string; icon: string; link: string }
-const catCells = ref<CatCell[]>(
-  CATEGORIES.map((c) => ({ key: c.code, name: c.name, icon: c.icon, link: `/products?category=${c.code}` })),
-)
-
-// ---------- 秒杀专区 ----------
-const seckills = ref<SeckillVO[]>([])
+// 实时倒计时计算
 const nowTick = ref(Date.now())
 let timer: number | undefined
 
 const countdownText = computed(() => {
-  const active = seckills.value.find((s) => s.started)
-  if (!active) return ''
-  const diff = Math.max(0, new Date(active.endTime).getTime() - nowTick.value)
+  const diff = Math.max(0, 10800000 - (nowTick.value % 10800000))
   const h = Math.floor(diff / 3600000)
   const m = Math.floor((diff % 3600000) / 60000)
   const s = Math.floor((diff % 60000) / 1000)
@@ -203,729 +214,472 @@ const countdownText = computed(() => {
   return `${pad(h)}:${pad(m)}:${pad(s)}`
 })
 
-function stockPercent(s: SeckillVO): string {
-  const original = Math.max(1, s.seckillStock + 1)
-  return `${Math.min(100, Math.round((s.seckillStock / original) * 100))}%`
-}
-
-// ---------- 领券中心 ----------
-const coupons = ref<CouponVO[]>([])
-
-function scrollToCoupons() {
-  document.getElementById('coupon-zone')?.scrollIntoView({ behavior: 'smooth' })
-}
-
-async function receive(c: CouponVO) {
-  if (!auth.isCustomer) {
-    ElMessage.warning('请先登录后领券')
-    void router.push({ path: '/login', query: { redirect: '/' } })
+function goToOrders() {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    ElMessage.warning('请先登录后查看订单')
+    router.push({ path: '/login', query: { redirect: '/orders' } })
     return
   }
-  await apiReceiveCoupon(c.couponId)
-  c.received = true
-  ElMessage.success(`已领取「${c.name}」，可在个人中心查看`)
+  router.push('/orders')
 }
 
-onMounted(async () => {
-  timer = window.setInterval(() => (nowTick.value = Date.now()), 1000)
-  apiSeckills().then((list) => (seckills.value = list || [])).catch(() => {})
-  apiReceivableCoupons().then((list) => (coupons.value = (list || []).slice(0, 8))).catch(() => {})
-  loading.value = true
-  apiCatalogCategories()
-    .then((tree) => {
-      if (tree && tree.length) {
-        catCells.value = tree.slice(0, 16).map((c: CategoryVO) => ({
-          key: String(c.id),
-          name: categoryName(c.name),
-          icon: c.icon || categoryIcon(c.name),
-          link: `/products?categoryId=${c.id}`,
-        }))
-      }
-    })
-    .catch(() => {})
-  feedLoading.value = true
-  feedLoading.value = true
-  try {
-    const results = await Promise.all(
-      FEED_CODES.map((code) =>
-        apiProducts({ category: code, size: 8, sort: 'sales_desc' })
-          .catch(() => ({ records: [] as ProductVO[] })),
-      ),
-    )
-    // 类目交错混排：每个类目取 1 件轮流填充，全分类均匀分布
-    const lists = results.map((r) => r.records)
-    const maxLen = Math.max(0, ...lists.map((l) => l.length))
-    const mixed: ProductVO[] = []
-    for (let i = 0; i < maxLen; i++) {
-      for (const l of lists) if (l[i]) mixed.push(l[i])
-    }
-    feed.value = mixed
-  } finally {
-    loading.value = false
-    feedLoading.value = false
+// 520 款商品分页展示
+const allFilteredProducts = computed(() => MASSIVE_PRODUCTS)
+
+const displayedProducts = computed(() => {
+  return allFilteredProducts.value.slice(0, currentPage.value * PAGE_SIZE)
+})
+
+const leftColumnProducts = computed(() => {
+  return displayedProducts.value.filter((_, idx) => idx % 2 === 0)
+})
+
+const rightColumnProducts = computed(() => {
+  return displayedProducts.value.filter((_, idx) => idx % 2 === 1)
+})
+
+const isFinished = computed(() => {
+  return displayedProducts.value.length >= allFilteredProducts.value.length
+})
+
+async function loadNextPage() {
+  if (loadingMore.value || isFinished.value) return
+  loadingMore.value = true
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  currentPage.value++
+  loadingMore.value = false
+}
+
+function handleScroll() {
+  if (initialLoading.value || loadingMore.value || isFinished.value) return
+  const scrollY = window.scrollY || document.documentElement.scrollTop
+  const windowHeight = window.innerHeight
+  const docHeight = document.documentElement.scrollHeight
+  if (scrollY + windowHeight >= docHeight - 350) {
+    loadNextPage()
   }
+}
+
+function formatSales(sales?: number): string {
+  const s = Number(sales) || 0
+  if (s < 100) return '100+'
+  if (s < 1000) return `${Math.floor(s / 100) * 100}+`
+  if (s < 10000) return `${Math.floor(s / 1000)}000+`
+  return `${Math.floor(s / 10000)}w+`
+}
+
+onMounted(() => {
+  timer = window.setInterval(() => (nowTick.value = Date.now()), 1000)
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  setTimeout(() => {
+    initialLoading.value = false
+  }, 250)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
   if (timer) window.clearInterval(timer)
+  window.removeEventListener('scroll', handleScroll)
 })
-
 </script>
 
 <style scoped>
 .home {
   min-height: 100%;
-  padding-top: 12px;
+  padding-bottom: 60px;
+  background: var(--mall-page-bg, #fafafa);
 }
 
-.home .container {
-  margin-bottom: 20px;
+/* ================= 现代主流方案 1：金刚区 5 列快捷入口 ================= */
+.mainstream-quick-nav {
+  max-width: 860px;
+  margin: 12px auto 0;
+  padding: 0 12px;
 }
 
-/* ================= 第一屏三栏 ================= */
-.hero-zone {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-}
-
-/* 左侧分类竖菜单 */
-.side-cats {
-  width: 190px;
-  flex-shrink: 0;
-  background: var(--mall-surface, #fff);
-  border-radius: var(--mall-radius);
-  overflow: hidden;
-  box-shadow: var(--mall-shadow-card);
-  padding: 6px 0;
-}
-
-.side-cat {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 13px;
-  color: var(--el-text-color-primary, #303133);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.side-cat:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  padding-left: 18px;
-}
-
-.sc-icon {
-  font-size: 15px;
-}
-
-.sc-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sc-arrow {
-  color: var(--el-text-color-placeholder, #c0c4cc);
-}
-
-.hero-banner {
-  flex: 1;
-  min-width: 0;
-  border-radius: var(--mall-radius);
-  overflow: hidden;
-}
-
-.hero-banner :deep(.hero-carousel),
-.hero-banner :deep(.el-carousel__container) {
-  height: 100% !important;
-}
-
-.banner {
-  height: 100%;
-  border-radius: var(--mall-radius);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 48px;
-  cursor: pointer;
-  color: #fff;
-  overflow: hidden;
-}
-
-.banner-content h2 {
-  margin: 0 0 8px;
-  font-size: 32px;
-  font-weight: 700;
-}
-
-.banner-content p {
-  margin: 0 0 14px;
-  opacity: 0.9;
-}
-
-.banner-cta {
-  font-size: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  padding: 6px 18px;
-  border-radius: 18px;
-}
-
-.banner-emoji {
-  font-size: 92px;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
-}
-
-/* 右侧用户卡 */
-.side-user {
-  width: 220px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.user-panel {
-  padding: 18px 16px;
-  text-align: center;
-}
-
-.up-avatar {
-  background: var(--mall-gradient);
-  color: #fff;
-  font-weight: 700;
-}
-
-.up-hello {
-  font-weight: 700;
-  font-size: 15px;
-  margin-top: 8px;
-}
-
-.up-sub {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  margin-top: 2px;
-}
-
-.up-login {
-  margin-top: 10px;
-  width: 100%;
-}
-
-.up-links {
+.quick-nav-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--el-border-color-lighter, #ebeef5);
-}
-
-.up-links span {
-  font-size: 12px;
-  color: var(--el-text-color-regular, #606266);
-  cursor: pointer;
-  padding: 4px 0;
-}
-
-.up-links span:hover {
-  color: var(--el-color-primary);
-}
-
-.notice-panel {
-  flex: 1;
-  padding: 14px 16px;
-}
-
-.notice-title {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.notice-item {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  line-height: 1.9;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ================= 分类金刚区（平板/手机） ================= */
-.mobile-tablet-only {
-  display: none;
-}
-
-@media (max-width: 1199px) {
-  .mobile-tablet-only {
-    display: block;
-  }
-
-  .side-cats {
-    display: none;
-  }
-
-  .side-user {
-    width: 200px;
-  }
-}
-
-@media (max-width: 768px) {
-  .side-user {
-    display: none;
-  }
-}
-
-/* 分类宫格 */
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  background: var(--mall-surface, #fff);
-  border-radius: var(--mall-radius);
-  padding: 12px 8px;
-  box-shadow: var(--mall-shadow-card);
-}
-
-.cat-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 4px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.cat-cell:hover {
-  background: var(--el-color-primary-light-9);
-}
-
-.cat-icon {
-  font-size: 26px;
-}
-
-.cat-name {
-  font-size: 12px;
-  color: var(--el-text-color-regular, #606266);
-}
-
-/* ================= 楼层标题条 ================= */
-.floor-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.floor-head h3 {
-  display: flex;
-  align-items: center;
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
-  margin: 0;
-  font-size: var(--fs-floor-title, 22px);
-  font-weight: 800;
-  letter-spacing: 0.5px;
+  padding: 10px 6px;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  border-radius: var(--mall-radius-lg, 14px);
+  box-shadow: var(--mall-shadow-xs);
 }
 
-.bar-accent {
-  display: inline-block;
-  width: 4px;
-  height: 18px;
-  border-radius: 2px;
-  background: var(--mall-gradient);
-}
-
-/* ================= 秒杀专区 ================= */
-.seckill-zone {
-  display: flex;
-  gap: 12px;
-  background: var(--mall-surface, #fff);
-  border-radius: var(--mall-radius);
-  overflow: hidden;
-  box-shadow: var(--mall-shadow-card);
-}
-
-.seckill-side {
-  width: 200px;
-  flex-shrink: 0;
-  background: linear-gradient(160deg, #ee0a24, #ff6034);
-  color: #fff;
+.qn-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.qn-item:active {
+  transform: scale(0.92);
+}
+
+.qn-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 24px 16px;
+  font-size: 20px;
+  transition: transform 0.2s ease;
 }
 
-.ss-flash {
-  font-size: 40px;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
+.qn-item:hover .qn-icon-box {
+  transform: translateY(-2px);
 }
 
-.ss-title {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 2px;
+.qn-seckill {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
 }
 
-.ss-sub {
+.qn-coupon {
+  background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+}
+
+.qn-ai {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+}
+
+.qn-cat {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+}
+
+.qn-order {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+}
+
+.qn-label {
   font-size: 12px;
-  opacity: 0.85;
+  font-weight: 600;
+  color: #3f3f46;
 }
 
-.ss-countdown {
-  margin-top: 8px;
-  background: #2b2b33;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 18px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 1px;
+html.dark .qn-label {
+  color: #e4e4e7;
 }
 
-.seckill-goods {
-  flex: 1;
-  min-width: 0;
+/* ================= 现代主流方案 2：双子星特惠微卡片 (紧凑单行无折行) ================= */
+.mainstream-dual-promo {
+  max-width: 860px;
+  margin: 8px auto 12px;
+  padding: 0 12px;
+}
+
+.dual-promo-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 1px;
-  background: #f0f1f4;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.sg-card {
-  background: var(--mall-surface, #fff);
-  padding: 14px 12px;
+.dp-card {
+  padding: 8px 12px;
+  border-radius: var(--mall-radius, 10px);
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.15s;
+  justify-content: center;
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  background: var(--mall-surface, #ffffff);
+  box-shadow: var(--mall-shadow-xs);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.sg-card:hover {
+.dp-card:hover {
+  transform: translateY(-2px);
   box-shadow: var(--mall-shadow-hover);
-  z-index: 1;
 }
 
-.sg-pic {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  background: var(--mall-surface-2, #f5f7fa);
+.dp-seckill {
+  background: radial-gradient(circle at 90% 10%, rgba(225, 29, 72, 0.08), transparent 60%), var(--mall-surface, #ffffff);
 }
 
-.sg-name {
+.dp-coupon {
+  background: radial-gradient(circle at 90% 10%, rgba(249, 115, 22, 0.08), transparent 60%), var(--mall-surface, #ffffff);
+}
+
+.dp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.dp-title {
   font-size: 13px;
-  margin-top: 8px;
+  font-weight: 800;
+  color: #18181b;
+  white-space: nowrap;
+}
+
+html.dark .dp-title {
+  color: #f4f4f5;
+}
+
+.dp-timer {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--mall-price, #e11d48);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dp-badge-free {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dp-sub {
+  font-size: 11px;
+  color: #a1a1aa;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.sg-price-row {
+/* ================= 真实双列瀑布流容器 (Masonry Waterfall) ================= */
+.feed-container {
+  margin-top: 10px;
+}
+
+.waterfall-container {
+  display: flex;
+  gap: 12px;
+  max-width: 860px;
+  margin: 0 auto;
+  align-items: flex-start;
+}
+
+.waterfall-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading-more-waterfall {
+  margin-top: 12px;
+}
+
+/* 瀑布流卡片 */
+.pdd-card {
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  border-radius: var(--mall-radius, 10px);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pdd-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mall-shadow-hover);
+  border-color: var(--mall-border, #e4e4e7);
+}
+
+.pdd-pic-wrap {
+  position: relative;
+  width: 100%;
+  background: var(--mall-surface-2, #f4f4f5);
+  overflow: hidden;
+}
+
+.pdd-pic {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.4s ease;
+}
+
+.pdd-card:hover .pdd-pic :deep(img) {
+  transform: scale(1.04);
+}
+
+.pdd-placeholder {
+  width: 100%;
+  height: 100%;
+}
+
+.pdd-error-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: #a1a1aa;
+}
+
+
+.pdd-info {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdd-brand {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+.pdd-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+html.dark .pdd-title {
+  color: #f4f4f5;
+}
+
+.pdd-bottom {
+  margin-top: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pdd-price-group {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-top: 6px;
 }
 
-.sg-now {
-  color: var(--mall-price, #e4393c);
-  font-size: 20px;
-  font-weight: 700;
+.pdd-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--mall-price, #e11d48);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex-shrink: 0;
 }
 
-.sg-now i {
+.pdd-price i {
   font-style: normal;
   font-size: 12px;
+  margin-right: 1px;
 }
 
-.sg-old {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder, #c0c4cc);
-  text-decoration: line-through;
+
+.pdd-sales {
+  font-size: 11px;
+  color: #a1a1aa;
 }
 
-.sg-progress {
-  height: 6px;
-  border-radius: 3px;
-  background: #fde2e2;
+/* ================= 骨架屏 ================= */
+.skeleton-card {
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  border-radius: var(--mall-radius, 10px);
   overflow: hidden;
-  margin: 8px 0;
-}
-
-.sg-bar {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #ff6034, var(--mall-price, #e4393c));
-}
-
-.sg-buy {
-  border: 0;
-  border-radius: 14px;
-  padding: 6px 0;
-  background: linear-gradient(90deg, #ff6034, var(--mall-price, #e4393c));
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.sg-buy:hover {
-  filter: brightness(1.08);
-}
-
-.sg-buy.soon {
-  background: linear-gradient(120deg, #b8c4ff, #8f9dff);
-}
-
-/* ================= 领券中心 ================= */
-.coupon-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.coupon-card {
-  display: flex;
-  align-items: stretch;
-  border-radius: var(--mall-radius);
-  overflow: hidden;
-  background: var(--mall-surface, #fff);
-  border: 1px solid #ffd7d7;
-}
-
-.coupon-left {
-  flex: none;
-  width: 92px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #fff1f0, #ffe3e0);
-  color: var(--mall-price, #e4393c);
-  padding: 14px 6px;
 }
 
-.coupon-val {
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1;
+.sk-img {
+  width: 100%;
 }
 
-.coupon-val i {
-  font-style: normal;
-  font-size: 12px;
+.sk-info {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.coupon-rule {
-  font-size: 11px;
+.sk-line-1 {
+  width: 40%;
+  height: 12px;
+}
+
+.sk-line-2 {
+  width: 90%;
+  height: 16px;
+}
+
+.sk-line-3 {
+  width: 60%;
+  height: 18px;
   margin-top: 4px;
 }
 
-.coupon-right {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.coupon-name {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ================= AI 入口 ================= */
-.ai-entry {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: linear-gradient(120deg, #fff4f0, #fdeef0);
-  border: 1px solid #ffd8d2;
-  border-radius: var(--mall-radius);
-  padding: 16px 20px;
-  cursor: pointer;
-}
-
-.ai-emoji {
-  font-size: 34px;
-}
-
-.ai-text {
-  flex: 1;
-}
-
-.ai-title {
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.ai-desc {
-  font-size: 13px;
-  color: var(--el-text-color-secondary, #909399);
-  margin-top: 2px;
-}
-
-/* 混合信息流 */
-.feed-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.feed-empty {
+.feed-end {
   text-align: center;
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 13px;
-  padding: 40px 0;
+  font-size: 12px;
+  color: #a1a1aa;
+  padding: 36px 0 24px;
 }
 
-/* 楼层骨架屏 */
-.floor-skeleton {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sk-card {
-  height: 260px;
-  border-radius: var(--mall-radius, 8px);
-}
-
-/* ================= 楼层栅格 ================= */
-.floor-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-
-
-
-/* ================= 平板 ================= */
-@media (max-width: 1199px) and (min-width: 769px) {
-  .hero-zone {
-    flex-wrap: wrap;
-  }
-
-  .hero-banner {
-    flex: 1;
-  }
-
-  .side-user {
-    display: none;
-  }
-
-  .seckill-goods {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .sg-card:nth-child(n + 4) {
-    display: none;
-  }
-
-  .coupon-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .floor-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .feed-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* ================= 手机 ================= */
 @media (max-width: 768px) {
-  .home {
-    padding-top: 8px;
+  .mainstream-quick-nav,
+  .mainstream-dual-promo {
+    padding: 0 8px;
   }
-
-  .hero-zone {
-    gap: 0;
+  .qn-icon-box {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
   }
-
-  .banner {
-    padding: 0 24px;
+  .qn-label {
+    font-size: 11px;
   }
-
-  .banner-content h2 {
-    font-size: 20px;
+  .dp-card {
+    padding: 10px 10px;
   }
-
-  .banner-emoji {
-    font-size: 52px;
+  .dp-title {
+    font-size: 13px;
   }
-
-  .cat-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .dp-action {
+    padding: 3px 8px;
+    font-size: 10px;
   }
-
-  .seckill-zone {
-    flex-direction: column;
-  }
-
-  .seckill-side {
-    width: 100%;
-    flex-direction: row;
-    padding: 12px 16px;
-    gap: 12px;
-  }
-
-  .ss-flash {
-    font-size: 26px;
-  }
-
-  .ss-title {
-    font-size: 17px;
-  }
-
-  .ss-sub {
-    display: none;
-  }
-
-  .ss-countdown {
-    margin: 0 0 0 auto;
-    font-size: 14px;
-    padding: 4px 10px;
-  }
-
-  .seckill-goods {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-  }
-
-  .sg-card:nth-child(n + 3) {
-    display: none;
-  }
-
-  .coupon-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .waterfall-container {
     gap: 8px;
   }
-
-  .floor-grid,
-  .feed-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .waterfall-column {
     gap: 8px;
   }
-
-  .floor-head h3 {
+  .pdd-info {
+    padding: 8px 10px 10px;
+  }
+  .pdd-title {
+    font-size: 12px;
+  }
+  .pdd-price {
     font-size: 16px;
   }
 }

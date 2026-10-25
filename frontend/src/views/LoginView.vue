@@ -1,6 +1,9 @@
 <template>
   <div class="login-page">
-    <el-button class="back-button" :icon="ArrowLeft" @click="goBack">返回</el-button>
+    <button class="translucent-circle-back" title="返回" @click="goBack">
+      <el-icon><ArrowLeft /></el-icon>
+      <span class="sr-only">返回</span>
+    </button>
     <el-card class="login-card">
       <div class="brand">
         <h2>AI Mall</h2>
@@ -119,14 +122,47 @@ async function doRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e0eaff 0%, #f5f7fa 100%);
+  background: radial-gradient(ellipse at 50% 20%, rgba(37, 99, 235, 0.08), transparent 70%), var(--mall-page-bg, #f8fafc);
 }
 
-.back-button {
+html.dark .login-page {
+  background: radial-gradient(ellipse at 50% 20%, rgba(37, 99, 235, 0.15), transparent 70%), #090a0f;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.translucent-circle-back {
   position: absolute;
   top: 16px;
   left: 16px;
-  min-height: 40px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.translucent-circle-back:hover {
+  background: rgba(0, 0, 0, 0.6);
+  transform: scale(1.08);
 }
 
 .login-card {

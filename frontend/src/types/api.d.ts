@@ -41,7 +41,7 @@ export interface ProductVO {
   brand: string
   brandId?: number
   price: number
-  stock: number
+  stock?: number
   imageUrl?: string
   description?: string
   sellingPoints?: string

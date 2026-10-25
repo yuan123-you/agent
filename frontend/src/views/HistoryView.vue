@@ -25,7 +25,14 @@
         </div>
       </div>
     </div>
-    <el-empty v-if="!loading && products.length === 0" description="暂无浏览记录" />
+    <el-empty v-if="!loading && products.length === 0" :description="hasToken ? '暂无浏览记录，去逛逛吧' : '登录后查看我的浏览历史'">
+      <el-button v-if="!hasToken" type="primary" @click="$router.push({ path: '/login', query: { redirect: '/history' } })">
+        立即登录
+      </el-button>
+      <el-button v-else type="primary" @click="$router.push('/products')">
+        去逛逛
+      </el-button>
+    </el-empty>
     <div v-if="loading" class="load-state">加载中...</div>
     <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
     </div>
@@ -45,9 +52,16 @@ const loading = ref(false)
 const finished = ref(false)
 const page = ref(1)
 const total = ref(0)
+const hasToken = ref(typeof localStorage !== 'undefined' ? !!localStorage.getItem('token') : false)
 
 async function load() {
   if (loading.value || finished.value) return
+  if (!localStorage.getItem('token')) {
+    hasToken.value = false
+    loading.value = false
+    return
+  }
+  hasToken.value = true
   loading.value = true
   try {
     const result = await apiHistory({ page: page.value, size: 20 })

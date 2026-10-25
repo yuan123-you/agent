@@ -69,6 +69,21 @@
           </el-button>
         </header>
 
+        <!-- 针对具体商品的智能客服咨询挂载条 -->
+        <div v-if="consultProduct" class="consult-product-banner">
+          <el-image :src="consultProduct.imageUrl" fit="cover" class="cpb-img">
+            <template #error><div class="cpb-fallback">🛍️</div></template>
+          </el-image>
+          <div class="cpb-meta">
+            <span class="cpb-name">{{ consultProduct.name }}</span>
+            <span class="cpb-price">￥{{ consultProduct.price }}</span>
+          </div>
+          <el-button size="small" type="primary" round @click="sendProductConsult(consultProduct)">
+            发送商品咨询
+          </el-button>
+          <button class="cpb-close" @click="consultProduct = null">×</button>
+        </div>
+
         <div ref="msgList" class="msg-list" @scroll="onScroll">
           <div v-if="chat.messages.length === 0" class="empty-hero">
             <h3>想买什么？直接告诉我～</h3>
@@ -171,6 +186,23 @@ const rateScore = ref(5)
 const waitSeconds = ref(0)
 const cancellingHuman = ref(false)
 const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+const consultProduct = ref<{ id: number; name: string; price: number; imageUrl: string } | null>(null)
+
+function loadConsultProduct() {
+  try {
+    const raw = sessionStorage.getItem('aimall_cs_product')
+    if (raw) {
+      consultProduct.value = JSON.parse(raw)
+    }
+  } catch {}
+}
+
+function sendProductConsult(prod: { id: number; name: string; price: number; imageUrl: string }) {
+  const text = `您好，我想了解【${prod.name}】（售价￥${prod.price}）的规格参数、发货时间及优惠情况。`
+  send(text)
+  consultProduct.value = null
+  sessionStorage.removeItem('aimall_cs_product')
+}
 function updateMobile() {
   isMobile.value = window.innerWidth <= 768
 }
@@ -195,6 +227,7 @@ onMounted(async () => {
   }
   chat.expireOrderActions()
   updateHumanWaitCountdown()
+    loadConsultProduct()
   actionExpiryTimer = window.setInterval(() => {
     chat.expireOrderActions()
     updateHumanWaitCountdown()
@@ -695,6 +728,69 @@ function shortTime(t?: string): string {
   .input-bar .el-button {
     height: 44px;
   }
+}
+
+.consult-product-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--mall-surface, #ffffff);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.cpb-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.cpb-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f4f5;
+  font-size: 16px;
+}
+
+.cpb-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cpb-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #18181b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.dark .cpb-name {
+  color: #f4f4f5;
+}
+
+.cpb-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mall-price, #e11d48);
+}
+
+.cpb-close {
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
 }
 </style>
 

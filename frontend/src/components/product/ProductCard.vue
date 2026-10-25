@@ -1,5 +1,5 @@
 <template>
-  <div class="product-card mall-card" @click="$router.push(`/products/${product.id}`)">
+  <div class="product-card" @click="goDetail">
     <div class="pic-wrap">
       <el-image :src="product.imageUrl" fit="cover" class="pic" decoding="async">
         <template #placeholder>
@@ -9,69 +9,61 @@
           <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
         </template>
       </el-image>
-      <span v-if="hot" class="hot-tag">🔥 热卖</span>
     </div>
-    <div class="name">{{ product.name }}</div>
-    <div v-if="showPoints" class="points">{{ product.sellingPoints }}</div>
-    <div class="row">
-      <span class="price"><i>￥</i>{{ product.price }}</span>
-      <span class="meta">已售 {{ product.sales || 0 }}</span>
+
+    <div class="info-wrap">
+      <div class="name-text" :title="product.name">{{ product.name }}</div>
+      <div class="price-text">￥{{ product.price }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { ProductVO } from '@/types/api'
 
-const props = withDefaults(defineProps<{ product: ProductVO; showPoints?: boolean }>(), {
-  showPoints: false,
-})
+const props = defineProps<{
+  product: ProductVO
+  showPoints?: boolean
+}>()
 
-/** 销量门槛热卖标签 */
-const hot = computed(() => (props.product.sales || 0) >= 5000)
+const router = useRouter()
+
+function goDetail() {
+  router.push(`/products/${props.product.id}`)
+}
 </script>
 
 <style scoped>
 .product-card {
   min-width: 0;
-  padding: 10px;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.2s ease;
 }
 
 .product-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--mall-shadow-hover);
+  opacity: 0.85;
 }
 
 .pic-wrap {
   position: relative;
-  border-radius: 10px;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
   overflow: hidden;
+  background: var(--mall-surface-2, #f4f4f5);
 }
 
 .pic {
   width: 100%;
-  aspect-ratio: 1;
-  background: var(--mall-surface-2, #f5f7fa);
-  transition: transform 0.3s ease;
+  height: 100%;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .product-card:hover .pic :deep(img) {
-  transform: scale(1.04);
-}
-
-.hot-tag {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: var(--mall-gradient);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
+  transform: scale(1.03);
 }
 
 .pic-fallback {
@@ -80,71 +72,49 @@ const hot = computed(() => (props.product.sales || 0) >= 5000)
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40px;
-  font-weight: 700;
-  color: var(--el-text-color-placeholder, #c0c4cc);
-  background: linear-gradient(135deg, #e8f0fe, #f5f7fa);
+  font-size: 32px;
+  font-weight: 600;
+  color: #a1a1aa;
 }
 
-.name {
-  font-weight: 600;
-  margin-top: 8px;
-  font-size: 15px;
+.info-wrap {
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.name-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #18181b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
 
-.points {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  height: 32px;
-  margin-top: 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+html.dark .name-text {
+  color: #f4f4f5;
 }
 
-.row {
-  flex-wrap: wrap;
-  gap: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-top: 6px;
+.price-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #71717a;
+  letter-spacing: -0.01em;
 }
 
-.price {
-  color: var(--el-color-danger);
-  font-weight: 700;
-  font-size: 20px;
-  line-height: 1;
+html.dark .price-text {
+  color: #a1a1aa;
 }
 
-.price i {
-  font-style: normal;
-  font-size: 13px;
-  margin-right: 1px;
-}
-
-.meta {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder, #c0c4cc);
-}
-
-/* 手机端紧凑卡片 */
 @media (max-width: 768px) {
-  .product-card {
-    padding: 7px;
-  }
-
-  .name {
+  .name-text {
     font-size: 13px;
   }
-
-  .price {
-    font-size: 17px;
+  .price-text {
+    font-size: 13px;
   }
 }
 </style>

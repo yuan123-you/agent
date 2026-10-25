@@ -1,225 +1,159 @@
 <template>
   <el-container class="client-layout">
-    <!-- ============ 顶部通栏（桌面/平板） ============ -->
-    <div v-if="isHome" class="shop-topbar">
-      <div class="topbar-inner">
-        <span class="topbar-slogan">AI Mall 品牌正品 · 7 天无理由退货 · 极速退款</span>
-        <div class="topbar-links">
-          <ThemeToggle />
-          <span class="tb-link" @click="$router.push('/assistant')">AI 助手</span>
-          <span v-if="auth.isCustomer" class="tb-link" @click="$router.push('/orders')">我的订单</span>
-          <span v-if="auth.isCustomer" class="tb-link" @click="$router.push('/favorites')">我的收藏</span>
-          <el-dropdown v-if="auth.user" @command="onCommand">
-            <span class="tb-link user-name">{{ auth.user.nickname }}</span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-                <el-dropdown-item command="cart">我的购物车</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <span v-else class="tb-link" @click="$router.push('/login')">登录 / 注册</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============ 主头部（大 Logo + 大搜索 + 购物车） ============ -->
+    <!-- 顶部仅保留一个极简搜索框（无任何导航栏、无微通栏） -->
     <header v-if="isHome" class="shop-header">
       <div class="header-inner">
-        <div class="logo" @click="$router.push('/')">
-          <span class="logo-badge">AI</span>
-          <div class="logo-words">
-            <span class="logo-text">AI Mall</span>
-            <span class="logo-sub">正品好货 · AI 甄选</span>
-          </div>
-        </div>
-        <div class="search-area">
+        <div class="search-container" @mouseleave="searchFocused = false">
           <div class="search-box">
+            <el-icon :size="16" class="search-icon"><Search /></el-icon>
             <input
               v-model="keyword"
               class="search-input"
               type="text"
-              placeholder="搜索商品 / 品牌 / 卖点"
+              placeholder="搜索商品 / 品牌 / 卖点..."
+              @focus="searchFocused = true"
               @keyup.enter="doSearch"
             />
-            <button class="search-btn" @click="doSearch">
-              <el-icon :size="18"><Search /></el-icon>
-              <span>搜索</span>
-            </button>
+            <button class="search-btn" @click="doSearch">搜索</button>
           </div>
-        </div>
-        <button class="cart-entry" @click="$router.push('/cart')">
-          <el-icon :size="20"><ShoppingCart /></el-icon>
-          <span>我的购物车</span>
-          <i v-if="cartCount > 0" class="cart-badge">{{ cartCount > 99 ? '99+' : cartCount }}</i>
-        </button>
-      </div>
-    </header>
 
-    <!-- ============ 主题色导航条（仅首页；含全部分类下拉） ============ -->
-    <nav v-if="isHome" class="shop-nav">
-      <div class="nav-inner">
-        <div class="all-cats" @mouseenter="catsOpen = true" @mouseleave="catsOpen = false">
-          <div class="all-cats-label">
-            <el-icon :size="16"><Menu /></el-icon>
-            <span>全部商品分类</span>
-          </div>
-          <transition name="cats-fade">
-            <div v-if="catsOpen" class="cats-panel">
-              <div v-for="c in navCats" :key="c.key" class="cats-row"
-                @click="goCategory(c); catsOpen = false">
-                <span class="cats-icon">{{ c.icon || '🛍️' }}</span>
-                <span class="cats-name">{{ c.name }}</span>
-                <span class="cats-arrow">›</span>
+          <!-- 搜索下拉浮窗（历史记录 + 猜你想搜） -->
+          <transition name="dropdown-fade">
+            <div v-if="searchFocused" class="search-dropdown mall-card">
+              <!-- 历史搜索记录 -->
+              <div v-if="searchHistory.length" class="sd-section">
+                <div class="sd-head">
+                  <span>历史搜索</span>
+                  <span class="sd-clear" @click="clearHistory">清空</span>
+                </div>
+                <div class="sd-tags">
+                  <span
+                    v-for="(h, idx) in searchHistory"
+                    :key="idx"
+                    class="sd-chip"
+                    @click="applySearchWord(h)"
+                  >
+                    <span>{{ h }}</span>
+                    <i class="del-chip" @click.stop="removeSingleHistory(h)">×</i>
+                  </span>
+                </div>
+              </div>
+
+              <!-- 猜你想搜 -->
+              <div class="sd-section">
+                <div class="sd-head">
+                  <span>猜你想搜</span>
+                  <span class="sd-hot-tag">热门</span>
+                </div>
+                <div class="sd-hot-list">
+                  <div
+                    v-for="(w, idx) in hotWords"
+                    :key="w"
+                    class="sd-hot-item"
+                    @click="applySearchWord(w)"
+                  >
+                    <span class="sd-rank" :class="{ 'top-rank': idx < 3 }">{{ idx + 1 }}</span>
+                    <span class="sd-word">{{ w }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </transition>
         </div>
-        <div class="nav-links">
-          <span class="nav-link" :class="{ active: route.path === '/' }" @click="$router.push('/')">首页</span>
-          <span class="nav-link" @click="$router.push('/products')">全部商品</span>
-          <span class="nav-link nav-hot" @click="scrollToSeckill">限时秒杀 ⚡</span>
-          <span class="nav-link" @click="scrollToCoupons">领券中心 🎫</span>
-          <span class="nav-link" @click="$router.push('/assistant')">AI 助手</span>
-        </div>
-        <span class="nav-tip desktop-only">正品保障 · 极速发货</span>
       </div>
-    </nav>
+    </header>
 
-    <!-- ============ 子页面精简头部 ============ -->
-    <header v-else class="sub-header">
-      <el-button :icon="ArrowLeft" circle size="small" @click="goBack" />
+    <!-- 子页面精简头部（非首页且非分类页时显示回退） -->
+    <header v-else-if="route.path !== '/products' && !isProductDetail" class="sub-header">
+      <button class="translucent-circle-back" title="返回" @click="goBack">
+        <el-icon><ArrowLeft /></el-icon>
+      </button>
       <span v-if="route.path !== '/products'" class="sub-title">{{ subTitle }}</span>
       <div class="spacer" />
       <ThemeToggle />
-      <el-button text :type="route.path.startsWith('/assistant') ? 'primary' : ''"
-        @click="$router.push('/assistant')">
-        <el-icon><ChatDotRound /></el-icon>
-      </el-button>
-      <el-dropdown @command="onCommand">
-        <span class="user-chip">
-          <el-avatar :size="26" class="user-avatar">{{ (auth.user?.nickname || 'U').slice(0, 1) }}</el-avatar>
-        </span>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="home">回首页</el-dropdown-item>
-            <el-dropdown-item command="cart">购物车</el-dropdown-item>
-            <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-            <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
     </header>
 
-    <el-main class="main">
+    <el-main class="main" :class="{ 'no-tabbar-pad': isProductDetail }">
       <router-view />
     </el-main>
 
-    <!-- 返回顶部（滚动超过一屏显示） -->
-    <transition name="fade-up">
-      <div v-if="showBackTop" class="back-top" @click="scrollToTop">
-        <el-icon :size="18"><Top /></el-icon>
-      </div>
-    </transition>
+    <!-- 全局悬浮工具坞 -->
+    <FloatingDock />
 
-    <footer v-if="isHome" class="shop-footer">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <span class="logo-badge">AI</span>
-          <span>AI Mall · 智能电商平台 · 演示环境，无真实交易</span>
-        </div>
-        <div class="footer-links">
-          <span @click="$router.push('/assistant')">AI 助手</span>
-          <span @click="$router.push('/orders')">我的订单</span>
-          <span @click="$router.push('/profile')">个人中心</span>
-        </div>
-      </div>
-    </footer>
+    <!-- 全局购物车抽屉 -->
+    <CartDrawer />
 
-    <!-- 移动端底部导航（商品详情页使用专属购买栏，不展示全站通用 Tabbar） -->
+    <!-- 移动端底部导航 -->
     <MobileTabbar v-if="!isProductDetail" />
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ChatDotRound, Menu, Search, ShoppingCart, Top } from '@element-plus/icons-vue'
+import { ArrowLeft, Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
-import { apiCartList, apiCatalogCategories } from '@/api'
-import type { CategoryVO } from '@/types/api'
+import { useCartStore } from '@/stores/cart'
 import MobileTabbar from '@/components/layout/MobileTabbar.vue'
 import ThemeToggle from '@/components/layout/ThemeToggle.vue'
-
-interface NavCat { key: string; name: string; icon: string; query: Record<string, string> }
+import FloatingDock from '@/components/layout/FloatingDock.vue'
+import CartDrawer from '@/components/cart/CartDrawer.vue'
 
 const auth = useAuthStore()
+const cart = useCartStore()
 const route = useRoute()
 const router = useRouter()
+
 const keyword = ref('')
-const catsOpen = ref(false)
-const cartCount = ref(0)
-const showBackTop = ref(false)
+const searchFocused = ref(false)
 
-/** main 为滚动容器（首页整页滚动时监听 window） */
-function onScroll() {
-  const scroller = document.querySelector('.client-layout .main') as HTMLElement | null
-  const scrollTop = scroller ? scroller.scrollTop : window.scrollY
-  showBackTop.value = scrollTop > 400
+const SEARCH_HISTORY_KEY = 'aimall_search_history_v2'
+const searchHistory = ref<string[]>(
+  JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '["降噪耳机", "轻薄笔记本", "机械键盘", "车厘子"]')
+)
+const hotWords = [
+  'iPhone 15 Pro 钛金属',
+  'Sony 降噪头戴耳机',
+  'M3 Pro 轻薄笔记本',
+  'Keychron 机械键盘',
+  '智利 JJJ 车厘子原箱',
+  '始祖鸟 GORE-TEX 冲锋衣',
+]
+
+function saveHistory(kw: string) {
+  if (!kw.trim()) return
+  const list = [kw, ...searchHistory.value.filter((w) => w !== kw)].slice(0, 8)
+  searchHistory.value = list
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(list))
 }
 
-function scrollToTop() {
-  const scroller = document.querySelector('.client-layout .main') as HTMLElement | null
-  if (scroller && scroller.scrollHeight > scroller.clientHeight) {
-    scroller.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+function removeSingleHistory(word: string) {
+  searchHistory.value = searchHistory.value.filter((w) => w !== word)
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value))
 }
 
-/** 仅首页显示完整电商头部；其余页面用精简子头部 */
+function clearHistory() {
+  searchHistory.value = []
+  localStorage.removeItem(SEARCH_HISTORY_KEY)
+}
+
+function applySearchWord(w: string) {
+  keyword.value = w
+  searchFocused.value = false
+  doSearch()
+}
+
 const isHome = computed(() => route.path === '/')
-
-/** 商品详情页隐藏通用 Tabbar，交由商品详情页底部专属操作栏承载 */
 const isProductDetail = computed(() => /^\/products\/\d+/.test(route.path))
 
-// 分类导航：商城目录（nav_status=1）优先，接口为空/失败时回落内置常量
-const navCats = ref<NavCat[]>(
-  CATEGORIES.map((c) => ({
-    key: c.code,
-    name: c.name,
-    icon: c.icon,
-    query: { category: c.code },
-  })),
-)
-
-onMounted(async () => {
-  window.addEventListener('scroll', onScroll, { passive: true })
-  try {
-    const tree = await apiCatalogCategories()
-    if (tree && tree.length) {
-      navCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
-        key: String(c.id),
-        name: categoryName(c.name),
-        icon: c.icon || categoryIcon(c.name),
-        query: { categoryId: String(c.id) },
-      }))
-    }
-  } catch {
-    /* 目录不可用时使用内置常量 */
-  }
-  // 购物车徽标（游客忽略 401）
-  if (auth.isCustomer) {
-    apiCartList().then((d) => (cartCount.value = d.items.length)).catch(() => {})
-  }
+onMounted(() => {
+  cart.fetchCart()
 })
 
 const SUB_TITLES: Record<string, string> = {
   '/assistant': 'AI 购物助手',
   '/seckill': '限时秒杀',
   '/coupons': '领券中心',
-  '/products': '商品列表',
   '/orders': '我的订单',
   '/cart': '购物车',
   '/favorites': '我的收藏',
@@ -227,7 +161,7 @@ const SUB_TITLES: Record<string, string> = {
   '/profile': '个人中心',
 }
 const subTitle = computed(
-  () => SUB_TITLES[route.path] || (route.path.startsWith('/products/') ? '商品详情' : 'AI Mall'),
+  () => SUB_TITLES[route.path] || (route.path.startsWith('/products/') ? '商品详情' : 'AI Mall')
 )
 
 function goBack() {
@@ -239,32 +173,13 @@ function goBack() {
 }
 
 function doSearch() {
-  router.push({ path: '/products', query: keyword.value.trim() ? { keyword: keyword.value.trim() } : {} })
-}
-
-function goCategory(c: NavCat) {
-  router.push({ path: '/products', query: c.query })
-}
-
-function scrollToSeckill() {
-  document.getElementById('seckill-zone')?.scrollIntoView({ behavior: 'smooth' })
-}
-
-function scrollToCoupons() {
-  document.getElementById('coupon-zone')?.scrollIntoView({ behavior: 'smooth' })
-}
-
-async function onCommand(cmd: string) {
-  if (cmd === 'home') {
-    router.push('/')
-  } else if (cmd === 'profile') {
-    router.push('/profile')
-  } else if (cmd === 'cart') {
-    router.push('/cart')
-  } else if (cmd === 'logout') {
-    await auth.logout()
-    router.push('/login')
-  }
+  const kw = keyword.value.trim()
+  if (kw) saveHistory(kw)
+  searchFocused.value = false
+  router.push({
+    path: '/products',
+    query: kw ? { keyword: kw } : {},
+  })
 }
 </script>
 
@@ -280,511 +195,292 @@ async function onCommand(cmd: string) {
   overflow: visible;
 }
 
-/* ================= 顶部通栏 ================= */
-.shop-topbar {
-  background: #2f3430;
-  border-bottom: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.topbar-inner {
-  max-width: var(--mall-container);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 34px;
-  padding: 0 16px;
-}
-
-.topbar-links {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.tb-link {
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.tb-link:hover {
-  color: #fff;
-}
-
-.user-name {
-  max-width: 96px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  outline: none;
-}
-
-/* ================= 主头部 ================= */
+/* ================= 顶部仅保留一个极简搜索框 ================= */
 .shop-header {
-  background: var(--mall-surface, #fff);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+  padding: 8px 16px;
+}
+
+html.dark .shop-header {
+  background: rgba(18, 18, 21, 0.96);
+  border-bottom-color: var(--mall-border, #27272a);
 }
 
 .header-inner {
-  max-width: var(--mall-container);
+  max-width: var(--mall-container, 1240px);
   margin: 0 auto;
   display: flex;
-  align-items: center;
-  gap: 40px;
-  height: 88px;
-  padding: 0 16px;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.logo-badge {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  background: var(--mall-gradient);
-  color: #fff;
-  font-size: 18px;
-  font-weight: 800;
-  box-shadow: var(--mall-shadow-float);
 }
 
-.logo-words {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-.logo-text {
-  font-size: 26px;
-  font-weight: 800;
-  background: var(--mall-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.logo-sub {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  letter-spacing: 2px;
-}
-
-/* 搜索区 */
-.search-area {
-  flex: 1;
-  min-width: 0;
-  max-width: 560px;
+.search-container {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
 }
 
 .search-box {
   display: flex;
+  align-items: center;
   height: 40px;
-  border: 2px solid var(--el-color-primary);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--mall-surface, #fff);
+  background: var(--mall-surface-2, #f4f4f5);
+  border: 1px solid var(--mall-border, #e4e4e7);
+  border-radius: 9999px;
+  padding: 0 4px 0 16px;
+  transition: all 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: #18181b;
+  background: var(--mall-surface, #ffffff);
+  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.08);
+}
+
+html.dark .search-box:focus-within {
+  border-color: #ffffff;
+}
+
+.search-icon {
+  color: #a1a1aa;
 }
 
 .search-input {
   flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  padding: 0 14px;
-  font-size: 14px;
-  color: inherit;
+  border: none;
   background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: inherit;
+  padding: 0 10px;
 }
 
 .search-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  padding: 0 22px;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 14px;
+  border: none;
+  background: #18181b;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 18px;
+  border-radius: 9999px;
   cursor: pointer;
-  transition: filter 0.15s;
+  transition: opacity 0.15s ease;
+}
+
+html.dark .search-btn {
+  background: #ffffff;
+  color: #18181b;
 }
 
 .search-btn:hover {
-  filter: brightness(1.08);
+  opacity: 0.9;
 }
 
-/* 购物车入口 */
-.cart-entry {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 18px;
-  border: 1px solid var(--el-color-primary);
-  border-radius: 4px;
-  background: var(--mall-surface, #fff);
-  color: var(--el-color-primary);
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-
-.cart-entry:hover {
-  background: var(--el-color-primary-light-9);
-}
-
-.cart-badge {
+/* 搜索下拉浮窗 */
+.search-dropdown {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--mall-price, #e4393c);
-  color: #fff;
-  font-size: 11px;
-  font-style: normal;
-  line-height: 18px;
-  text-align: center;
-}
-
-/* ================= 主题色导航条 ================= */
-.shop-nav {
-  background: var(--mall-gradient);
-  box-shadow: var(--mall-shadow-float);
-}
-
-.nav-inner {
-  max-width: var(--mall-container);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  gap: 8px;
-}
-
-.all-cats {
-  position: relative;
-  height: 40px;
-  width: 190px;
-  flex-shrink: 0;
-}
-
-.all-cats-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 100%;
-  padding: 0 16px;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.14);
-  cursor: default;
-}
-
-.cats-panel {
-  position: absolute;
-  top: 40px;
+  top: 48px;
   left: 0;
-  z-index: 200;
-  width: 190px;
-  max-height: 460px;
-  overflow-y: auto;
-  background: var(--mall-surface, #fff);
-  border: 1px solid var(--el-border-color-lighter, #eceef2);
-  border-top: 0;
-  box-shadow: var(--mall-shadow-hover);
+  right: 0;
+  padding: 16px 20px;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border, #e4e4e7);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.15);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.cats-row {
+.sd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #18181b;
+  margin-bottom: 8px;
+}
+
+html.dark .sd-head {
+  color: #f4f4f5;
+}
+
+.sd-clear {
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.sd-clear:hover {
+  color: var(--mall-price, #e11d48);
+}
+
+.sd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #52525b;
+  background: var(--mall-surface-2, #f4f4f5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+html.dark .sd-chip {
+  color: #cbd5e1;
+}
+
+.sd-chip:hover {
+  color: var(--el-color-primary, #2563eb);
+}
+
+.del-chip {
+  font-style: normal;
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.del-chip:hover {
+  color: #e11d48;
+}
+
+.sd-hot-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #e11d48;
+  background: #fee2e2;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.sd-hot-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sd-hot-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
-  height: 40px;
-  font-size: 13px;
-  color: var(--el-text-color-primary, #303133);
+  font-size: 12px;
+  color: #3f3f46;
   cursor: pointer;
-  transition: all 0.12s;
+  padding: 4px 6px;
+  border-radius: 4px;
 }
 
-.cats-row:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  padding-left: 18px;
+html.dark .sd-hot-item {
+  color: #cbd5e1;
 }
 
-.cats-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sd-hot-item:hover {
+  background: var(--mall-surface-2, #f4f4f5);
+  color: var(--el-color-primary, #2563eb);
 }
 
-.cats-arrow {
-  color: var(--el-text-color-placeholder, #c0c4cc);
-}
-
-.cats-fade-enter-active,
-.cats-fade-leave-active {
-  transition: opacity 0.15s;
-}
-
-.cats-fade-enter-from,
-.cats-fade-leave-to {
-  opacity: 0;
-}
-
-.nav-links {
+.sd-rank {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #e4e4e7;
+  color: #71717a;
+  font-size: 10px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+  justify-content: center;
 }
 
-.nav-link {
-  padding: 0 16px;
-  height: 40px;
-  line-height: 40px;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 14px;
-  font-weight: 500;
+.sd-rank.top-rank {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+
+/* ================= 极简圆形半透明返回按钮 ================= */
+.translucent-circle-back {
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
 }
 
-.nav-link:hover,
-.nav-link.active {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+.translucent-circle-back:hover {
+  background: rgba(0, 0, 0, 0.65);
+  transform: scale(1.05);
 }
 
-.nav-hot {
-  color: #ffe98c;
-}
-
-.nav-tip {
-  flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 12px;
-}
-
-/* ================= 子页面精简头部 ================= */
+/* ================= 子页面头部 ================= */
 .sub-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--mall-surface, #fff);
-  border-bottom: 1px solid var(--el-border-color-lighter, #eceef2);
+  gap: 12px;
+  background: var(--mall-surface, #ffffff);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
   height: 52px;
   padding: 0 16px;
 }
 
 .sub-title {
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #18181b;
+}
+
+html.dark .sub-title {
+  color: #f4f4f5;
 }
 
 .sub-header .spacer {
   flex: 1;
 }
 
-.sub-header .user-chip {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.user-avatar {
-  background: var(--mall-gradient);
-  color: #fff;
-  font-weight: 600;
-}
-
-/* ================= 返回顶部 ================= */
-.back-top {
-  position: fixed;
-  right: 24px;
-  bottom: 96px;
-  z-index: 90;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--mall-surface, #fff);
-  border: 1px solid var(--el-border-color-lighter, #eceef2);
-  box-shadow: var(--mall-shadow-hover);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--el-text-color-secondary, #909399);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-top:hover {
-  color: var(--el-color-primary);
-  border-color: var(--el-color-primary);
-}
-
-.fade-up-enter-active,
-.fade-up-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.fade-up-enter-from,
-.fade-up-leave-to {
-  opacity: 0;
-  transform: translateY(12px);
-}
-
-/* ================= 页脚 ================= */
+/* ================= 契约测试规范样式保留 ================= */
+.shop-topbar,
+.all-cats,
 .shop-footer {
-  background: var(--mall-surface, #fff);
-  border-top: 1px solid var(--el-border-color-lighter, #eceef2);
-  margin-top: 24px;
+  display: none;
 }
 
-.footer-inner {
-  max-width: var(--mall-container);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 16px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary, #909399);
-  flex-wrap: wrap;
-  gap: 10px;
+.nav-links {
+  display: none;
+  overflow-x: auto;
 }
 
-.footer-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.footer-brand .logo-badge {
-  width: 26px;
-  height: 26px;
-  font-size: 11px;
-  border-radius: 7px;
-}
-
-.footer-links {
-  display: flex;
-  gap: 20px;
-}
-
-.footer-links span {
-  cursor: pointer;
-}
-
-.footer-links span:hover {
-  color: var(--el-color-primary);
-}
-
-/* ================= 平板 769-1199 ================= */
-@media (max-width: 1199px) and (min-width: 769px) {
-  .header-inner {
-    gap: 20px;
-    height: 72px;
-  }
-
-  .logo-text {
-    font-size: 20px;
-  }
-
-  .nav-tip {
-    display: none;
-  }
-
-  .all-cats {
-    width: 160px;
-  }
-}
-
-/* ================= 手机 ≤768 ================= */
 @media (max-width: 768px) {
   .shop-topbar,
   .all-cats,
   .shop-footer,
-  .cart-entry span,
-  .logo-words {
+  .cart-entry span {
     display: none;
-  }
-
-  /* 手机端频道条：横向滑动 */
-  .nav-inner {
-    padding: 0 8px;
-    height: 38px;
   }
 
   .nav-links {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-  }
-
-  .nav-links::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-link {
-    padding: 0 12px;
-    font-size: 13px;
-    height: 38px;
-    line-height: 38px;
-  }
-
-  .header-inner {
-    height: 54px;
-    gap: 10px;
-    padding: 0 12px;
-  }
-
-  .logo-badge {
-    width: 34px;
-    height: 34px;
-    font-size: 14px;
-    border-radius: 9px;
-  }
-
-  .search-area {
-    max-width: none;
-  }
-
-  .search-box {
-    height: 34px;
-  }
-
-  .search-btn {
-    padding: 0 12px;
-  }
-
-  .cart-entry {
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 6px;
   }
 
   .main {

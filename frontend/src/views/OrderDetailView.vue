@@ -12,6 +12,7 @@
         <el-button v-if="order.status === 'PENDING_PAYMENT'" type="primary" @click="pay">去支付</el-button>
         <el-button v-if="order.status === 'PENDING_PAYMENT'" @click="cancel">取消订单</el-button>
         <el-button v-if="order.status === 'SHIPPED'" type="success" @click="confirmReceipt">确认收货</el-button>
+        <el-button v-if="order.status === 'DELIVERED'" type="warning" @click="goToReview">评价商品</el-button>
       </div>
       <el-steps :active="stepActive" :align-center="!isMobile" class="steps" :direction="isMobile ? 'vertical' : 'horizontal'">
         <el-step title="下单" :description="order.createdAt" />
@@ -89,6 +90,10 @@ async function cancel() {
   await apiCancelOrder(order.value!.orderId)
   ElMessage.success('订单已取消')
   order.value = await apiOrderDetail(order.value!.orderId)
+}
+
+function goToReview() {
+  router.push({ path: '/orders', query: { reviewOrderId: order.value?.orderId } })
 }
 
 async function confirmReceipt() {

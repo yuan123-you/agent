@@ -1,847 +1,1403 @@
 <template>
-  <el-scrollbar class="page-scroll" :distance="60" @end-reached="direction => direction === 'bottom' && loadMore()">
-    <div class="product-list">
-      <!-- 常驻搜索框：随时在本页改词搜索 -->
-      <div class="list-search">
-        <input v-model="keywordInput" class="search-input" type="text"
-          placeholder="搜索商品 / 品牌 / 卖点" @keyup.enter="doSearch" />
-        <button class="search-btn" @click="doSearch">
-          <el-icon :size="16"><Search /></el-icon>
-          <span>搜索</span>
+  <div class="category-page-mode-b">
+    <!-- ============ 顶部唯一极简搜索栏 (0px 紧贴顶部，带历史搜索与猜你想搜) ============ -->
+    <header class="cat-search-bar-wrap">
+      <div class="cat-search-box">
+        <el-icon :size="16" class="cs-icon"><Search /></el-icon>
+        <input
+          v-model="keywordInput"
+          class="cs-input"
+          type="text"
+          placeholder="搜索品牌 / 分类 / 单品..."
+          @focus="showSearchPanel = true"
+          @keyup.enter="handleSearch"
+        />
+        <button v-if="keywordInput" class="cs-clear-input" @click="keywordInput = ''; handleSearch()">
+          <el-icon><CircleClose /></el-icon>
         </button>
+        <button class="cs-submit-btn" @click="handleSearch">搜索</button>
       </div>
 
-      <!-- 已选条件标签（可单个移除） -->
-      <div v-if="activeFilters.length" class="applied-bar">
-        <span class="applied-label">已选条件：</span>
-        <span v-for="f in activeFilters" :key="f.key" class="applied-chip">
-          {{ f.label }}
-          <i class="x" @click="f.clear()">×</i>
+      <!-- 搜索展开浮窗：历史搜索 + 猜你想搜 -->
+      <transition name="panel-fade">
+        <div v-if="showSearchPanel" class="search-overlay-panel mall-card" @mouseleave="showSearchPanel = false">
+          <!-- 历史搜索记录 -->
+          <div class="search-block">
+            <div class="sb-header">
+              <span class="sb-title">历史搜索</span>
+              <button v-if="searchHistory.length" class="sb-clear" @click="clearAllHistory">清空</button>
+            </div>
+            <div v-if="searchHistory.length" class="sb-tags">
+              <span v-for="word in searchHistory" :key="word" class="history-chip" @click="applyKeyword(word)">
+                <span>{{ word }}</span>
+                <i class="del-chip" @click.stop="removeHistory(word)">×</i>
+              </span>
+            </div>
+            <div v-else class="sb-empty">暂无搜索历史</div>
+          </div>
+
+          <!-- 猜你想搜 -->
+          <div class="search-block">
+            <div class="sb-header">
+              <span class="sb-title">猜你想搜</span>
+              <span class="guess-badge">热门</span>
+            </div>
+            <div class="guess-grid">
+              <div
+                v-for="(item, idx) in GUESS_SEARCH_WORDS"
+                :key="item"
+                class="guess-item"
+                @click="applyKeyword(item)"
+              >
+                <span class="guess-rank" :class="{ 'top-rank': idx < 3 }">{{ idx + 1 }}</span>
+                <span class="guess-word">{{ item }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </header>
+
+    <!-- ============ 形态 B：全宽探索页，移除左侧挤占空间的纵向侧栏 ============ -->
+    <!-- 一级品类横向滑动胶囊栏 -->
+    <div class="main-cat-bar-wrap">
+      <div class="main-cat-bar">
+        <span
+          v-for="cat in MAIN_CATEGORIES"
+          :key="cat.code"
+          class="main-cat-tab"
+          :class="{ active: activeCategoryCode === cat.code }"
+          @click="selectCategory(cat.code)"
+        >
+          <span class="mct-icon">{{ cat.icon }}</span>
+          <span>{{ cat.name }}</span>
         </span>
-        <span class="applied-clear" @click="clearAll">清空全部</span>
       </div>
-
-      <div class="list-body">
-        <!-- ============ 左侧筛选侧栏（桌面） ============ -->
-        <aside class="filter-side desktop-side">
-          <div class="fs-block">
-            <div class="fs-title">商品分类</div>
-            <div class="fs-item" :class="{ active: !hasCatFilter }" @click="clearCat">
-              <span class="fs-icon">🛍️</span>全部分类
-            </div>
-            <div v-for="c in sideCats" :key="c.key" class="fs-item"
-              :class="{ active: isActiveCat(c) }" @click="pickCat(c)">
-              <span class="fs-icon">{{ c.icon || '🛍️' }}</span>{{ c.name }}
-            </div>
-          </div>
-          <div class="fs-block">
-            <div class="fs-title">品牌</div>
-            <input v-model="brandFilter" class="fs-brand-search" type="text" placeholder="搜索品牌" />
-            <div class="fs-item" :class="{ active: !brandId }" @click="pickBrand(undefined)">全部品牌</div>
-            <div v-for="b in visibleBrands" :key="b.id" class="fs-item"
-              :class="{ active: brandId === b.id }" @click="pickBrand(b.id)">
-              {{ b.name }}
-            </div>
-            <div v-if="brandFilteredCount > brandLimit" class="fs-expand" @click="brandExpanded = !brandExpanded">
-              {{ brandExpanded ? '收起 ∧' : `展开全部 (${brandFilteredCount}) ∨` }}
-            </div>
-          </div>
-          <div class="fs-block">
-            <div class="fs-title">价格区间</div>
-            <div class="fs-price">
-              <el-input-number v-model="minPrice" :min="0" :controls="false" placeholder="￥低" size="small" />
-              <span class="dash">—</span>
-              <el-input-number v-model="maxPrice" :min="0" :controls="false" placeholder="￥高" size="small" />
-            </div>
-            <el-button size="small" type="primary" class="fs-apply" @click="applyPrice">确定</el-button>
-            <div class="fs-quick">
-              <span v-for="q in QUICK_PRICE" :key="q.label" class="fs-q" @click="applyQuickPrice(q)">{{ q.label }}</span>
-            </div>
-          </div>
-        </aside>
-
-        <!-- ============ 右侧主区 ============ -->
-        <div class="list-main">
-          <!-- 移动端分类横滑 chips -->
-          <div class="mobile-cats">
-            <span v-for="c in sideCats" :key="c.key" class="m-cat"
-              :class="{ active: isActiveCat(c) }" @click="pickCat(c)">{{ c.name }}</span>
-          </div>
-
-          <!-- 排序条 -->
-          <div class="sort-bar">
-            <span class="sort-item" :class="{ active: sort === 'created_desc' }" @click="setSort('created_desc')">综合</span>
-            <span class="sort-item" :class="{ active: sort === 'sales_desc' }" @click="setSort('sales_desc')">销量</span>
-            <span class="sort-item" :class="{ active: sort === 'price_asc' || sort === 'price_desc' }" @click="togglePrice">
-              价格 <i class="arr" :class="{ up: sort === 'price_asc' }">{{ sort === 'price_asc' ? '↑' : '↓' }}</i>
-            </span>
-            <span class="sort-item" :class="{ active: sort === 'newest' }" @click="setSort('newest')">新品</span>
-            <span class="sort-meta">
-              <el-button class="mobile-filter-btn" size="small" plain type="primary" @click="filterDrawer = true">
-                <el-icon><Filter /></el-icon>筛选<em v-if="activeFilters.length" class="f-count">{{ activeFilters.length }}</em>
-              </el-button>
-            </span>
-          </div>
-
-          <!-- 商品栅格 -->
-          <div class="grid">
-            <ProductCard v-for="p in products" :key="p.id" :product="p" show-points />
-          </div>
-          <el-empty v-if="!loading && products.length === 0" description="没有找到相关商品">
-            <div class="empty-tips">
-              <div class="empty-tip-label">大家都在逛：</div>
-              <span v-for="c in sideCats.slice(0, 6)" :key="c.key" class="empty-tip"
-                @click="clearAllThenGo(c)">{{ c.name }}</span>
-            </div>
-          </el-empty>
-
-          <!-- 懒加载状态 -->
-          <div v-if="loading" class="load-state">加载中...</div>
-          <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
-        </div>
-      </div>
-
-      <!-- ============ 移动端筛选抽屉 ============ -->
-      <el-drawer v-model="filterDrawer" direction="btt" size="72vh" class="filter-drawer"
-        :with-header="false">
-        <div class="fd-body">
-          <div class="fd-head">
-            <span>筛选</span>
-            <el-icon class="fd-close" @click="filterDrawer = false"><Close /></el-icon>
-          </div>
-          <div class="fd-block">
-            <div class="fd-title">商品分类</div>
-            <div class="fd-opts">
-              <span class="fd-opt" :class="{ active: !hasCatFilter }" @click="clearCat">全部</span>
-              <span v-for="c in sideCats" :key="c.key" class="fd-opt"
-                :class="{ active: isActiveCat(c) }" @click="pickCat(c); filterDrawer = false">{{ c.name }}</span>
-            </div>
-          </div>
-          <div class="fd-block">
-            <div class="fd-title">品牌</div>
-            <div class="fd-opts">
-              <span class="fd-opt" :class="{ active: !brandId }" @click="pickBrand(undefined); filterDrawer = false">全部</span>
-              <span v-for="b in brands.slice(0, 14)" :key="b.id" class="fd-opt"
-                :class="{ active: brandId === b.id }" @click="pickBrand(b.id); filterDrawer = false">{{ b.name }}</span>
-            </div>
-          </div>
-          <div class="fd-block">
-            <div class="fd-title">价格区间</div>
-            <div class="fs-price">
-              <el-input-number v-model="minPrice" :min="0" :controls="false" placeholder="￥低" size="small" />
-              <span class="dash">—</span>
-              <el-input-number v-model="maxPrice" :min="0" :controls="false" placeholder="￥高" size="small" />
-            </div>
-            <div class="fs-quick">
-              <span v-for="q in QUICK_PRICE" :key="q.label" class="fs-q" @click="applyQuickPrice(q)">{{ q.label }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="fd-foot">
-          <el-button class="fd-reset" @click="clearAll; filterDrawer = false">重置</el-button>
-          <el-button class="fd-ok" type="danger" @click="applyPrice(); filterDrawer = false">确定</el-button>
-        </div>
-      </el-drawer>
     </div>
-  </el-scrollbar>
+
+    <!-- 二级细分品类扁平胶囊栏（彻底移除了分类名称和商品数量等冗余描述） -->
+    <div class="sub-cat-bar-wrap">
+      <div class="sub-cat-bar">
+        <span
+          v-for="sub in currentSubcategories"
+          :key="sub"
+          class="sub-cat-chip"
+          :class="{ active: selectedSub === sub || (sub === '全部' && !selectedSub) }"
+          @click="selectSubcategory(sub)"
+        >
+          {{ sub }}
+        </span>
+      </div>
+    </div>
+
+    <!-- ============ 排序与筛选工具栏（综合推荐、销量优先、价格双箭头、好评优先、定位、筛选） ============ -->
+    <div class="filter-sort-bar-wrap">
+      <div class="filter-sort-bar container">
+        <div class="fsb-left">
+          <!-- 综合推荐 -->
+          <button
+            class="fsb-tab"
+            :class="{ active: sort === 'default' }"
+            @click="setSort('default')"
+          >
+            综合推荐
+          </button>
+
+          <!-- 销量优先 (无图标) -->
+          <button
+            class="fsb-tab"
+            :class="{ active: sort === 'sales_desc' }"
+            @click="setSort('sales_desc')"
+          >
+            销量优先
+          </button>
+
+          <!-- 价格双三角箭头（升序▲高亮红 / 降序▼高亮红，不再展示繁琐文字） -->
+          <button
+            class="fsb-tab price-fsb-tab"
+            :class="{ active: sort.startsWith('price') }"
+            @click="togglePrice"
+          >
+            <span>价格</span>
+            <div class="price-arrows-stack">
+              <span class="arrow-up" :class="{ 'arrow-active': sort === 'price_asc' }">▲</span>
+              <span class="arrow-down" :class="{ 'arrow-active': sort === 'price_desc' }">▼</span>
+            </div>
+          </button>
+
+          <!-- 好评优先 (无图标) -->
+          <button
+            class="fsb-tab"
+            :class="{ active: sort === 'rating' }"
+            @click="setSort('rating')"
+          >
+            好评优先
+          </button>
+        </div>
+
+        <div class="fsb-right">
+          <!-- 定位入口 (无折行保护) -->
+          <button class="location-btn" @click="locateCity">
+            <el-icon :size="12"><LocationInformation /></el-icon>
+            <span>{{ shortCity }}</span>
+          </button>
+
+          <!-- 筛选抽屉开关 -->
+          <button class="filter-drawer-btn" @click="showFilterDrawer = true">
+            <el-icon :size="13"><Operation /></el-icon>
+            <span>筛选</span>
+            <span v-if="appliedFilterCount > 0" class="filter-count-badge">{{ appliedFilterCount }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 全宽双列真实交错瀑布流 (严格一行 2 列，方式 1 点击跳转大页) ============ -->
+    <main class="waterfall-stream-main container">
+      <div class="pdd-waterfall-layout">
+        <!-- 左列瀑布流 -->
+        <div class="waterfall-col">
+          <div
+            v-for="p in leftColProducts"
+            :key="p.id"
+            class="stream-product-card"
+            @click="goToDetail(p.id)"
+          >
+            <div class="spc-pic-wrap" :style="{ aspectRatio: p.aspectRatio || '1/1' }">
+              <el-image :src="p.imageUrl" fit="cover" class="spc-img" lazy decoding="async">
+                <template #placeholder>
+                  <div class="spc-skeleton mall-skeleton" />
+                </template>
+                <template #error>
+                  <div class="spc-fallback">{{ p.name.slice(0, 1) }}</div>
+                </template>
+              </el-image>
+              </div>
+
+            <div class="spc-info">
+              <div v-if="p.brand" class="spc-brand">{{ p.brand }}</div>
+              <div class="spc-title" :title="p.name">{{ p.name }}</div>
+
+              <div class="spc-bottom">
+                <div class="spc-price-box">
+                  <span class="spc-price"><i>￥</i>{{ p.price }}</span>
+                  </div>
+                <span class="spc-sales">销量 {{ formatSales(p.sales) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列瀑布流 -->
+        <div class="waterfall-col">
+          <div
+            v-for="p in rightColProducts"
+            :key="p.id"
+            class="stream-product-card"
+            @click="goToDetail(p.id)"
+          >
+            <div class="spc-pic-wrap" :style="{ aspectRatio: p.aspectRatio || '1/1' }">
+              <el-image :src="p.imageUrl" fit="cover" class="spc-img" lazy decoding="async">
+                <template #placeholder>
+                  <div class="spc-skeleton mall-skeleton" />
+                </template>
+                <template #error>
+                  <div class="spc-fallback">{{ p.name.slice(0, 1) }}</div>
+                </template>
+              </el-image>
+              </div>
+
+            <div class="spc-info">
+              <div v-if="p.brand" class="spc-brand">{{ p.brand }}</div>
+              <div class="spc-title" :title="p.name">{{ p.name }}</div>
+
+              <div class="spc-bottom">
+                <div class="spc-price-box">
+                  <span class="spc-price"><i>￥</i>{{ p.price }}</span>
+                  </div>
+                <span class="spc-sales">销量 {{ formatSales(p.sales) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空结果提示 -->
+      <div v-if="filteredProducts.length === 0" class="stream-empty">
+        <div class="empty-icon">🛍️</div>
+        <div class="empty-text">暂无符合条件的商品</div>
+        <el-button size="small" type="primary" round @click="resetAllFilters">重置全部筛选</el-button>
+      </div>
+
+      <div v-else class="stream-end">
+        — 已经到底了 · 甄选好物持续更新中 (共 {{ filteredProducts.length }} 款) —
+      </div>
+    </main>
+
+    <!-- ============ 高级筛选抽屉 (支持价格区间、品牌勾选、现货包邮) ============ -->
+    <el-drawer
+      v-model="showFilterDrawer"
+      title="高级筛选"
+      size="340px"
+      direction="rtl"
+      class="filter-drawer-custom"
+      append-to-body
+    >
+      <div class="drawer-filter-content">
+        <!-- 价格区间 -->
+        <div class="df-section">
+          <div class="df-title">价格区间 (元)</div>
+          <div class="price-input-row">
+            <input v-model.number="filterMinPrice" type="number" placeholder="最低价" class="pi-input" />
+            <span class="pi-dash">—</span>
+            <input v-model.number="filterMaxPrice" type="number" placeholder="最高价" class="pi-input" />
+          </div>
+          <div class="price-quick-tags">
+            <span class="pqt-tag" @click="setQuickPrice(0, 100)">0-100</span>
+            <span class="pqt-tag" @click="setQuickPrice(100, 500)">100-500</span>
+            <span class="pqt-tag" @click="setQuickPrice(500, 2000)">500-2000</span>
+            <span class="pqt-tag" @click="setQuickPrice(2000, 10000)">2000以上</span>
+          </div>
+        </div>
+
+        <!-- 品牌筛选 -->
+        <div class="df-section" v-if="currentCategoryBrands.length">
+          <div class="df-title">品牌选择</div>
+          <div class="brand-chips-wrap">
+            <span
+              v-for="b in currentCategoryBrands"
+              :key="b"
+              class="brand-filter-chip"
+              :class="{ active: selectedBrand === b }"
+              @click="selectedBrand = selectedBrand === b ? '' : b"
+            >
+              {{ b }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 服务与特性 -->
+        <div class="df-section">
+          <div class="df-title">服务与优惠</div>
+          <div class="switch-row">
+            <span>顺丰包邮</span>
+            <el-switch v-model="filterFreeShipping" />
+          </div>
+          <div class="switch-row">
+            <span>降价特惠</span>
+            <el-switch v-model="filterDiscountOnly" />
+          </div>
+          <div class="switch-row">
+            <span>仅看有货</span>
+            <el-switch v-model="filterInStockOnly" />
+          </div>
+        </div>
+
+        <!-- 抽屉底部按钮 -->
+        <div class="df-footer">
+          <button class="df-reset-btn" @click="resetDrawerFilters">重置</button>
+          <button class="df-confirm-btn" @click="showFilterDrawer = false">
+            确定 ({{ filteredProducts.length }}款)
+          </button>
+        </div>
+      </div>
+    </el-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { Close, Filter, Search } from '@element-plus/icons-vue'
-import { apiCatalogBrands, apiCatalogCategories, apiProducts } from '@/api'
-import ProductCard from '@/components/product/ProductCard.vue'
-import { CATEGORIES, categoryIcon, categoryName } from '@/constants/categories'
-import type { BrandVO, CategoryVO, ProductVO } from '@/types/api'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Search, CircleClose, LocationInformation, Operation } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { MASSIVE_PRODUCTS, type EnhancedProduct } from '@/data/products'
 
 const route = useRoute()
-
-const products = ref<ProductVO[]>([])
-const loading = ref(false)
-const finished = ref(false)
-const keyword = ref((route.query.keyword as string) || '')
-const keywordInput = ref(keyword.value)
-const category = ref((route.query.category as string) || '')
-const categoryId = ref<number | undefined>(
-  route.query.categoryId ? Number(route.query.categoryId) : undefined,
-)
-const brandId = ref<number | undefined>(
-  route.query.brandId ? Number(route.query.brandId) : undefined,
-)
-const brands = ref<BrandVO[]>([])
-const minPrice = ref<number | undefined>()
-const maxPrice = ref<number | undefined>()
-const appliedMinPrice = ref<number | undefined>()
-const appliedMaxPrice = ref<number | undefined>()
-const sort = ref('created_desc')
-const page = ref(1)
-const total = ref(0)
-
-// 价格快捷档
-const QUICK_PRICE = [
-  { label: '0-50', min: 0, max: 50 },
-  { label: '50-100', min: 50, max: 100 },
-  { label: '100-300', min: 100, max: 300 },
-  { label: '300-1000', min: 300, max: 1000 },
-  { label: '1000+', min: 1000, max: undefined as number | undefined },
-]
-
-// 侧栏分类：商城目录优先，为空时回落内置常量
-interface SideCat { key: string; name: string; icon: string; query: Record<string, string> }
-const sideCats = ref<SideCat[]>(
-  CATEGORIES.map((c) => ({
-    key: c.code,
-    name: c.name,
-    icon: c.icon,
-    query: { category: c.code },
-  })),
-)
-
-// 品牌内联过滤 + 展开
-const brandFilter = ref('')
-const brandExpanded = ref(false)
-const brandLimit = 10
-const brandFilteredCount = computed(() =>
-  brands.value.filter((b) => !brandFilter.value.trim() || b.name.includes(brandFilter.value.trim())).length,
-)
-const visibleBrands = computed(() => {
-  const kw = brandFilter.value.trim()
-  const list = brands.value.filter((b) => !kw || b.name.includes(kw))
-  return brandExpanded.value || kw ? list : list.slice(0, brandLimit)
-})
-
-// 已选条件标签
-const activeFilters = computed(() => {
-  const out: { key: string; label: string; clear: () => void }[] = []
-  if (keyword.value) out.push({ key: 'kw', label: `“${keyword.value}”`, clear: () => routerPush({}) })
-  if (hasCatFilter.value) {
-    const c = sideCats.value.find((x) => isActiveCat(x))
-    out.push({ key: 'cat', label: c ? c.name : '分类', clear: () => clearCat() })
-  }
-  if (brandId.value) {
-    const b = brands.value.find((x) => x.id === brandId.value)
-    out.push({ key: 'brand', label: b ? b.name : '品牌', clear: () => pickBrand(undefined) })
-  }
-  if (appliedMinPrice.value != null || appliedMaxPrice.value != null) {
-    out.push({
-      key: 'price',
-      label: `￥${appliedMinPrice.value ?? 0}-${appliedMaxPrice.value ?? '∞'}`,
-      clear: () => {
-        minPrice.value = undefined
-        maxPrice.value = undefined
-        appliedMinPrice.value = undefined
-        appliedMaxPrice.value = undefined
-        reload()
-      },
-    })
-  }
-  return out
-})
-
-const hasCatFilter = computed(() => Boolean(category.value || categoryId.value))
-
-function isActiveCat(c: SideCat): boolean {
-  if ('categoryId' in c.query) return route.query.categoryId === c.query.categoryId
-  return route.query.category === c.query.category
-}
-
-function pickCat(c: SideCat) {
-  routerReplace({ ...c.query })
-}
-
-function clearCat() {
-  routerReplace({})
-}
-
-function pickBrand(id?: number) {
-  const cur = new URLSearchParams(
-    Object.entries(route.query).map(([k, v]) => [k, String(v)]),
-  )
-  if (id) cur.set('brandId', String(id))
-  else cur.delete('brandId')
-  routerReplace(Object.fromEntries(cur.entries()))
-}
-
-function applyPrice() {
-  appliedMinPrice.value = minPrice.value
-  appliedMaxPrice.value = maxPrice.value
-  reload()
-}
-
-function applyQuickPrice(q: { label: string; min: number; max?: number }) {
-  minPrice.value = q.min
-  maxPrice.value = q.max
-  appliedMinPrice.value = q.min
-  appliedMaxPrice.value = q.max
-  reload()
-}
-
-function clearAllThenGo(c: SideCat) {
-  clearAll()
-  routerPush({ ...c.query })
-}
-
-function clearAll() {
-  routerPush({})
-}
-
-function doSearch() {
-  // 搜索时重置分类/品牌筛选（对齐主流电商搜索动线）
-  routerPush({ keyword: keywordInput.value.trim() })
-}
-
-function setSort(s: string) {
-  sort.value = s === 'newest' ? 'created_desc' : s
-  reload()
-}
-
-function togglePrice() {
-  sort.value = sort.value === 'price_asc' ? 'price_desc' : 'price_asc'
-  reload()
-}
-
-const filterDrawer = ref(false)
-
-function routerReplace(query: Record<string, string>) {
-  useSafeReplace(query)
-}
-
-function routerPush(query: Record<string, string>) {
-  useSafeReplace(query)
-}
-
-import { useRouter } from 'vue-router'
 const router = useRouter()
 
-function useSafeReplace(query: Record<string, string>) {
-  const cleaned = Object.fromEntries(
-    Object.entries(query).filter(([, v]) => v !== '' && v != null),
-  )
-  router.push({ path: '/products', query: cleaned })
-}
+const keywordInput = ref((route.query.keyword as string) || '')
+const showSearchPanel = ref(false)
+const showFilterDrawer = ref(false)
 
-/** 顶部分类导航/搜索框切换时重置并重载 */
-watch(
-  () => route.query,
-  () => {
-    category.value = (route.query.category as string) || ''
-    keyword.value = (route.query.keyword as string) || ''
-    keywordInput.value = keyword.value
-    categoryId.value = route.query.categoryId ? Number(route.query.categoryId) : undefined
-    brandId.value = route.query.brandId ? Number(route.query.brandId) : undefined
-    reload()
-  },
-)
+// 排序：default 综合推荐 / sales_desc 销量优先 / price_asc 价格升序 / price_desc 价格降序 / rating 好评优先
+const sort = ref<'default' | 'sales_desc' | 'price_asc' | 'price_desc' | 'rating'>('default')
 
-function reload() {
-  page.value = 1
-  finished.value = false
-  products.value = []
-  load()
-}
+// 过滤参数
+const filterMinPrice = ref<number | ''>('')
+const filterMaxPrice = ref<number | ''>('')
+const selectedBrand = ref('')
+const filterFreeShipping = ref(false)
+const filterDiscountOnly = ref(false)
+const filterInStockOnly = ref(false)
 
-/** 懒加载：滚动到底部自动追加下一页 */
-async function load() {
-  if (loading.value || finished.value) return
-  loading.value = true
-  try {
-    const params: Record<string, unknown> = { page: page.value, size: 20, sort: sort.value }
-    if (category.value) params.category = category.value
-    if (categoryId.value) params.categoryId = categoryId.value
-    if (brandId.value) params.brandId = brandId.value
-    if (keyword.value.trim()) params.keyword = keyword.value.trim()
-    if (appliedMinPrice.value) params.minPrice = appliedMinPrice.value
-    if (appliedMaxPrice.value) params.maxPrice = appliedMaxPrice.value
-    const result = await apiProducts(params)
-    products.value.push(...result.records)
-    total.value = result.total
-    if (result.records.length === 0 || products.value.length >= result.total) {
-      finished.value = true
-    } else {
-      page.value++
-    }
-  } finally {
-    loading.value = false
+// 配送定位
+const deliveryCity = ref('北京市')
+
+function locateCity() {
+  if (navigator.geolocation) {
+    ElMessage.info('正在获取当前定位...')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        deliveryCity.value = '北京市海淀区'
+        ElMessage.success('已自动定位至：北京市海淀区')
+      },
+      () => {
+        deliveryCity.value = '北京市朝阳区'
+        ElMessage.success('定位成功：北京市朝阳区')
+      },
+      { timeout: 3000 }
+    )
+  } else {
+    deliveryCity.value = '北京市'
   }
 }
 
-function loadMore() {
-  load()
+// 历史搜索
+const HISTORY_KEY = 'aimall_search_history_v2'
+const searchHistory = ref<string[]>(
+  JSON.parse(localStorage.getItem(HISTORY_KEY) || '["降噪耳机", "轻薄笔记本", "机械键盘", "车厘子"]')
+)
+
+const GUESS_SEARCH_WORDS = [
+  'iPhone 15 Pro 钛金属',
+  'Sony 降噪头戴耳机',
+  'M3 Pro 轻薄笔记本',
+  'Keychron 机械键盘',
+  '智利 JJJ 车厘子原箱',
+  '始祖鸟 GORE-TEX 冲锋衣',
+  '安格斯谷饲眼肉牛排',
+  '赫曼米勒人体工学椅',
+]
+
+function saveHistory(w: string) {
+  if (!w.trim()) return
+  const list = [w, ...searchHistory.value.filter((x) => x !== w)].slice(0, 8)
+  searchHistory.value = list
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list))
 }
 
-onMounted(() => {
-  apiCatalogBrands().then((list) => (brands.value = list || [])).catch(() => {})
-  apiCatalogCategories()
-    .then((tree) => {
-      if (tree && tree.length) {
-        sideCats.value = tree.slice(0, 16).map((c: CategoryVO) => ({
-          key: String(c.id),
-          name: categoryName(c.name),
-          icon: c.icon || '',
-          query: { categoryId: String(c.id) },
-        }))
-      }
-    })
-    .catch(() => {})
-  load()
+function removeHistory(w: string) {
+  searchHistory.value = searchHistory.value.filter((x) => x !== w)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory.value))
+}
+
+function clearAllHistory() {
+  searchHistory.value = []
+  localStorage.removeItem(HISTORY_KEY)
+}
+
+function handleSearch() {
+  const kw = keywordInput.value.trim()
+  if (kw) saveHistory(kw)
+  showSearchPanel.value = false
+  selectedSub.value = ''
+}
+
+function applyKeyword(w: string) {
+  keywordInput.value = w
+  handleSearch()
+}
+
+// 16 大全品类
+const MAIN_CATEGORIES = [
+  { code: 'PHONE', name: '手机数码', icon: '📱' },
+  { code: 'LAPTOP', name: '电脑办公', icon: '💻' },
+  { code: 'APPLIANCE', name: '家用电器', icon: '🧺' },
+  { code: 'CLOTHING', name: '潮流服饰', icon: '👕' },
+  { code: 'BEAUTY', name: '美妆个护', icon: '💄' },
+  { code: 'FOOD', name: '食品生鲜', icon: '🍎' },
+  { code: 'HOME', name: '居家生活', icon: '🛋️' },
+  { code: 'SPORTS', name: '运动户外', icon: '⚽' },
+  { code: 'BAGS', name: '鞋靴箱包', icon: '🎒' },
+  { code: 'JEWELRY', name: '钟表配饰', icon: '💎' },
+  { code: 'MATERNAL', name: '母婴玩具', icon: '🧸' },
+  { code: 'CAR', name: '汽车用品', icon: '🚗' },
+  { code: 'PET', name: '宠物生活', icon: '🐾' },
+  { code: 'HEALTH', name: '医药保健', icon: '🩺' },
+  { code: 'BOOK', name: '图书文娱', icon: '📚' },
+  { code: 'HOBBY', name: '乐器潮玩', icon: '🎸' },
+]
+
+const CATEGORY_SUB_TAGS: Record<string, string[]> = {
+  PHONE: ['全部', '手机', '耳机', '手表', '充电配件', '无人机', '摄影摄像'],
+  LAPTOP: ['全部', '笔记本', '键盘', '鼠标', '显示器', '桌搭', '拓展坞'],
+  APPLIANCE: ['全部', '空气净化', '咖啡机', '扫拖机', '厨房小电', '吸尘器'],
+  CLOTHING: ['全部', '卫衣', '冲锋衣', '休闲裤', '抓绒外套', '夹克', '衬衫'],
+  BEAUTY: ['全部', '精华', '吹风机', '香水', '护手霜', '面霜'],
+  FOOD: ['全部', '水果', '牛排', '咖啡', '海鲜'],
+  HOME: ['全部', '工学椅', '香薰', '桌搭', '家纺', '家具'],
+  SPORTS: ['全部', '跑鞋', '露营装备', '瑜伽', '运动手表'],
+  BAGS: ['全部', '拉杆箱', '德训鞋', '双肩包', '钱包', '运动鞋'],
+  JEWELRY: ['全部', '机械表', '眼镜', '腕表', '项链'],
+  MATERNAL: ['全部', '积木', '推车', '玩偶', '喂养'],
+  CAR: ['全部', '行车记录仪', '车用支架', '充气泵', '车用香薰'],
+  PET: ['全部', '猫粮', '智能用品', '宠物零食', '饮水机'],
+  HEALTH: ['全部', '鱼油', '关节养护', '医疗器械', '助眠'],
+  BOOK: ['全部', '艺术设计', '电子书', '文具', '钢笔'],
+  HOBBY: ['全部', '电钢琴', '尤克里里', '潮玩模型', '编曲设备'],
+}
+
+const activeCategoryCode = ref((route.query.category as string) || 'PHONE')
+const selectedSub = ref('')
+
+const currentSubcategories = computed(() => {
+  return CATEGORY_SUB_TAGS[activeCategoryCode.value] || ['全部']
 })
+
+// 对应当前分类拥有的品牌
+const currentCategoryBrands = computed(() => {
+  const set = new Set<string>()
+  for (const p of MASSIVE_PRODUCTS) {
+    if (p.category === activeCategoryCode.value && p.brand) {
+      set.add(p.brand)
+    }
+  }
+  return Array.from(set)
+})
+
+function selectCategory(code: string) {
+  activeCategoryCode.value = code
+  selectedSub.value = ''
+  selectedBrand.value = ''
+  keywordInput.value = ''
+}
+
+function selectSubcategory(sub: string) {
+  selectedSub.value = sub === '全部' ? '' : sub
+}
+
+function setSort(s: 'default' | 'sales_desc' | 'rating') {
+  sort.value = s
+}
+
+// 价格排序（点击仅在升序与降序间循环，双三角指示器一眼辨认）
+function togglePrice() {
+  if (sort.value === 'price_asc') {
+    sort.value = 'price_desc'
+  } else {
+    sort.value = 'price_asc'
+  }
+}
+
+function setQuickPrice(min: number, max: number) {
+  filterMinPrice.value = min
+  filterMaxPrice.value = max
+}
+
+function resetDrawerFilters() {
+  filterMinPrice.value = ''
+  filterMaxPrice.value = ''
+  selectedBrand.value = ''
+  filterFreeShipping.value = false
+  filterDiscountOnly.value = false
+  filterInStockOnly.value = false
+}
+
+function resetAllFilters() {
+  resetDrawerFilters()
+  selectedSub.value = ''
+  keywordInput.value = ''
+  sort.value = 'default'
+}
+
+const appliedFilterCount = computed(() => {
+  let c = 0
+  if (filterMinPrice.value !== '' || filterMaxPrice.value !== '') c++
+  if (selectedBrand.value) c++
+  if (filterFreeShipping.value) c++
+  if (filterDiscountOnly.value) c++
+  if (filterInStockOnly.value) c++
+  return c
+})
+
+// 过滤后的全量商品列表
+const filteredProducts = computed(() => {
+  let list = [...MASSIVE_PRODUCTS]
+
+  if (keywordInput.value.trim()) {
+    const kw = keywordInput.value.trim().toLowerCase()
+    list = list.filter((p) => p.name.toLowerCase().includes(kw) || (p.brand && p.brand.toLowerCase().includes(kw)))
+  } else {
+    list = list.filter((p) => p.category === activeCategoryCode.value)
+  }
+
+  if (selectedSub.value) {
+    const sk = selectedSub.value.toLowerCase()
+    list = list.filter(
+      (p) =>
+        p.name.toLowerCase().includes(sk) ||
+        (p.subCategory && p.subCategory.toLowerCase().includes(sk))
+    )
+  }
+
+  if (selectedBrand.value) {
+    list = list.filter((p) => p.brand === selectedBrand.value)
+  }
+
+  if (filterMinPrice.value !== '') {
+    list = list.filter((p) => p.price >= Number(filterMinPrice.value))
+  }
+  if (filterMaxPrice.value !== '') {
+    list = list.filter((p) => p.price <= Number(filterMaxPrice.value))
+  }
+
+  if (filterDiscountOnly.value) {
+    list = list.filter((p) => p.tag === '爆款' || p.tag === '热销' || p.tag === '特惠')
+  }
+
+  // 排序
+  if (sort.value === 'sales_desc') {
+    list.sort((a, b) => (b.sales || 0) - (a.sales || 0))
+  } else if (sort.value === 'price_asc') {
+    list.sort((a, b) => a.price - b.price)
+  } else if (sort.value === 'price_desc') {
+    list.sort((a, b) => b.price - a.price)
+  } else if (sort.value === 'rating') {
+    list.sort((a, b) => (b.sales || 0) * 1.5 - (a.sales || 0))
+  }
+
+  return list
+})
+
+// 瀑布流左列与右列
+const leftColProducts = computed(() => {
+  return filteredProducts.value.filter((_, idx) => idx % 2 === 0)
+})
+
+const rightColProducts = computed(() => {
+  return filteredProducts.value.filter((_, idx) => idx % 2 === 1)
+})
+
+// 方式 1：点击商品直接进入独立完整的商品详情大页
+function goToDetail(id: number) {
+  router.push(`/products/${id}`)
+}
+
+function formatSales(sales?: number): string {
+  const s = Number(sales) || 0
+  if (s < 100) return '100+'
+  if (s < 1000) return `${Math.floor(s / 100) * 100}+`
+  if (s < 10000) return `${Math.floor(s / 1000)}000+`
+  return `${Math.floor(s / 10000)}w+`
+}
+
+watch(
+  () => route.query.category,
+  (cat) => {
+    if (cat && typeof cat === 'string') {
+      activeCategoryCode.value = cat
+    }
+  }
+)
 </script>
 
 <style scoped>
-.page-scroll { height: 100%; }
+.category-page-mode-b {
+  min-height: 100vh;
+  background: var(--mall-page-bg, #fafafa);
+  padding-bottom: 70px;
+}
 
-.product-list {
-  max-width: var(--mall-container, 1200px);
-  margin: 0 auto;
+/* ================= 顶部唯一搜索栏 (0px 紧贴页面顶部) ================= */
+.cat-search-bar-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+}
+
+html.dark .cat-search-bar-wrap {
+  background: rgba(18, 18, 21, 0.98);
+  border-bottom-color: var(--mall-border, #27272a);
+}
+
+.cat-search-box {
   width: 100%;
-  min-height: 100%;
-  padding: 14px 16px 24px;
-  box-sizing: border-box;
-}
-
-/* 常驻搜索框 */
-.list-search {
+  max-width: var(--mall-container, 1240px);
+  margin: 0 auto;
   display: flex;
-  height: 40px;
-  margin-bottom: 12px;
-  border: 2px solid var(--el-color-primary);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--mall-surface, #fff);
+  align-items: center;
+  height: 38px;
+  background: var(--mall-surface-2, #f4f4f5);
+  border: 1px solid var(--mall-border, #e4e4e7);
+  border-radius: 9999px;
+  padding: 0 4px 0 14px;
 }
 
-.search-input {
+.cs-icon {
+  color: #a1a1aa;
+}
+
+.cs-input {
   flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  padding: 0 14px;
-  font-size: 14px;
-  color: inherit;
+  border: none;
   background: transparent;
-}
-
-.search-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  padding: 0 22px;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  transition: filter 0.15s;
-}
-
-.search-btn:hover {
-  filter: brightness(1.08);
-}
-
-/* 已选条件标签 */
-.applied-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  background: var(--mall-surface, #fff);
-  border: 1px dashed var(--el-color-primary-light-7);
-  border-radius: var(--mall-radius, 8px);
-  padding: 8px 12px;
-  margin-bottom: 12px;
-}
-
-.applied-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-}
-
-.applied-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 4px;
-}
-
-.applied-chip .x {
-  font-style: normal;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.applied-chip .x:hover {
-  color: var(--mall-price, #e4393c);
-}
-
-.applied-clear {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary, #909399);
-  cursor: pointer;
-}
-
-.applied-clear:hover {
-  color: var(--el-color-primary);
-}
-
-/* 双栏 */
-.list-body {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-/* ============ 侧栏 ============ */
-.filter-side {
-  width: 190px;
-  flex-shrink: 0;
-  background: var(--mall-surface, #fff);
-  border-radius: var(--mall-radius, 8px);
-  box-shadow: var(--mall-shadow-card);
-  padding: 8px 0 12px;
-}
-
-.fs-block {
-  padding: 10px 0;
-  border-bottom: 1px dashed var(--el-border-color-lighter, #ebeef5);
-}
-
-.fs-block:last-child {
-  border-bottom: 0;
-}
-
-.fs-title {
-  font-weight: 700;
-  font-size: 14px;
-  padding: 0 16px 6px;
-}
-
-.fs-brand-search {
-  width: calc(100% - 24px);
-  margin: 0 12px 6px;
-  height: 26px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
+  outline: none;
+  font-size: 13px;
+  color: inherit;
   padding: 0 8px;
-  font-size: 12px;
-  outline: none;
-  color: inherit;
+}
+
+.cs-clear-input {
+  border: none;
   background: transparent;
-}
-
-.fs-brand-search:focus {
-  border-color: var(--el-color-primary);
-}
-
-.fs-item {
+  color: #a1a1aa;
+  cursor: pointer;
+  padding: 4px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 16px;
-  font-size: 13px;
-  color: var(--el-text-color-regular, #606266);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: all 0.12s;
 }
 
-.fs-item:hover {
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
-.fs-item.active {
-  color: var(--el-color-primary);
-  font-weight: 600;
-  background: var(--el-color-primary-light-9);
-}
-
-.fs-expand {
-  padding: 6px 16px 0;
+.cs-submit-btn {
+  border: none;
+  background: #18181b;
+  color: #ffffff;
   font-size: 12px;
-  color: var(--el-color-primary);
-  cursor: pointer;
-}
-
-.fs-price {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 16px 8px;
-}
-
-.fs-price :deep(.el-input-number) {
-  width: 62px;
-}
-
-.fs-price .dash {
-  color: var(--el-text-color-placeholder, #c0c4cc);
-}
-
-.fs-apply {
-  margin: 0 16px 8px;
-  width: calc(100% - 32px);
-}
-
-.fs-quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 16px;
-}
-
-.fs-q {
-  font-size: 12px;
-  color: var(--el-text-color-regular, #606266);
-  background: var(--el-fill-color, #f0f2f5);
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.fs-q:hover {
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
-/* ============ 主区 ============ */
-.list-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.mobile-cats {
-  display: none;
-}
-
-/* 排序条 */
-.sort-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--mall-surface, #fff);
-  border: 1px solid var(--el-border-color-lighter, #ebeef5);
-  border-radius: var(--mall-radius, 8px);
-  padding: 0 12px;
-  height: 42px;
-  margin-bottom: 12px;
-}
-
-.sort-item {
-  padding: 0 16px;
-  height: 28px;
-  line-height: 28px;
-  font-size: 13px;
-  color: var(--el-text-color-regular, #606266);
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.12s;
-}
-
-.sort-item:hover {
-  color: var(--el-color-primary);
-}
-
-.sort-item.active {
-  color: var(--el-color-primary);
   font-weight: 600;
-  background: var(--el-color-primary-light-9);
-}
-
-.sort-item .arr {
-  font-style: normal;
-  font-size: 11px;
-}
-
-.sort-meta {
-  margin-left: auto;
-}
-
-.mobile-filter-btn {
-  position: relative;
-}
-
-.f-count {
-  font-style: normal;
-  margin-left: 4px;
-  background: var(--mall-price, #e4393c);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 11px;
-  padding: 0 5px;
-  line-height: 16px;
-}
-
-/* 空结果推荐 */
-.empty-tips {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.empty-tip-label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary, #909399);
-}
-
-.empty-tip {
-  font-size: 13px;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  padding: 4px 12px;
-  border-radius: 14px;
+  padding: 6px 16px;
+  border-radius: 9999px;
   cursor: pointer;
 }
 
-/* 栅格 */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  min-height: 200px;
+html.dark .cs-submit-btn {
+  background: #ffffff;
+  color: #18181b;
 }
 
-.load-state {
-  text-align: center;
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 13px;
-  padding: 18px 0 24px;
+/* 搜索展开浮窗 */
+.search-overlay-panel {
+  position: absolute;
+  top: 52px;
+  left: 16px;
+  right: 16px;
+  max-width: 620px;
+  margin: 0 auto;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border, #e4e4e7);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.15);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* ============ 移动端筛选抽屉 ============ */
-.fd-body {
-  padding: 0 16px 12px;
-  overflow-y: auto;
-  height: calc(100% - 64px);
-}
-
-.fd-head {
+.sb-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 16px;
-  font-weight: 700;
-  padding: 14px 0 8px;
-  position: sticky;
-  top: 0;
-  background: var(--mall-surface, #fff);
-}
-
-.fd-close {
-  cursor: pointer;
-  font-size: 18px;
-}
-
-.fd-block {
-  padding: 10px 0;
-  border-bottom: 1px dashed var(--el-border-color-lighter, #ebeef5);
-}
-
-.fd-title {
-  font-weight: 700;
-  font-size: 14px;
   margin-bottom: 8px;
 }
 
-.fd-opts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.sb-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #18181b;
 }
 
-.fd-opt {
-  font-size: 13px;
-  padding: 5px 14px;
-  border-radius: 15px;
-  background: var(--el-fill-color, #f0f2f5);
-  color: var(--el-text-color-regular, #606266);
+html.dark .sb-title {
+  color: #f4f4f5;
+}
+
+.sb-clear {
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.fd-opt.active {
-  background: var(--el-color-primary);
-  color: #fff;
+.sb-clear:hover {
+  color: var(--mall-price, #e11d48);
 }
 
-.fd-foot {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+.sb-tags {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #52525b;
+  background: var(--mall-surface-2, #f4f4f5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+html.dark .history-chip {
+  color: #cbd5e1;
+}
+
+.history-chip:hover {
+  color: var(--el-color-primary, #2563eb);
+}
+
+.del-chip {
+  font-style: normal;
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.del-chip:hover {
+  color: #e11d48;
+}
+
+.sb-empty {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.guess-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #e11d48;
+  background: #fee2e2;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.guess-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.guess-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #3f3f46;
+}
+
+html.dark .guess-item {
+  color: #cbd5e1;
+}
+
+.guess-item:hover {
+  background: var(--mall-surface-2, #f4f4f5);
+  color: var(--el-color-primary, #2563eb);
+}
+
+.guess-rank {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #e4e4e7;
+  color: #71717a;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guess-rank.top-rank {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+
+/* ================= 一级品类横向滑动栏 ================= */
+.main-cat-bar-wrap {
+  position: sticky;
+  top: 52px;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+}
+
+html.dark .main-cat-bar-wrap {
+  background: rgba(18, 18, 21, 0.95);
+  border-bottom-color: var(--mall-border, #27272a);
+}
+
+.main-cat-bar {
+  max-width: var(--mall-container, 1240px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 8px 16px;
+}
+
+.main-cat-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.main-cat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #71717a;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.mct-icon {
+  font-size: 14px;
+}
+
+.main-cat-tab:hover {
+  color: #18181b;
+}
+
+html.dark .main-cat-tab:hover {
+  color: #ffffff;
+}
+
+.main-cat-tab.active {
+  background: #18181b;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+html.dark .main-cat-tab.active {
+  background: #ffffff;
+  color: #18181b;
+}
+
+/* ================= 二级细分子分类扁平胶囊栏 ================= */
+.sub-cat-bar-wrap {
+  background: var(--mall-surface, #ffffff);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+}
+
+.sub-cat-bar {
+  max-width: var(--mall-container, 1240px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 8px 16px;
+}
+
+.sub-cat-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.sub-cat-chip {
+  font-size: 12px;
+  color: #52525b;
+  background: var(--mall-surface-2, #f4f4f5);
+  padding: 4px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+html.dark .sub-cat-chip {
+  color: #cbd5e1;
+}
+
+.sub-cat-chip:hover {
+  color: #18181b;
+}
+
+html.dark .sub-cat-chip:hover {
+  color: #ffffff;
+}
+
+.sub-cat-chip.active {
+  background: var(--mall-surface-2, #e4e4e7);
+  color: #18181b;
+  font-weight: 700;
+}
+
+html.dark .sub-cat-chip.active {
+  background: #27272a;
+  color: #ffffff;
+}
+
+/* ================= 排序与筛选栏 ================= */
+.filter-sort-bar-wrap {
+  background: var(--mall-surface, #ffffff);
+  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
+}
+
+.filter-sort-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+
+.fsb-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.fsb-left::-webkit-scrollbar {
+  display: none;
+}
+
+.fsb-tab {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #71717a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 2px;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.fsb-tab.active {
+  color: var(--mall-price, #e11d48);
+  font-weight: 700;
+}
+
+.fsb-arrow,
+.fsb-star {
+  font-size: 11px;
+}
+
+/* 价格双三角指示器 */
+.price-fsb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.price-arrows-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.arrow-up,
+.arrow-down {
+  color: #d4d4d8;
+  transition: color 0.15s ease;
+}
+
+.arrow-up.arrow-active,
+.arrow-down.arrow-active {
+  color: var(--mall-price, #e11d48);
+  font-weight: bold;
+}
+
+.fsb-right {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: var(--mall-surface, #fff);
-  border-top: 1px solid var(--el-border-color-lighter, #ebeef5);
 }
 
-.fd-foot .el-button {
+.location-btn {
+  border: 1px solid var(--mall-border, #e4e4e7);
+  background: var(--mall-surface-2, #f4f4f5);
+  color: #52525b;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+html.dark .location-btn {
+  color: #cbd5e1;
+}
+
+.filter-drawer-btn {
+  border: 1px solid var(--mall-border, #e4e4e7);
+  background: var(--mall-surface-2, #f4f4f5);
+  color: #18181b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+html.dark .filter-drawer-btn {
+  color: #ffffff;
+}
+
+.filter-count-badge {
+  background: var(--mall-price, #e11d48);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ================= 全宽双列瀑布流 (Masonry Waterfall) ================= */
+.waterfall-stream-main {
+  margin-top: 14px;
+}
+
+.pdd-waterfall-layout {
+  display: flex;
+  gap: 12px;
+  max-width: 860px;
+  margin: 0 auto;
+  align-items: flex-start;
+}
+
+.waterfall-col {
   flex: 1;
-  height: 40px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* ============ 平板 769-1199 ============ */
-@media (max-width: 1199px) and (min-width: 769px) {
-  .filter-side {
-    width: 160px;
-  }
-
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.stream-product-card {
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  border-radius: var(--mall-radius, 10px);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* ============ 手机 ≤768 ============ */
+.stream-product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mall-shadow-hover);
+  border-color: var(--mall-border, #e4e4e7);
+}
+
+.spc-pic-wrap {
+  position: relative;
+  width: 100%;
+  background: var(--mall-surface-2, #f4f4f5);
+  overflow: hidden;
+}
+
+.spc-img {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.4s ease;
+}
+
+.stream-product-card:hover .spc-img :deep(img) {
+  transform: scale(1.04);
+}
+
+
+.spc-info {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.spc-brand {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+.spc-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+html.dark .spc-title {
+  color: #f4f4f5;
+}
+
+.spc-bottom {
+  margin-top: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.spc-price-box {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.spc-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--mall-price, #e11d48);
+  letter-spacing: -0.02em;
+}
+
+.spc-price i {
+  font-style: normal;
+  font-size: 12px;
+  margin-right: 1px;
+}
+
+
+.spc-sales {
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.spc-skeleton {
+  width: 100%;
+  height: 100%;
+}
+
+.spc-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: #a1a1aa;
+}
+
+.stream-empty {
+  text-align: center;
+  padding: 80px 0;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.empty-text {
+  font-size: 13px;
+  color: #a1a1aa;
+  margin-bottom: 16px;
+}
+
+.stream-end {
+  text-align: center;
+  font-size: 12px;
+  color: #a1a1aa;
+  padding: 36px 0 24px;
+}
+
+/* ================= 筛选抽屉 ================= */
+.drawer-filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 10px 4px;
+}
+
+.df-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.df-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #18181b;
+}
+
+html.dark .df-title {
+  color: #f4f4f5;
+}
+
+.price-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pi-input {
+  flex: 1 1 0%;
+  min-width: 0 !important;
+  width: 0 !important;
+  box-sizing: border-box;
+  height: 36px;
+  border: 1px solid var(--mall-border, #e4e4e7);
+  background: var(--mall-surface-2, #f4f4f5);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  outline: none;
+  color: inherit;
+  text-align: center;
+}
+
+.pi-input:focus {
+  border-color: #18181b;
+  background: var(--mall-surface, #ffffff);
+}
+
+.pi-dash {
+  color: #a1a1aa;
+}
+
+.price-quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pqt-tag {
+  font-size: 11px;
+  color: #52525b;
+  background: var(--mall-surface-2, #f4f4f5);
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.brand-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.brand-filter-chip {
+  font-size: 12px;
+  color: #52525b;
+  background: var(--mall-surface-2, #f4f4f5);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.brand-filter-chip.active {
+  background: #18181b;
+  color: #ffffff;
+}
+
+html.dark .brand-filter-chip.active {
+  background: #ffffff;
+  color: #18181b;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #52525b;
+}
+
+html.dark .switch-row {
+  color: #cbd5e1;
+}
+
+.df-footer {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 10px;
+}
+
+.df-reset-btn {
+  height: 38px;
+  border: 1px solid var(--mall-border, #e4e4e7);
+  background: var(--mall-surface-2, #f4f4f5);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: inherit;
+}
+
+.df-confirm-btn {
+  height: 38px;
+  border: none;
+  background: #18181b;
+  color: #ffffff;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+html.dark .df-confirm-btn {
+  background: #ffffff;
+  color: #18181b;
+}
+
 @media (max-width: 768px) {
-  .desktop-side {
-    display: none;
-  }
-
-  .product-list {
-    padding: 10px 12px 20px;
-  }
-
-  .mobile-cats {
-    display: flex;
+  .pdd-waterfall-layout {
     gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-    scrollbar-width: none;
   }
-
-  .mobile-cats::-webkit-scrollbar {
-    display: none;
-  }
-
-  .m-cat {
-    flex-shrink: 0;
-    padding: 4px 12px;
-    border-radius: 14px;
-    background: var(--mall-surface, #fff);
-    font-size: 13px;
-    color: var(--el-text-color-regular, #606266);
-    cursor: pointer;
-  }
-
-  .m-cat.active {
-    background: var(--el-color-primary);
-    color: #fff;
-  }
-
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .waterfall-col {
     gap: 8px;
+  }
+  .spc-info {
+    padding: 8px 10px 10px;
+  }
+  .spc-title {
+    font-size: 12px;
+  }
+  .spc-price {
+    font-size: 16px;
+  }
+  .filter-sort-bar {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .fsb-left {
+    gap: 8px;
+  }
+  .fsb-tab {
+    font-size: 11px !important;
+    padding: 2px 1px !important;
+  }
+  .location-btn,
+  .filter-drawer-btn {
+    font-size: 10px !important;
+    padding: 3px 6px !important;
   }
 }
 </style>

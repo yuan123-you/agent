@@ -6,7 +6,7 @@
       :key="tab.path"
       class="tab-item"
       :class="{ active: isActive(tab) }"
-      @click="$router.push(tab.path)"
+      @click="onTabClick(tab)"
     >
       <el-icon :size="21"><component :is="tab.icon" /></el-icon>
       <span class="tab-label">{{ tab.label }}</span>
@@ -15,10 +15,12 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ChatDotRound, HomeFilled, Menu, ShoppingCart, User } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
+const router = useRouter()
 
 const tabs = [
   { path: '/', label: '首页', icon: HomeFilled, exact: true },
@@ -31,6 +33,18 @@ const tabs = [
 function isActive(tab: (typeof tabs)[number]): boolean {
   if (tab.exact) return route.path === '/'
   return route.path.startsWith(tab.path)
+}
+
+function onTabClick(tab: (typeof tabs)[number]) {
+  if (tab.path === '/cart') {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      ElMessage.warning('请先登录后查看购物车')
+      router.push({ path: '/login', query: { redirect: '/cart' } })
+      return
+    }
+  }
+  router.push(tab.path)
 }
 </script>
 
@@ -72,15 +86,8 @@ function isActive(tab: (typeof tabs)[number]): boolean {
   }
 
   .tab-item.active {
-    color: var(--el-color-primary);
+    color: var(--el-color-primary, #2563eb);
     font-weight: 500;
-  }
-
-  .tab-item.active .tab-label {
-    background: var(--mall-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
   }
 
   .tab-label {

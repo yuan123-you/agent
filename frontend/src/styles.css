@@ -1,84 +1,96 @@
 /* ==========================================================================
-   AI Mall 全局设计系统（三端自适应）
-   断点体系：手机 ≤768px ｜ 平板 769–1199px ｜ 桌面 ≥1200px
-   主色体系：电商蓝 #4f7cff，品牌渐变 #4f7cff → #8f6bff（与首页 banner 一致）
+   AI Mall 极致极简设计系统（Ultra-Clean Minimalist Design System）
+   设计语言：Apple / Shopify Dawn / Vercel 极简主义、大留白、克制色彩、精美微阴影
+   断点规范：手机 ≤768px ｜ 平板 769–1199px ｜ 桌面 ≥1200px
    ========================================================================== */
 
 :root {
-  /* 品牌色：京东红经典电商 */
-  --mall-primary: #e4393c;
-  --mall-primary-dark: #c81623;
-  --mall-gradient: linear-gradient(90deg, #e4393c, #f0433f);
-  --mall-gradient-soft: linear-gradient(120deg, rgba(228, 57, 60, 0.08), rgba(255, 106, 61, 0.08));
+  /* 品牌主色：克制深空石墨黑 + 高对比科技蓝 */
+  --mall-primary: #18181b;
+  --mall-primary-dark: #09090b;
+  --mall-primary-hover: #27272a;
+  --mall-accent: #2563eb;
+  --mall-accent-hover: #1d4ed8;
+  --mall-gradient: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  --mall-gradient-soft: linear-gradient(135deg, rgba(24, 24, 27, 0.04), rgba(39, 39, 42, 0.02));
 
-  /* 电商语义色 */
-  --mall-price: #e4393c;
-  --mall-price-bg: #fff2f2;
-  --mall-cta: linear-gradient(90deg, #ff6034, #ee0a24);
-  --mall-cta-hover: linear-gradient(90deg, #ff7048, #ff2233);
+  /* 电商语义与价格色（优雅克制红） */
+  --mall-price: #e11d48;
+  --mall-price-bg: #fff1f2;
+  --mall-cta: #18181b;
+  --mall-cta-hover: #27272a;
 
-  /* Element 主色对齐京东红 */
-  --el-color-primary: #e4393c;
-  --el-color-primary-light-3: #ea6669;
-  --el-color-primary-light-5: #f19c9e;
-  --el-color-primary-light-7: #f7cfd0;
-  --el-color-primary-light-8: #fae2e3;
-  --el-color-primary-light-9: #fdf0f0;
-  --el-color-primary-dark-2: #c81623;
+  /* Element Plus 变量适配 */
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #93c5fd;
+  --el-color-primary-light-7: #bfdbfe;
+  --el-color-primary-light-8: #dbeafe;
+  --el-color-primary-light-9: #eff6ff;
+  --el-color-primary-dark-2: #1d4ed8;
 
-  /* 面板/页面底色（浅色主题） */
-  --mall-page-bg: #f4f5f7;
+  /* 面板与背景底色（极简浅白） */
+  --mall-page-bg: #fafafa;
   --mall-surface: #ffffff;
-  --mall-surface-2: #f8fafd;
+  --mall-surface-2: #f4f4f5;
+  --mall-border: #e4e4e7;
+  --mall-border-light: #f4f4f5;
 
-  /* 圆角与阴影 */
-  --mall-radius: 8px;
-  --mall-radius-lg: 12px;
-  --mall-shadow-card: 0 1px 4px rgba(20, 30, 60, 0.08);
-  --mall-shadow-hover: 0 8px 24px rgba(20, 30, 60, 0.14);
-  --mall-shadow-float: 0 4px 16px rgba(79, 124, 255, 0.25);
+  /* 微圆角与漫反射极简微阴影 */
+  --mall-radius-sm: 6px;
+  --mall-radius: 10px;
+  --mall-radius-lg: 14px;
+  --mall-radius-xl: 20px;
+  --mall-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  --mall-shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  --mall-shadow-hover: 0 10px 24px -4px rgba(0, 0, 0, 0.06), 0 4px 8px -2px rgba(0, 0, 0, 0.02);
+  --mall-shadow-float: 0 18px 30px -8px rgba(0, 0, 0, 0.08);
 
-  /* 布局：经典电商 1200px 栅格 */
-  --mall-container: 1200px;
-  --mall-header-h: 88px;
-  --mall-catbar-h: 40px;
+  /* 布局容器 */
+  --mall-container: 1240px;
+  --mall-header-h: 68px;
+  --mall-catbar-h: 42px;
 
-  /* 字号层级节奏 */
+  /* 字阶体系 */
   --fs-floor-title: 22px;
   --fs-body: 14px;
   --fs-secondary: 13px;
   --fs-caption: 12px;
 }
 
-/* ---------- 深色主题（html.dark，配合 Element dark css-vars） ---------- */
+/* ---------- 深色主题 (html.dark) ---------- */
 html.dark {
-  --mall-page-bg: #121317;
-  --mall-surface: #1c1e24;
-  --mall-surface-2: #22252d;
-  --mall-price-bg: #2c1d1f;
-  --mall-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
-  --mall-shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.5);
-  --mall-shadow-float: 0 4px 16px rgba(79, 124, 255, 0.35);
+  --mall-page-bg: #09090b;
+  --mall-surface: #121215;
+  --mall-surface-2: #18181b;
+  --mall-border: #27272a;
+  --mall-border-light: #1f1f23;
+  --mall-price: #fb7185;
+  --mall-price-bg: #2d1419;
+  --mall-shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
+  --mall-shadow-hover: 0 12px 28px -6px rgba(0, 0, 0, 0.7);
+  --mall-shadow-float: 0 18px 32px -8px rgba(0, 0, 0, 0.8);
 
-  /* Element 暗色微调：主色在暗底上略提亮 */
-  --el-color-primary: #f0565a;
-  --el-bg-color: #1c1e24;
-  --el-bg-color-overlay: #22252d;
-}
-
-html.dark .mall-skeleton {
-  background: linear-gradient(90deg, #23252c, #2b2e37, #23252c);
-  background-size: 200% 100%;
+  --el-color-primary: #3b82f6;
+  --el-bg-color: #121215;
+  --el-bg-color-overlay: #18181b;
+  --el-border-color: #27272a;
+  --el-border-color-lighter: #1f1f23;
 }
 
 html.dark body {
   background: var(--mall-page-bg);
-  color: #e5e7eb;
+  color: #f4f4f5;
 }
 
-/* 深色下通吃残余的浅色面（scoped 样式已变量化的不必点名） */
 html.dark .el-card {
   --el-card-bg-color: var(--mall-surface);
+  --el-card-border-color: var(--mall-border);
+}
+
+html.dark .mall-skeleton {
+  background: linear-gradient(90deg, #18181b, #27272a, #18181b);
+  background-size: 200% 100%;
 }
 
 * {
@@ -93,9 +105,9 @@ body {
   overflow-wrap: anywhere;
   margin: 0;
   padding: 0;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
-  background: var(--mall-page-bg, #f5f7fa);
-  color: var(--el-text-color-primary, #303133);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--mall-page-bg);
+  color: #18181b;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -104,25 +116,36 @@ body {
   width: 100%;
 }
 
-#app {
-  min-height: 100%;
-  width: 100%;
+/* 顶部极简通栏 */
+.shop-topbar {
+  background: #18181b;
+  color: #a1a1aa;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* 顶部深色通栏（京东式） */
 html.dark .shop-topbar {
-  background: #141519;
+  background: #09090b;
+  border-bottom-color: rgba(255, 255, 255, 0.05);
 }
 
 /* ---------- 通用卡片 ---------- */
 .mall-card {
-  background: var(--mall-surface, #fff);
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
   border-radius: var(--mall-radius);
   box-shadow: var(--mall-shadow-card);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
 }
 
-/* ---------- 通用自适应容器（买家端页面统一使用） ---------- */
+.mall-card:hover {
+  box-shadow: var(--mall-shadow-hover);
+  border-color: var(--mall-border);
+}
+
+/* ---------- 通用自适应容器 ---------- */
 .container {
   max-width: var(--mall-container);
   margin: 0 auto;
@@ -159,37 +182,20 @@ html.dark .shop-topbar {
   .mobile-only { display: initial; }
 }
 
-/* 顶部深色通栏（京东式） */
-html.dark .shop-topbar {
-  background: #141519;
-}
-
-/* ---------- 通用卡片 ---------- */
-.mall-card {
-  background: var(--mall-surface, #fff);
-  border-radius: var(--mall-radius);
-  box-shadow: var(--mall-shadow-card);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.mall-card:hover {
-  box-shadow: var(--mall-shadow-hover);
-}
-
 /* ---------- 滚动条美化（桌面端） ---------- */
 @media (hover: hover) and (pointer: fine) {
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #d3d8e2;
-    border-radius: 4px;
+    background: #d4d4d8;
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #b8bfce;
+    background: #a1a1aa;
   }
 
   ::-webkit-scrollbar-track {
@@ -204,7 +210,7 @@ html.dark .shop-topbar {
 }
 
 .mall-skeleton {
-  background: linear-gradient(90deg, #eef1f6, #f7f9fc, #eef1f6);
+  background: linear-gradient(90deg, #f4f4f5, #fafafa, #f4f4f5);
   background-size: 200% 100%;
   animation: mall-skeleton 1.4s ease infinite;
   border-radius: 8px;
@@ -212,7 +218,7 @@ html.dark .shop-topbar {
 
 /* ⭐ AI 高亮链接 */
 .ai-link {
-  color: var(--el-color-primary, #4f7cff);
+  color: var(--el-color-primary, #2563eb);
   font-weight: 500;
   cursor: pointer;
   text-decoration: underline;
@@ -249,18 +255,19 @@ html.dark .shop-topbar {
 }
 
 .md-content code {
-  background: #f0f2f5;
-  padding: 1px 4px;
-  border-radius: 3px;
+  background: #f4f4f5;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* 流式打字光标 */
 .typing-cursor {
   display: inline-block;
-  width: 8px;
+  width: 6px;
   height: 16px;
-  background: var(--el-color-primary, #4f7cff);
+  background: var(--el-color-primary, #2563eb);
   margin-left: 2px;
   vertical-align: middle;
   animation: blink 0.8s infinite;
@@ -276,31 +283,36 @@ html.dark .shop-topbar {
   }
 }
 
-/* ⚠️ 图片统一尺寸：el-image 内部 img 必须填满并受限于容器，
-   避免 el-image__inner 超出盒子导致布局错乱 */
+/* 图片统一尺寸与圆角裁切 */
 .el-image {
-  display: block; /* 默认 inline-block + 基线对齐会向下多出空隙，改为块级消除溢出 */
-  overflow: hidden; /* 圆角处裁切，防止图片溢出 */
+  display: block;
+  overflow: hidden;
 }
 .el-image__inner {
   width: 100% !important;
   height: 100% !important;
   display: block;
-  object-fit: cover; /* 已全部使用 fit="cover"，统一裁切填满，normal 兜底 */
+  object-fit: cover;
+  transition: transform 0.3s ease;
 }
 
 /* 页面容器 */
 .page {
-  padding: 16px;
+  padding: 20px;
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  color: #18181b;
 }
 
-/* Flex/grid children must be allowed to shrink below their content width. */
+html.dark .page-title {
+  color: #f4f4f5;
+}
+
 .el-container,
 .el-main,
 .page {
@@ -315,6 +327,7 @@ html.dark .shop-topbar {
 
 .el-dialog {
   border-radius: var(--mall-radius);
+  overflow: hidden;
 }
 
 .el-dialog .el-input-number,
@@ -374,7 +387,7 @@ html.dark .shop-topbar {
   }
 }
 
-/* ---------- 表格窄屏保护（后台列表页） ---------- */
+/* ---------- 表格窄屏保护 ---------- */
 @media (max-width: 768px) {
   .el-table {
     font-size: 13px;
@@ -413,7 +426,6 @@ button,
     padding: 14px 16px !important;
   }
 
-  /* 触控目标下限 40px */
   .el-button--small {
     min-height: 32px;
   }

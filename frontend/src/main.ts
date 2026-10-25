@@ -11,10 +11,12 @@ import router from './router'
 import './styles.css'
 import { registerImageCache } from './utils/imageCache'
 import { initTheme } from './composables/useTheme'
+import { initMallTheme } from './composables/useMallConfig'
 import { setUnauthorizedHandler } from './api/request'
 
 void registerImageCache()
 initTheme()
+initMallTheme()
 
 // 全局未登录处理：401/1003 时清态并跳登录页（带当前页回跳），1.5s 内去重
 let authRedirecting = false

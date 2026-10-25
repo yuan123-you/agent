@@ -79,3 +79,6 @@ id_ed25519*
 *.sqlite3
 .workbuddy/tmp/
 .playwright-cli/
+
+aimall-*.png
+*.png
