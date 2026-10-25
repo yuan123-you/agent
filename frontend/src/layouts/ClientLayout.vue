@@ -143,27 +143,7 @@ onMounted(() => {
   }
 })
 
-const SUB_TITLES: Record<string, string> = {
-  '/assistant': 'AI 购物助手',
-  '/seckill': '限时秒杀',
-  '/coupons': '领券中心',
-  '/orders': '我的订单',
-  '/cart': '购物车',
-  '/favorites': '我的收藏',
-  '/history': '浏览历史',
-  '/profile': '个人中心',
-}
-const subTitle = computed(
-  () => SUB_TITLES[route.path] || (route.path.startsWith('/products/') ? '商品详情' : 'AI Mall')
-)
 
-function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
-}
 
 function doSearch() {
   const kw = keyword.value.trim()
@@ -425,30 +405,7 @@ html.dark .sd-hot-item {
   transform: scale(1.05);
 }
 
-/* ================= 子页面头部 ================= */
-.sub-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--mall-surface, #ffffff);
-  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
-  height: 52px;
-  padding: 0 16px;
-}
 
-.sub-title {
-  font-weight: 700;
-  font-size: 15px;
-  color: #18181b;
-}
-
-html.dark .sub-title {
-  color: #f4f4f5;
-}
-
-.sub-header .spacer {
-  flex: 1;
-}
 
 /* ================= 契约测试规范样式保留 ================= */
 .shop-topbar,

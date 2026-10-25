@@ -530,3 +530,83 @@ html.dark .translucent-circle-back {
     padding: 0 1px !important;
   }
 }
+
+/* ================= 解决级联选择器 (el-cascader) 多级列表在移动端与弹窗内超宽溢出 ================= */
+.el-cascader__dropdown,
+.compact-mobile-cascader-popper {
+  max-width: min(460px, 94vw) !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.el-cascader-panel {
+  max-width: 100% !important;
+  width: 100% !important;
+  display: flex !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.el-cascader-menu {
+  min-width: 0 !important;
+  flex: 1 1 33.33% !important;
+  width: 33.33% !important;
+  max-width: 33.33% !important;
+  box-sizing: border-box !important;
+}
+
+.el-cascader-menu__wrap {
+  height: 220px !important;
+  max-height: 220px !important;
+  box-sizing: border-box !important;
+}
+
+.el-cascader-node {
+  padding: 0 4px 0 6px !important;
+  font-size: 12px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+}
+
+.el-cascader-node__label {
+  padding: 0 2px 0 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 12px !important;
+}
+
+.el-cascader-node__postfix {
+  right: 2px !important;
+}
+
+@media (max-width: 520px) {
+  .el-cascader__dropdown,
+  .compact-mobile-cascader-popper {
+    left: 3vw !important;
+    right: 3vw !important;
+    width: 94vw !important;
+    max-width: 94vw !important;
+  }
+  
+  .el-cascader-panel {
+    width: 100% !important;
+  }
+  
+  .el-cascader-menu {
+    flex: 1 1 33.33% !important;
+    width: 33.33% !important;
+    max-width: 33.33% !important;
+    min-width: 30% !important;
+  }
+
+  .el-cascader-node {
+    padding: 0 2px 0 4px !important;
+    font-size: 11px !important;
+  }
+
+  .el-cascader-node__label {
+    font-size: 11px !important;
+  }
+}

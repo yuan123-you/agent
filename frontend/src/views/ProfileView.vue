@@ -55,8 +55,6 @@
       <el-empty v-else description="还没有优惠券，去领券中心逛逛" :image-size="56" />
     </div>
 
-    <AddressBook compact title="我的常用收货地址" />
-
     <!-- 菜单 -->
     <div class="menu-card">
       <div class="menu-item" @click="$router.push('/assistant')">
@@ -87,7 +85,6 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { apiMyCoupons } from '@/api'
 import type { MyCouponVO } from '@/types/api'
-import AddressBook from '@/components/address/AddressBook.vue'
 
 const auth = useAuthStore()
 const router = useRouter()

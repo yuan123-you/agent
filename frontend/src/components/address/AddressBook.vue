@@ -46,7 +46,7 @@
             <el-cascader
               v-model="form.regionCodes"
               :options="regionData"
-              :props="{ expandTrigger: 'hover' }"
+              :props="{ expandTrigger: 'click' }" popper-class="compact-mobile-cascader-popper"
               placeholder="请选择省、市、区"
               clearable
               filterable
@@ -158,12 +158,38 @@ async function remove(address: AddressVO) {
   } catch { /* user cancelled */ }
 }
 async function locate() {
-  if (!navigator.geolocation) return ElMessage.warning('当前浏览器不支持定位，请手动选择地区')
   locating.value = true
   try {
-    const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 }),
-    )
+    // 检查 Permissions-Policy 避免触发浏览器 [Violation]
+    const doc = document as any
+    const policyBlocked = (doc?.permissionsPolicy?.allowsFeature && !doc.permissionsPolicy.allowsFeature('geolocation')) ||
+                          (doc?.featurePolicy?.allowsFeature && !doc.featurePolicy.allowsFeature('geolocation'))
+    
+    if (policyBlocked || !navigator?.geolocation) {
+      ElMessage.info('当前浏览器环境受限，请在下方菜单中选择省市区')
+      return
+    }
+
+    // 检查权限状态
+    if (navigator?.permissions?.query) {
+      try {
+        const p = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
+        if (p.state === 'denied') {
+          ElMessage.info('定位权限已被拒绝，请在下方菜单中选择省市区')
+          return
+        }
+      } catch {}
+    }
+
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), 3500)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { clearTimeout(timer); resolve(pos) },
+        (err) => { clearTimeout(timer); reject(err) },
+        { enableHighAccuracy: false, timeout: 3500, maximumAge: 60000 }
+      )
+    })
+
     const { latitude, longitude } = position.coords
     const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=zh`)
     if (!response.ok) throw new Error('reverse geocode failed')
@@ -185,8 +211,10 @@ async function locate() {
       ElMessage.warning('已填入可识别的位置，请在菜单中确认省市区')
     }
   } catch {
-    ElMessage.warning('定位失败，请检查定位权限或手动填写')
-  } finally { locating.value = false }
+    ElMessage.info('请在下方菜单中直接选择省、市、区')
+  } finally {
+    locating.value = false
+  }
 }
 function maskPhone(phone: string) { return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') }
 
