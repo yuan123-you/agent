@@ -109,14 +109,19 @@
             class="msg-row"
             :class="msg.role === 'USER' ? 'right' : 'left'"
           >
-            <el-avatar v-if="msg.role !== 'USER'" :size="32" class="avatar">
+            <!-- AI/客服头像：仅在左侧展示 -->
+            <el-avatar v-if="msg.role !== 'USER'" :size="34" class="avatar ai-avatar">
               {{ msg.role === 'AGENT' ? '客' : 'AI' }}
             </el-avatar>
+
+            <!-- 消息气泡 -->
             <div class="bubble" :class="{ user: msg.role === 'USER', failed: msg.status === 'FAILED' }">
               <AiMessage v-if="msg.role === 'AI'" :msg="msg" :streaming="chat.streaming && i === chat.messages.length - 1" />
               <div v-else class="plain">{{ msg.content }}</div>
             </div>
-            <el-avatar v-if="msg.role === 'USER'" :size="32" class="avatar user-avatar">
+
+            <!-- 用户买家头像：固定在最右侧展示 -->
+            <el-avatar v-if="msg.role === 'USER'" :size="34" class="avatar user-avatar">
               {{ (auth.user?.nickname || '我').slice(0, 1) }}
             </el-avatar>
           </div>
@@ -667,27 +672,52 @@ html.dark .new-conv-pill-btn {
 
 .msg-row {
   display: flex;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   max-width: 86%;
+}
+
+.msg-row.left {
+  align-self: flex-start;
+  margin-right: auto;
+  flex-direction: row;
 }
 
 .msg-row.right {
   align-self: flex-end;
-  flex-direction: row-reverse;
+  margin-left: auto;
+  flex-direction: row;
+  justify-content: flex-end;
 }
 
 .bubble {
   padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--mall-surface-2, #f5f7fa);
+  border-radius: 14px 14px 14px 2px;
+  background: var(--mall-surface, #ffffff);
+  border: 1px solid var(--mall-border-light, #f4f4f5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   font-size: 14px;
+  line-height: 1.6;
   min-width: 0;
+  word-break: break-word;
+}
+
+html.dark .bubble {
+  background: var(--mall-surface-2, #18181b);
+  border-color: var(--mall-border, #27272a);
 }
 
 .bubble.user {
-  background: var(--el-color-primary);
-  color: #fff;
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px 14px 2px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   white-space: pre-wrap;
+}
+
+html.dark .bubble.user {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .bubble.failed {
@@ -696,55 +726,20 @@ html.dark .new-conv-pill-btn {
 
 .avatar {
   flex-shrink: 0;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-avatar {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
 }
 
 .user-avatar {
-  background: var(--el-text-color-secondary, #909399);
-}
-
-.input-bar {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--mall-border-light, #f4f4f5);
-  background: var(--mall-surface, #ffffff);
-  flex-shrink: 0;
-  z-index: 10;
-}
-
-.input-actions {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.input-bar .el-button {
-  height: 54px;
-}
-
-.rate-body {
-  text-align: center;
-  padding: 12px 0;
-}
-
-/* 会话列表切换按钮：仅移动端显示 */
-.conv-toggle {
-  display: none;
-}
-
-.conv-mask {
-  display: none;
-}
-
-/* 平板：收窄会话栏 */
-@media (max-width: 1024px) {
-  .conv-panel {
-    width: 210px;
-  }
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 /* 手机：会话列表抽屉化 */
