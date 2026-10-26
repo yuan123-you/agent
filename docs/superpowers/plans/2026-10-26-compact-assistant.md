@@ -28,3 +28,14 @@
 - Removed fixed sentence counts, recommendation caps, one-line-per-item formatting and fixed follow-up counts from the response prompts. Concision is a style preference; useful explanation/comparison can expand naturally without requiring an explicit request for detail.
 - Preserved compact UI, latency fast paths, real-data/citation requirements and business confirmations. No new output-token cap was introduced.
 - TDD: the three updated response-prompt cases failed before the change, then the assistant regression suite passed (114 tests).
+
+
+## Production release — 2026-10-26
+- All remaining assistant/chat/mobile-navigation changes were committed and pushed to `origin/dev` as `f422bad9887bd5855954251d661adbb93057ca60`.
+- Fresh full checks: frontend 264 passed, AI-service 301 passed, deployment/credential hygiene 19 passed. TypeScript and the `/aimall/` production build passed. The earlier unrelated test failures recorded above have since been resolved in the preceding commerce release.
+- Deployed only rebuilt `ai-service` and `frontend` images under the server deployment lock. Backend and all six data/model/infrastructure containers retained their original container IDs. No database schema/configuration changes or volume removal.
+- Preserved old application images, previous Git revision and a fresh permission-restricted database backup, with automatic rollback on build/startup/smoke failures.
+- Production smoke verification: 31 checks passed, including nine healthy services, deployed AI source hashes matching Git, no fixed response-length/count caps, six public JS/CSS artifact hashes matching container bytes, public catalog API, blocked internal/admin routes and actual authenticated AI SSE token/done responses.
+- Specific live samples: identity fast path 0.09 seconds; model-backed greeting 12.39 seconds. These are single synthetic checks, not a broad latency/concurrency benchmark.
+- Reused only the prior release's dedicated synthetic QA account, closed the test conversations and restored the account to DISABLED.
+- Private server evidence: `/srv/aimall/releases/f422bad/` (`final-verification.json`, `ai-stream-verification.json`, build/verification logs and rollback artifacts). Public entry: https://aimall.novo.ccwu.cc/aimall/ .
