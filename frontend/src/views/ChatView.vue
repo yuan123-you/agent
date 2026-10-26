@@ -119,7 +119,7 @@
             </el-avatar>
 
             <!-- 消息气泡 -->
-            <div class="bubble" :class="{ user: msg.role === 'USER', failed: msg.status === 'FAILED' }">
+            <div class="bubble" :class="{ user: msg.role === 'USER', assistant: msg.role === 'AI', failed: msg.status === 'FAILED' }">
               <AiMessage v-if="msg.role === 'AI'" :msg="msg" :streaming="chat.streaming && i === chat.messages.length - 1" />
               <div v-else class="plain">{{ msg.content }}</div>
             </div>
@@ -136,7 +136,8 @@
             <el-input
               v-model="input"
               type="textarea"
-              :rows="2"
+              :rows="1"
+              :autosize="{ minRows: 1, maxRows: 4 }"
               :disabled="chat.loadingConversationId != null || chat.streaming || chat.current.status === 'PENDING_HUMAN'"
               :placeholder="inputPlaceholder"
               resize="none"
@@ -242,7 +243,7 @@ const inputPlaceholder = computed(() => {
   if (chat.current?.status === 'PENDING_HUMAN') return '正在等待人工客服接入…'
   const sendHint = isMobile.value ? '' : '（Ctrl+Enter 发送）'
   if (chat.current?.status === 'SERVICING') return `人工客服服务中，直接输入消息即可${sendHint}`
-  return `描述你的需求，如：推荐一款3000以内拍照好的手机${sendHint}`
+  return `问点什么…${sendHint}`
 })
 const quickQuestions = ['推荐一款3000以内拍照好的手机', '我的订单到哪了', '支持7天无理由退货吗', '转人工客服']
 
@@ -768,6 +769,16 @@ html.dark .bubble {
   border-color: var(--mall-border, #27272a);
 }
 
+/* Compact assistant: unboxed replies, one-line composer; existing mall tokens. */
+.bubble.assistant,
+html.dark .bubble.assistant {
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .bubble.user {
   background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
   color: #ffffff;
@@ -863,8 +874,9 @@ html.dark .bubble.user {
 }
 
 .input-box-wrapper {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   background: var(--mall-surface-2, #f4f4f5);
   border: 1px solid var(--mall-border, #e4e4e7);
   border-radius: 14px;
@@ -891,13 +903,14 @@ html.dark .input-box-wrapper:focus-within {
 
 .input-box-wrapper :deep(.el-textarea) {
   width: 100%;
+  min-width: 0;
 }
 
 .input-box-wrapper :deep(.el-textarea__inner) {
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
-  padding: 10px 12px 4px 12px;
+  padding: 10px 4px 10px 12px;
   font-size: 14px;
   line-height: 1.5;
   color: inherit;
@@ -912,7 +925,7 @@ html.dark .input-box-wrapper:focus-within {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 10px 8px 10px;
+  padding: 5px 8px 5px 4px;
   gap: 8px;
 }
 
@@ -997,7 +1010,8 @@ html.dark .actions-left .el-button.is-circle:not(.is-disabled):hover {
   }
 
   .input-bar {
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    /* The navigation below already includes the bottom safe area. */
+    padding: 8px 10px 0;
   }
 }
 

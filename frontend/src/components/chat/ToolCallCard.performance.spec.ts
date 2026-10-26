@@ -15,3 +15,23 @@ describe('tool lifecycle feedback', () => {
     } finally { app.unmount() }
   })
 })
+
+
+describe('compact tool result disclosure', () => {
+  it('puts the result toggle in the tool header and keeps the preview collapsed', () => {
+    const host = document.createElement('div')
+    const app = createApp(ToolCallCard, { card: {
+      callId: 'search', tool: 'product_search', status: 'done',
+      result: { preview: '找到三款商品' },
+    } }).use(ElementPlus)
+    app.mount(host)
+    try {
+      const disclosure = host.querySelector<HTMLDetailsElement>('details.tool-card')
+      expect(disclosure).not.toBeNull()
+      expect(disclosure!.open).toBe(false)
+      expect(disclosure!.querySelector('summary')?.textContent).toContain('检索商品')
+      expect(disclosure!.querySelector('.preview')?.textContent).toBe('找到三款商品')
+      expect(host.textContent).not.toContain('查看结果')
+    } finally { app.unmount() }
+  })
+})

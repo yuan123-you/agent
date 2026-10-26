@@ -58,18 +58,16 @@
     </el-dialog>
   </section>
 
-  <div v-else-if="card" class="tool-card" :class="{ running: card.status === 'running' }">
-    <div class="tool-head">
+  <details v-else-if="card" class="tool-card" :class="{ running: card.status === 'running' }">
+    <summary class="tool-head">
       <el-icon class="tool-icon"><component :is="icon" /></el-icon>
       <span class="tool-label">{{ label }}</span>
       <el-icon v-if="card.status === 'running'" class="is-loading"><Loading /></el-icon>
       <el-icon v-else-if="card.status === 'done'" class="done-icon"><CircleCheck /></el-icon>
       <span v-else class="interrupted-label">未完成</span>
-    </div>
-    <el-collapse v-if="card.result?.preview" class="tool-detail">
-      <el-collapse-item title="查看结果" name="detail"><div class="preview">{{ card.result.preview }}</div></el-collapse-item>
-    </el-collapse>
-  </div>
+    </summary>
+    <div v-if="card.result?.preview" class="preview">{{ card.result.preview }}</div>
+  </details>
 </template>
 
 <script setup lang="ts">
@@ -179,26 +177,40 @@ function maskPhone(phone?: string) { return (phone || '').replace(/(\d{3})\d{4}(
 
 <style scoped>
 .tool-card {
-  max-width: 420px;
-  padding: 6px 10px;
-  border: 1px solid var(--el-border-color, #e4e7ed);
-  border-radius: 6px;
-  background: #f4f6fa;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
   color: var(--el-text-color-regular, #606266);
   font-size: 12px;
 }
-.interrupted-label { color: var(--el-text-color-secondary); font-size: 11px; }
-.tool-card.running { border-color: var(--el-color-primary-light-7); }
-.tool-head { display: flex; align-items: center; gap: 6px; }
-.tool-icon { color: var(--el-color-primary); }
-.tool-label { font-weight: 500; }
-.done-icon { margin-left: auto; color: var(--el-color-success); }
-.tool-detail { margin-top: 4px; border: none; }
-.tool-detail :deep(.el-collapse-item__header) {
-  height: 24px; border: none; background: transparent; color: var(--el-text-color-secondary, #909399); font-size: 12px; line-height: 24px;
+.tool-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 6px;
 }
-.tool-detail :deep(.el-collapse-item__wrap) { border: none; background: transparent; }
-.preview { max-height: 120px; overflow-y: auto; color: var(--el-text-color-secondary, #909399); white-space: pre-wrap; word-break: break-all; }
+.tool-head::-webkit-details-marker { display: none; }
+.tool-head::after { content: '›'; margin-left: 2px; transition: transform .15s ease; }
+.tool-card[open] > .tool-head::after { transform: rotate(90deg); }
+.tool-head:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.tool-head:active { color: var(--el-text-color-primary); }
+@media (hover: hover) { .tool-head:hover { color: var(--el-text-color-primary); } }
+.interrupted-label { color: var(--el-color-danger); font-size: 11px; }
+.tool-icon { color: var(--el-color-primary); }
+.tool-label { font-weight: 400; }
+.done-icon { color: var(--el-color-success); }
+.preview {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) { .tool-head::after { transition: none; } }
 
 .order-action-card {
   width: min(430px, 100%);

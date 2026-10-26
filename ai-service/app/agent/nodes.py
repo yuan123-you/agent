@@ -99,7 +99,18 @@ async def intent_router_node(state: AgentState) -> dict:
     user_text = getattr(last, "content", "") if last else ""
     # These requests already override classifier output below; avoid paying for it.
     greeting = re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见)[！!。.?？\s]*", user_text.strip(), re.IGNORECASE)
-    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting:
+    # Only a standalone, explicit shopping request is safe to route without
+    # inference. Mixed requests, short follow-ups and order actions need context.
+    shopping_request = (
+        re.fullmatch(
+            r"(?:请(?:帮我)?|帮我|给我|我想|想)?(?:推荐|找|挑选|选购|看看)[^，,。！？!?；;\n]{0,80}[。！？!?]?",
+            user_text.strip(),
+        )
+        and category_from_user_text(user_text)
+        and fallback_intent_by_rules(user_text) == "PRODUCT_CONSULT"
+        and not re.search(r"退|换货|售后|保修|发货|配送|运费|发票|下单|订单|物流|取消|人工|七天|7天", user_text)
+    )
+    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting or shopping_request:
         intent = "SMALL_TALK" if greeting else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
@@ -360,7 +371,21 @@ async def finalize_without_tools(state: AgentState) -> dict:
 
 
 async def small_talk_node(state: AgentState) -> dict:
-    """闲聊/欢迎语（不调用业务工具）"""
+    """闲聊/欢迎语；独立的身份与能力问题直接回复，避免等待模型。"""
+    user_text = next((str(m.content) for m in reversed(state["messages"])
+                      if isinstance(m, HumanMessage)), "")
+    # Match the whole request so extra instructions still reach the model.
+    if re.fullmatch(
+        r"(?:你是谁|你叫什么|介绍你自己|介绍下你自己|你能做什么|你能帮我做什么|"
+        r"你有什么功能|你是真人(?:还是机器人)?|你是机器人|你是人工)[？?！!。\s]*",
+        user_text.strip(),
+    ):
+        resp = AIMessage(content="我是「AI Mall」的 AI 购物助手，可以帮您推荐商品、查询订单物流、解答售后退换政策。您需要什么帮助？")
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk"},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "fast-path"],
+        )
+        return {"messages": [resp]}
     llm = get_chat_llm()
     resp = await llm.ainvoke([SystemMessage(content=SMALL_TALK_PROMPT)] + state["messages"][-4:])
     await generation(

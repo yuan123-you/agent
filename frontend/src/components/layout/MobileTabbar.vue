@@ -61,6 +61,8 @@ function onTabClick(tab: (typeof tabs)[number]) {
     left: 0;
     right: 0;
     display: flex;
+    align-items: center;
+    height: calc(56px + env(safe-area-inset-bottom));
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);

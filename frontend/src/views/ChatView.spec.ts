@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, reactive, type App } from 'vue'
 import ElementPlus, { ElMessage } from 'element-plus'
 import ChatView from './ChatView.vue'
+import chatViewSource from './ChatView.vue?raw'
 
 const mocks = vi.hoisted(() => ({ getChat: vi.fn() }))
 vi.mock('@/stores/chat', () => ({ useChatStore: () => mocks.getChat() }))
@@ -97,6 +98,12 @@ describe('human handoff controls', () => {
 })
 
 describe('embedded input layout', () => {
+  it('uses a compact single-row textarea without removing multiline entry', () => {
+    const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!
+    expect(textarea.rows).toBe(1)
+    expect(textarea.tagName).toBe('TEXTAREA')
+  })
+
   it('embeds the customer service button and send button inside the input-box-wrapper', () => {
     const wrapper = host.querySelector('.input-box-wrapper')!
     expect(wrapper).not.toBeNull()
@@ -170,5 +177,26 @@ describe('conversation loading and scrolling experience', () => {
     ;(chat.messages[0] as any).content += '第三段'
     await flush()
     expect(list.scrollTop).toBe(0)
+  })
+})
+
+
+describe('compact assistant composer', () => {
+  it('starts at one row and autosizes long drafts to at most four rows', async () => {
+    chat.current.status = 'ACTIVE'
+    await flush()
+    const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!
+    expect(textarea.rows).toBe(1)
+    // jsdom has no line-height/layout metrics; verify the actual Element Plus contract.
+    expect(chatViewSource).toContain(':autosize="{ minRows: 1, maxRows: 4 }"')
+  })
+
+  it('uses a short placeholder instead of a full recommendation example', async () => {
+    chat.current.status = 'ACTIVE'
+    await flush()
+    const placeholder = host.querySelector<HTMLTextAreaElement>('textarea')!.placeholder
+    expect(placeholder).toContain('问点什么')
+    expect(placeholder).not.toContain('3000')
+    expect(placeholder.length).toBeLessThan(32)
   })
 })

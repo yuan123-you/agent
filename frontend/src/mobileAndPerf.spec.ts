@@ -69,6 +69,18 @@ describe('Mobile adaptation and performance optimizations', () => {
     expect(chatVue).toContain('safe-area-inset-bottom')
   })
 
+  it('ChatView removes the mobile composer bottom gap without duplicating the safe area', () => {
+    const chatVue = read('src/views/ChatView.vue')
+    const mobileStyles = chatVue.slice(chatVue.lastIndexOf('@media (max-width: 768px)'))
+    expect(mobileStyles).toMatch(/\.input-bar\s*\{[^}]*padding: 8px 10px 0;/)
+  })
+
+  it('MobileTabbar matches the 56px space reserved by the chat view', () => {
+    const tabbar = read('src/components/layout/MobileTabbar.vue')
+    expect(tabbar).toContain('height: calc(56px + env(safe-area-inset-bottom));')
+    expect(tabbar).toContain('align-items: center;')
+  })
+
   it('ProfileView uses balanced 5-column grid for 5 entries', () => {
     const profileVue = read('src/views/ProfileView.vue')
     expect(profileVue).toContain('repeat(5, 1fr)')
