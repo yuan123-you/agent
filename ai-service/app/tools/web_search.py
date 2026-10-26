@@ -1,7 +1,13 @@
-"""联网搜索工具：Tavily 优先（配置了 TAVILY_API_KEY 时），否则 Bing / Sogou（免 API Key）兜底"""
+"""联网搜索工具：
+1. Tavily 优先（商业高精度搜索，配置 TAVILY_API_KEY 时）
+2. SearXNG（开源自建元搜索引擎，配置 SEARXNG_URL 时）
+3. Bing 网页搜索（免 API Key，海外与国内直连极速稳定，无 Cloudflare 机房验证拦截）
+4. Sogou 搜狗搜索（免 API Key，国内中文电商行情与时效资讯兜底）
+"""
 import asyncio
 import html
 import logging
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -14,14 +20,16 @@ _to_simplified = OpenCC("t2s").convert
 
 
 def _clean_text(value: str | None) -> str:
-    """Decode entities, remove extra whitespace, and normalize text to Simplified Chinese."""
-    normalized = _to_simplified(html.unescape(value or ""))
+    """Decode entities, strip HTML tags, normalize whitespace, and convert to Simplified Chinese."""
+    if not value:
+        return ""
+    no_html = re.sub(r"<[^>]+>", "", value)
+    normalized = _to_simplified(html.unescape(no_html))
     return re.sub(r"\s+", " ", normalized).strip()
 
 
 def _search_tavily(query: str, max_results: int) -> list[dict]:
-    """Tavily 搜索（同步，线程池执行）；官方 REST API，无需 SDK"""
-    import os
+    """Tavily 搜索（官方 REST API，配置了 TAVILY_API_KEY 时可用）"""
     import json
 
     api_key = os.environ.get("TAVILY_API_KEY", "")
@@ -50,6 +58,50 @@ def _search_tavily(query: str, max_results: int) -> list[dict]:
     return results
 
 
+def _search_searxng(query: str, max_results: int) -> list[dict]:
+    """SearXNG 元搜索（配置了 SEARXNG_URL 时可用，支持私有化部署聚合搜索）"""
+    import json
+
+    base_url = os.environ.get("SEARXNG_URL", "").rstrip("/")
+    if not base_url:
+        raise ValueError("SEARXNG_URL not configured")
+
+    params = {
+        "q": query,
+        "format": "json",
+        "language": "zh-CN",
+    }
+    url = f"{base_url}/search?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+
+    results = []
+    for item in data.get("results", []):
+        title = _clean_text(item.get("title"))
+        snippet = _clean_text(item.get("content") or item.get("snippet"))[:500]
+        href = item.get("url", "").strip()
+        if title and href:
+            results.append({
+                "title": title,
+                "snippet": snippet,
+                "url": href,
+            })
+            if len(results) >= max_results:
+                break
+    return results
+
+
 def _search_bing(query: str, max_results: int) -> list[dict]:
     """Bing 网页搜索（免 API Key，同步，线程池执行）"""
     url = "https://cn.bing.com/search?q=" + urllib.parse.quote(query)
@@ -73,12 +125,12 @@ def _search_bing(query: str, max_results: int) -> list[dict]:
             continue
         href = title_match.group(1).strip()
         raw_title = title_match.group(2)
-        title = _clean_text(re.sub(r'<[^>]+>', '', raw_title))
+        title = _clean_text(re.sub(r"<[^>]+>", "", raw_title))
 
-        snippet_match = re.search(r'<p[^>]*>(.*?)</p>', item, re.DOTALL)
+        snippet_match = re.search(r"<p[^>]*>(.*?)</p>", item, re.DOTALL)
         snippet = ""
         if snippet_match:
-            snippet = _clean_text(re.sub(r'<[^>]+>', '', snippet_match.group(1)))[:500]
+            snippet = _clean_text(re.sub(r"<[^>]+>", "", snippet_match.group(1)))[:500]
 
         if title and href:
             results.append({
@@ -92,7 +144,7 @@ def _search_bing(query: str, max_results: int) -> list[dict]:
 
 
 def _search_sogou(query: str, max_results: int) -> list[dict]:
-    """Sogou 搜狗搜索兜底（免 API Key，同步，线程池执行）"""
+    """Sogou 搜狗搜索（免 API Key，同步，线程池执行）"""
     url = "https://www.sogou.com/web?query=" + urllib.parse.quote(query)
     headers = {
         "User-Agent": (
@@ -109,10 +161,10 @@ def _search_sogou(query: str, max_results: int) -> list[dict]:
     results = []
     h3_blocks = re.findall(
         r'<h3[^>]*>.*?<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?</h3>(.*?)(?=<h3|$)',
-        content, re.DOTALL
+        content, re.DOTALL,
     )
     for href, raw_title, rest in h3_blocks:
-        title = _clean_text(re.sub(r'<[^>]+>', '', raw_title))
+        title = _clean_text(re.sub(r"<[^>]+>", "", raw_title))
         if not title or ("sogou.com" in href and "query=" in href):
             continue
         if href.startswith("/"):
@@ -122,9 +174,9 @@ def _search_sogou(query: str, max_results: int) -> list[dict]:
             snippet_match = re.search(r'<div class="space-txt"[^>]*>(.*?)</div>', rest, re.DOTALL)
         snippet = ""
         if snippet_match:
-            snippet = _clean_text(re.sub(r'<[^>]+>', '', snippet_match.group(1)))[:500]
+            snippet = _clean_text(re.sub(r"<[^>]+>", "", snippet_match.group(1)))[:500]
         else:
-            snippet = _clean_text(re.sub(r'<[^>]+>', ' ', rest))[:200]
+            snippet = _clean_text(re.sub(r"<[^>]+>", " ", rest))[:200]
 
         results.append({"title": title, "snippet": snippet, "url": href})
         if len(results) >= max_results:
@@ -132,31 +184,24 @@ def _search_sogou(query: str, max_results: int) -> list[dict]:
     return results
 
 
-def _search_ddg(query: str, max_results: int) -> list[dict]:
-    """DuckDuckGo 搜索备用（同步，线程池执行）"""
-    from duckduckgo_search import DDGS
-    results = []
-    with DDGS() as ddgs:
-        for item in ddgs.text(query, max_results=max_results):
-            results.append({
-                "title": _clean_text(item.get("title")),
-                "snippet": _clean_text(item.get("body")),
-                "url": item.get("href", ""),
-            })
-    return results
-
-
 def _search(query: str, max_results: int) -> tuple[list[dict], str]:
-    """多级搜索降级策略：
+    """多级搜索策略：
     1. Tavily 优先（商业 API，配置 TAVILY_API_KEY 时）
-    2. Bing 网页搜索（免 API Key，国内稳定直连）
-    3. Sogou 网页搜索（免 API Key，国内备用）
-    4. DuckDuckGo 搜索（备用）
+    2. SearXNG（开源自建元搜索引擎，配置 SEARXNG_URL 时）
+    3. Bing 网页搜索（免 Key，海外与国内直连极速稳定，无 Cloudflare 机房验证拦截）
+    4. Sogou 搜狗搜索（免 Key，国内中文电商与时效资讯兜底）
     """
     try:
         return _search_tavily(query, max_results), "tavily"
     except Exception as e:
-        logger.info("tavily unavailable (%s), trying bing...", e)
+        logger.info("tavily unavailable (%s), trying searxng...", e)
+
+    try:
+        results = _search_searxng(query, max_results)
+        if results:
+            return results, "searxng"
+    except Exception as e:
+        logger.info("searxng unavailable (%s), trying bing...", e)
 
     try:
         results = _search_bing(query, max_results)
@@ -165,14 +210,7 @@ def _search(query: str, max_results: int) -> tuple[list[dict], str]:
     except Exception as e:
         logger.info("bing search unavailable (%s), trying sogou...", e)
 
-    try:
-        results = _search_sogou(query, max_results)
-        if results:
-            return results, "sogou"
-    except Exception as e:
-        logger.info("sogou search unavailable (%s), trying ddg...", e)
-
-    return _search_ddg(query, max_results), "duckduckgo"
+    return _search_sogou(query, max_results), "sogou"
 
 
 @tool

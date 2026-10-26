@@ -4,7 +4,10 @@ import pytest
 from app.tools import web_search
 
 
-class _TavilyResponse:
+class _JsonResponse:
+    def __init__(self, data: dict):
+        self._payload = json.dumps(data).encode("utf-8")
+
     def __enter__(self):
         return self
 
@@ -12,13 +15,7 @@ class _TavilyResponse:
         return None
 
     def read(self):
-        return json.dumps({
-            "results": [{
-                "title": "電競手機推薦與什麼手機最適合打遊戲與 &#x20;",
-                "content": "效能比較 &amp; 選購建議",
-                "url": "https://example.com",
-            }]
-        }).encode()
+        return self._payload
 
 
 class _HtmlResponse:
@@ -37,7 +34,16 @@ class _HtmlResponse:
 
 def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
     monkeypatch.setenv("TAVILY_API_KEY", "test-key")
-    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: _TavilyResponse())
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: _JsonResponse({
+            "results": [{
+                "title": "電競手機推薦與什麼手機最適合打遊戲與 &#x20;",
+                "content": "效能比較 &amp; 選購建議",
+                "url": "https://example.com",
+            }]
+        })
+    )
 
     result = web_search._search_tavily("電競手機", 1)
 
@@ -46,6 +52,42 @@ def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
         "snippet": "效能比较 & 选购建议",
         "url": "https://example.com",
     }]
+
+
+def test_searxng_results_extract_and_normalize_clean_text(monkeypatch):
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.local:8080")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: _JsonResponse({
+            "query": "折叠屏手机",
+            "results": [
+                {
+                    "title": "2026 最新<b>折疊屏</b>旗艦評測",
+                    "content": "全面解析鉸鏈耐用度與<b>相機</b>表現 &amp; 續航情況。",
+                    "url": "https://example.com/foldable",
+                },
+                {
+                    "title": "折叠屏手机选购指南",
+                    "snippet": "各大品牌折叠屏综合对比。",
+                    "url": "https://example.com/guide",
+                }
+            ]
+        })
+    )
+
+    results = web_search._search_searxng("折叠屏手机", max_results=2)
+
+    assert len(results) == 2
+    assert results[0] == {
+        "title": "2026 最新折叠屏旗舰评测",
+        "snippet": "全面解析铰链耐用度与相机表现 & 续航情况。",
+        "url": "https://example.com/foldable",
+    }
+    assert results[1] == {
+        "title": "折叠屏手机选购指南",
+        "snippet": "各大品牌折叠屏综合对比。",
+        "url": "https://example.com/guide",
+    }
 
 
 def test_bing_results_extract_and_normalize_clean_text(monkeypatch):
@@ -95,23 +137,41 @@ def test_sogou_results_extract_and_normalize_clean_text(monkeypatch):
     assert results[0]["url"] == "https://example.com/sogou1"
 
 
-def test_search_falls_back_to_bing_when_tavily_key_not_set(monkeypatch):
+def test_search_falls_back_to_searxng_when_configured(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.local:8080")
+    monkeypatch.setattr(
+        web_search,
+        "_search_searxng",
+        lambda query, max_results: [{"title": "SearXNG手机", "snippet": "自建元搜索结果", "url": "https://searx.example.com"}]
+    )
+
+    results, engine = web_search._search("手机", 1)
+
+    assert engine == "searxng"
+    assert len(results) == 1
+    assert results[0]["title"] == "SearXNG手机"
+
+
+def test_search_falls_back_to_bing_when_searxng_not_set(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("SEARXNG_URL", raising=False)
     monkeypatch.setattr(
         web_search,
         "_search_bing",
-        lambda query, max_results: [{"title": "测试手机", "snippet": "性价比高", "url": "https://example.com"}]
+        lambda query, max_results: [{"title": "Bing手机", "snippet": "国内直连结果", "url": "https://bing.example.com"}]
     )
 
     results, engine = web_search._search("手机", 1)
 
     assert engine == "bing"
     assert len(results) == 1
-    assert results[0]["title"] == "测试手机"
+    assert results[0]["title"] == "Bing手机"
 
 
 def test_search_falls_back_to_sogou_when_bing_fails(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("SEARXNG_URL", raising=False)
     monkeypatch.setattr(web_search, "_search_bing", lambda query, max_results: [])
     monkeypatch.setattr(
         web_search,
@@ -127,16 +187,16 @@ def test_search_falls_back_to_sogou_when_bing_fails(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_web_search_tool_handles_bing_results(monkeypatch):
+async def test_web_search_tool_handles_searxng_results(monkeypatch):
     monkeypatch.setattr(
         web_search,
         "_search",
-        lambda query, max_results: ([{"title": "免API测试", "snippet": "内容摘要", "url": "https://test.com"}], "bing")
+        lambda query, max_results: ([{"title": "SearXNG测试", "snippet": "内容摘要", "url": "https://test.com"}], "searxng")
     )
 
     result = await web_search.web_search.ainvoke({"query": "手机推荐", "max_results": 1})
 
     assert result["total"] == 1
-    assert result["engine"] == "bing"
-    assert result["results"][0]["title"] == "免API测试"
+    assert result["engine"] == "searxng"
+    assert result["results"][0]["title"] == "SearXNG测试"
     assert "以下内容来自互联网搜索" in result["note"]

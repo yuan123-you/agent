@@ -87,6 +87,13 @@ services:
       test: [CMD, ollama, list]
       interval: 30s
       retries: 5
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    volumes: [/srv/aimall/searxng:/etc/searxng]
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8080
   ai-service:
     build: ../ai-service
     restart: unless-stopped
@@ -116,6 +123,7 @@ services:
       PRODUCT_SYNC_INTERVAL_S: '3600'
       LANGFUSE_ENABLED: 'false'
       CHAT_TIMEOUT_S: '180'
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
     volumes: [ai-service-data:/app/data]
     depends_on:
       milvus: {condition: service_healthy}
