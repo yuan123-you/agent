@@ -18,6 +18,7 @@ from app.agent.state import AgentState
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
+from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
 from app.request_policy import asks_assistant_identity, budget_from_text, requests_human
 from app.observability.telemetry import generation
 from app.tools.tools import (
@@ -71,6 +72,8 @@ def parse_intent_json(content: str) -> dict:
 def fallback_intent_by_rules(user_text: str) -> str:
     """当模型未能输出标准 JSON 时，基于规则启发式兜底，避免全部误判为 PRODUCT_CONSULT"""
     t = (user_text or "").strip().lower()
+    if parse_naming_command(t):
+        return "SMALL_TALK"
     if requests_human(t):
         return "HUMAN_REQUEST"
     if asks_assistant_identity(t):
@@ -99,6 +102,7 @@ async def intent_router_node(state: AgentState) -> dict:
     user_text = getattr(last, "content", "") if last else ""
     # These requests already override classifier output below; avoid paying for it.
     greeting = re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见)[！!。.?？\s]*", user_text.strip(), re.IGNORECASE)
+    naming_command = bool(parse_naming_command(user_text))
     # Only a standalone, explicit shopping request is safe to route without
     # inference. Mixed requests, short follow-ups and order actions need context.
     shopping_request = (
@@ -110,8 +114,8 @@ async def intent_router_node(state: AgentState) -> dict:
         and fallback_intent_by_rules(user_text) == "PRODUCT_CONSULT"
         and not re.search(r"退|换货|售后|保修|发货|配送|运费|发票|下单|订单|物流|取消|人工|七天|7天", user_text)
     )
-    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting or shopping_request:
-        intent = "SMALL_TALK" if greeting else fallback_intent_by_rules(user_text)
+    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting or naming_command or shopping_request:
+        intent = "SMALL_TALK" if (greeting or naming_command) else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
             "intent", model="rules", input_data={"user_text": user_text},
@@ -253,6 +257,9 @@ async def agent_node(state: AgentState) -> dict:
     llm = get_chat_llm().bind_tools(tools)
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")
+    memory_prompt = format_memory_prompt(state.get("user_profile"), state.get("long_term_memory"))
+    if memory_prompt and memory_prompt != "（暂无特殊偏好或记忆）":
+        system_text += f"\n\n## 买家长期记忆与人设偏好\n{memory_prompt}"
     # 动态追加意图强化指令，消除答非所问
     if intent == "ORDER_QUERY":
         system_text += "\n\n## 焦点提示：买家正在查询订单/物流\n请优先调用 order_query 查询买家真实的订单与物流进展，切勿调用商品搜索。"
@@ -371,23 +378,46 @@ async def finalize_without_tools(state: AgentState) -> dict:
 
 
 async def small_talk_node(state: AgentState) -> dict:
-    """闲聊/欢迎语；独立的身份与能力问题直接回复，避免等待模型。"""
+    """闲聊/欢迎语；独立的身份与能力问题或称呼设定直接回复，避免等待模型。"""
     user_text = next((str(m.content) for m in reversed(state["messages"])
                       if isinstance(m, HumanMessage)), "")
-    # Match the whole request so extra instructions still reach the model.
+    profile = dict(state.get("user_profile") or {})
+
+    # 1. 命名/人设约定指令快速响应（零延迟，绝对避免小模型角色颠倒）
+    naming = parse_naming_command(user_text)
+    if naming:
+        profile.update(naming)
+        assistant_name = profile.get("assistant_name", "AI Mall")
+        user_name = profile.get("user_name", "朋友")
+        resp = AIMessage(content=f"记住了！我是「{assistant_name}」，你是「{user_name}」，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？")
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "naming": naming},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "naming-fast-path"],
+        )
+        return {"messages": [resp], "user_profile": profile}
+
+    # 2. 独立的身份与能力问题直接回复（零延迟）
     if re.fullmatch(
         r"(?:你是谁|你叫什么|介绍你自己|介绍下你自己|你能做什么|你能帮我做什么|"
         r"你有什么功能|你是真人(?:还是机器人)?|你是机器人|你是人工)[？?！!。\s]*",
         user_text.strip(),
     ):
-        resp = AIMessage(content="我是「AI Mall」的 AI 购物助手，可以帮您推荐商品、查询订单物流、解答售后退换政策。您需要什么帮助？")
+        greeting = format_assistant_greeting(profile)
+        resp = AIMessage(content=greeting)
         await generation(
             "generate", model="rules", input_data={"node": "small_talk"},
             usage={"content": resp.content}, tags=["generate", "small_talk", "fast-path"],
         )
         return {"messages": [resp]}
+
+    # 3. 上下文闲聊
     llm = get_chat_llm()
-    resp = await llm.ainvoke([SystemMessage(content=SMALL_TALK_PROMPT)] + state["messages"][-4:])
+    recent_msgs = get_trimmed_messages(state["messages"], max_messages=12)
+    memory_prompt = format_memory_prompt(profile, state.get("long_term_memory"))
+    prompt = SMALL_TALK_PROMPT
+    if memory_prompt and memory_prompt != "（暂无特殊偏好或记忆）":
+        prompt += f"\n\n## 买家长期记忆与人设偏好\n{memory_prompt}"
+    resp = await llm.ainvoke([SystemMessage(content=prompt)] + recent_msgs)
     await generation(
         "generate", model=settings.llm_chat_model,
         input_data={"node": "small_talk"},

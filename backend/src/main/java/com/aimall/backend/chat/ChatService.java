@@ -41,6 +41,7 @@ public class ChatService {
     private final StringRedisTemplate redisTemplate;
     private final AppProperties props;
     private final FaqService faqService;
+    private final UserMemoryService userMemoryService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -105,6 +106,13 @@ public class ChatService {
         }
 
         User user = userMapper.selectById(userId);
+        Map<String, String> memoryMap = userMemoryService != null ? userMemoryService.getMemoryMap(userId) : Collections.emptyMap();
+        Map<String, Object> userProfile = new HashMap<>();
+        userProfile.put("nickname", user != null ? user.getNickname() : "");
+        userProfile.put("user_name", memoryMap.getOrDefault("user_name", user != null ? user.getNickname() : ""));
+        userProfile.put("assistant_name", memoryMap.getOrDefault("assistant_name", ""));
+        userProfile.putAll(memoryMap);
+
         Map<String, Object> body = new HashMap<>();
         body.put("conversation_id", conv.getId());
         body.put("user_id", userId);
@@ -112,7 +120,8 @@ public class ChatService {
         body.put("history", history);
         body.put("summary", conv.getSummary());
         body.put("web_search_enabled", Boolean.TRUE.equals(req.getWebSearchEnabled()));
-        body.put("user_profile", Map.of("nickname", user != null ? user.getNickname() : ""));
+        body.put("user_profile", userProfile);
+        body.put("long_term_memory", userMemoryService != null ? userMemoryService.getMemoriesDto(userId) : Collections.emptyList());
 
         // 3. SSE 代理
         SseEmitter emitter = new SseEmitter(300_000L);

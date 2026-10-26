@@ -24,6 +24,22 @@ class BackendClient:
             trust_env=False,
         )
 
+    async def _get(self, path: str, params: dict | None = None, retries: int = 2) -> dict | list:
+        for attempt in range(retries):
+            try:
+                r = await self._client.get(path, params=params)
+                r.raise_for_status()
+                resp = r.json()
+                if resp.get("code") == 0:
+                    return resp.get("data")
+                return {"error": resp.get("message", "backend business error")}
+            except Exception as e:
+                if attempt == retries - 1:
+                    logger.warning("backend get failed %s: %s", path, e)
+                    return {"error": "后端服务暂时不可用，请稍后再试"}
+                await asyncio.sleep(0.3)
+        return {"error": "后端服务暂时不可用"}
+
     async def _post(self, path: str, body: dict, retries: int = 2) -> dict:
         """POST 并解包统一响应体；失败返回 {error: ...} 而不抛异常（交给 LLM 友好告知用户）"""
         for attempt in range(retries):
@@ -40,6 +56,17 @@ class BackendClient:
                     return {"error": "后端服务暂时不可用，请稍后再试"}
                 await asyncio.sleep(0.3)
         return {"error": "后端服务暂时不可用"}
+
+    # ---------- 长期记忆管理 ----------
+
+    async def get_user_memory(self, user_id: int) -> list[dict]:
+        res = await self._get("/internal/memory", params={"userId": user_id})
+        return res if isinstance(res, list) else []
+
+    async def upsert_user_memory(self, user_id: int, memories: list[dict]) -> dict:
+        return await self._post("/internal/memory/upsert", {
+            "userId": user_id, "memories": memories,
+        })
 
     # ---------- 工具回调 ----------
 

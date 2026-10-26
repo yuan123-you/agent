@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from app.agent.graph import checkpointer, graph
+from app.agent.memory import background_memory_extraction, parse_naming_command
 from app.agent.link_guard import GuardedLinkBuffer, collect_known_ids, ensure_product_links, guard_links
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
@@ -38,6 +39,7 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = []
     summary: str | None = None
     user_profile: dict = {}
+    long_term_memory: list[dict] = []
     web_search_enabled: bool = False
     options: dict = {}
 
@@ -51,7 +53,12 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
     """history（后端传入）+ 本轮用户消息 → 初始 messages。
     若 checkpointer 中已有该会话的历史快照，则本轮只传入新增的 HumanMessage，
     由 LangGraph 的 add_messages 自动做流式累加，避免会话记忆重复；
-    同时继承已有快照中的 active_entities，保持跨轮次实体记忆连续。"""
+    同时继承已有快照中的 active_entities 与 user_profile，保持跨轮次记忆连续。"""
+    profile = dict(req.user_profile or {})
+    naming = parse_naming_command(req.message)
+    if naming:
+        profile.update(naming)
+
     config = {"configurable": {"thread_id": f"conv_{req.conversation_id}"}}
     existing_ckpt = checkpointer.get(config) if checkpointer else None
 
@@ -59,6 +66,10 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
     if existing_ckpt:
         msgs = [HumanMessage(content=req.message)]
         saved_entities = existing_ckpt.get("channel_values", {}).get("active_entities") or {}
+        ckpt_profile = existing_ckpt.get("channel_values", {}).get("user_profile") or {}
+        merged_profile = dict(ckpt_profile)
+        merged_profile.update(profile)
+        profile = merged_profile
     else:
         msgs = []
         for h in req.history[-10:]:
@@ -74,6 +85,8 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
         conversation_id=str(req.conversation_id),
         history=[h.model_dump() for h in req.history],
         summary=req.summary,
+        user_profile=profile,
+        long_term_memory=list(req.long_term_memory or []),
         web_search_enabled=req.web_search_enabled,
         active_entities=dict(saved_entities),
     )
@@ -375,6 +388,12 @@ async def chat_stream(req: ChatRequest, request: Request):
             if rag_used:
                 done["citations"] = list(citations)
             yield sse("done", done)
+            try:
+                user_id_int = int(req.user_id) if str(req.user_id).isdigit() else 0
+                if user_id_int > 0:
+                    asyncio.create_task(background_memory_extraction(user_id_int, req.message, guarded))
+            except Exception as e:
+                logger.warning("failed to dispatch background memory extraction: %s", e)
         except Exception as e:
             logger.exception("chat stream error: %s", e)
             end_trace(output={"error": str(e)})

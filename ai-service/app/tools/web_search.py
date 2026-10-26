@@ -1,7 +1,10 @@
-"""联网搜索工具：Tavily 优先（配置了 TAVILY_API_KEY 时），否则 DuckDuckGo 兜底（均免费起步）"""
+"""联网搜索工具：Tavily 优先（配置了 TAVILY_API_KEY 时），否则 Bing / Sogou（免 API Key）兜底"""
 import asyncio
 import html
 import logging
+import re
+import urllib.parse
+import urllib.request
 
 from langchain_core.tools import tool
 from opencc import OpenCC
@@ -11,15 +14,15 @@ _to_simplified = OpenCC("t2s").convert
 
 
 def _clean_text(value: str | None) -> str:
-    """Decode entities and normalize search-provider text to Simplified Chinese."""
-    return _to_simplified(html.unescape(value or "")).strip()
+    """Decode entities, remove extra whitespace, and normalize text to Simplified Chinese."""
+    normalized = _to_simplified(html.unescape(value or ""))
+    return re.sub(r"\s+", " ", normalized).strip()
 
 
 def _search_tavily(query: str, max_results: int) -> list[dict]:
     """Tavily 搜索（同步，线程池执行）；官方 REST API，无需 SDK"""
     import os
     import json
-    import urllib.request
 
     api_key = os.environ.get("TAVILY_API_KEY", "")
     if not api_key:
@@ -47,8 +50,90 @@ def _search_tavily(query: str, max_results: int) -> list[dict]:
     return results
 
 
+def _search_bing(query: str, max_results: int) -> list[dict]:
+    """Bing 网页搜索（免 API Key，同步，线程池执行）"""
+    url = "https://cn.bing.com/search?q=" + urllib.parse.quote(query)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        html_text = resp.read().decode("utf-8", errors="ignore")
+
+    items = re.findall(r'<li class="b_algo"[^>]*>(.*?)</li>', html_text, re.DOTALL)
+    results = []
+    for item in items:
+        title_match = re.search(r'<h2[^>]*><a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>', item, re.DOTALL)
+        if not title_match:
+            continue
+        href = title_match.group(1).strip()
+        raw_title = title_match.group(2)
+        title = _clean_text(re.sub(r'<[^>]+>', '', raw_title))
+
+        snippet_match = re.search(r'<p[^>]*>(.*?)</p>', item, re.DOTALL)
+        snippet = ""
+        if snippet_match:
+            snippet = _clean_text(re.sub(r'<[^>]+>', '', snippet_match.group(1)))[:500]
+
+        if title and href:
+            results.append({
+                "title": title,
+                "snippet": snippet,
+                "url": href,
+            })
+            if len(results) >= max_results:
+                break
+    return results
+
+
+def _search_sogou(query: str, max_results: int) -> list[dict]:
+    """Sogou 搜狗搜索兜底（免 API Key，同步，线程池执行）"""
+    url = "https://www.sogou.com/web?query=" + urllib.parse.quote(query)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    }
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        content = resp.read().decode("utf-8", errors="ignore")
+
+    results = []
+    h3_blocks = re.findall(
+        r'<h3[^>]*>.*?<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?</h3>(.*?)(?=<h3|$)',
+        content, re.DOTALL
+    )
+    for href, raw_title, rest in h3_blocks:
+        title = _clean_text(re.sub(r'<[^>]+>', '', raw_title))
+        if not title or ("sogou.com" in href and "query=" in href):
+            continue
+        if href.startswith("/"):
+            href = "https://www.sogou.com" + href
+        snippet_match = re.search(r'<p class="(?:txt-info|star-wiki|str-info)"[^>]*>(.*?)</p>', rest, re.DOTALL)
+        if not snippet_match:
+            snippet_match = re.search(r'<div class="space-txt"[^>]*>(.*?)</div>', rest, re.DOTALL)
+        snippet = ""
+        if snippet_match:
+            snippet = _clean_text(re.sub(r'<[^>]+>', '', snippet_match.group(1)))[:500]
+        else:
+            snippet = _clean_text(re.sub(r'<[^>]+>', ' ', rest))[:200]
+
+        results.append({"title": title, "snippet": snippet, "url": href})
+        if len(results) >= max_results:
+            break
+    return results
+
+
 def _search_ddg(query: str, max_results: int) -> list[dict]:
-    """DuckDuckGo 搜索兜底（同步，线程池执行）"""
+    """DuckDuckGo 搜索备用（同步，线程池执行）"""
     from duckduckgo_search import DDGS
     results = []
     with DDGS() as ddgs:
@@ -62,11 +147,31 @@ def _search_ddg(query: str, max_results: int) -> list[dict]:
 
 
 def _search(query: str, max_results: int) -> tuple[list[dict], str]:
-    """Tavily 优先，失败/未配置降级 DuckDuckGo；返回 (结果, 引擎名)"""
+    """多级搜索降级策略：
+    1. Tavily 优先（商业 API，配置 TAVILY_API_KEY 时）
+    2. Bing 网页搜索（免 API Key，国内稳定直连）
+    3. Sogou 网页搜索（免 API Key，国内备用）
+    4. DuckDuckGo 搜索（备用）
+    """
     try:
         return _search_tavily(query, max_results), "tavily"
     except Exception as e:
-        logger.info("tavily unavailable, fallback to ddg: %s", e)
+        logger.info("tavily unavailable (%s), trying bing...", e)
+
+    try:
+        results = _search_bing(query, max_results)
+        if results:
+            return results, "bing"
+    except Exception as e:
+        logger.info("bing search unavailable (%s), trying sogou...", e)
+
+    try:
+        results = _search_sogou(query, max_results)
+        if results:
+            return results, "sogou"
+    except Exception as e:
+        logger.info("sogou search unavailable (%s), trying ddg...", e)
+
     return _search_ddg(query, max_results), "duckduckgo"
 
 
