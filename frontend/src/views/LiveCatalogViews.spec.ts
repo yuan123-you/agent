@@ -12,12 +12,12 @@ vi.mock('vue-router',() => ({ useRoute:() => route,useRouter:() => ({push:mocks.
 vi.mock('element-plus',() => ({ElMessage:{warning:vi.fn(),success:vi.fn(),info:vi.fn()}}))
 let app:App|undefined; let host:HTMLDivElement
 const flush=async()=> { for(let i=0;i<16;i++) await nextTick() }
-const product=(id=701)=>({id,name:`后端真实商品${id}`,price:12.34,category:'手机数码',brand:'真实品牌',stock:5,sales:0})
+const product=(id=701)=>({id,name:`后端真实商品${id}`,price:12.34,category:'PHONE',brand:'真实品牌',stock:5,sales:0})
 async function mount(component:any) {
  host=document.createElement('div'); document.body.appendChild(host); app=createApp(component)
  const basic=defineComponent({setup(_,{slots}){return()=>h('div',slots.default?.())}})
  for(const name of ['ElImage','ElIcon','ElDrawer','ElSwitch','ElInput','ElButton','ElScrollbar','ElDialog','ElEmpty','ElCheckbox','ElInputNumber']) app.component(name,basic)
- app.config.globalProperties.$router={push:mocks.push}; app.mount(host); await flush()
+ Object.defineProperty(app.config.globalProperties,'$router',{value:{push:mocks.push}}); app.mount(host); await flush()
 }
 beforeEach(()=>{vi.clearAllMocks();route=reactive({query:{}});mocks.cart.mockResolvedValue({items:[],totalAmount:0,checkedCount:0});mocks.products.mockResolvedValue({records:[product()],total:1})})
 afterEach(()=>{app?.unmount();app=undefined;host?.remove()})
@@ -36,8 +36,8 @@ describe('live catalog identity',()=>{
   await mount(HomeView);window.dispatchEvent(new Event('scroll'));await flush()
   expect(mocks.products).toHaveBeenLastCalledWith(expect.objectContaining({page:2}));expect(host.textContent).toContain('后端真实商品702')
  })
- it('category list translates the visible category into the backend category filter',async()=>{
-  await mount(ProductListView);expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({category:'手机数码'}))
+ it('category list sends the native category code rather than its display label',async()=>{
+  await mount(ProductListView);expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({category:'PHONE'}))
  })
  it('category location label renders its configured city instead of an undefined property',async()=>{
   await mount(ProductListView);expect(host.querySelector('.location-btn')?.textContent).toContain('北京市')

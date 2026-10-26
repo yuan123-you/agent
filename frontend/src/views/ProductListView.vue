@@ -600,7 +600,7 @@ async function loadCatalogPage() {
     const result = await apiProducts({
       page: catalogPage, size: 24,
       ...(searchKeyword.value.trim() ? { keyword: searchKeyword.value.trim() } : {
-        category: MAIN_CATEGORIES.find(c => c.code === activeCategoryCode.value)?.name || activeCategoryCode.value,
+        category: activeCategoryCode.value,
         ...(selectedBrand.value ? { keyword: selectedBrand.value } : {}),
       }),
       ...(filterMinPrice.value !== '' ? { minPrice: filterMinPrice.value } : {}),
