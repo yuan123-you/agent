@@ -180,6 +180,8 @@
         </div>
       </div>
 
+      <p v-if="loadError" role="alert">商品加载失败 <button @click="loadNextPage">重试</button></p>
+      <p v-else-if="!initialLoading && displayedProducts.length === 0">暂无商品</p>
       <!-- 触底状态提示 -->
       <div v-if="isFinished && displayedProducts.length > 0" class="feed-end">
         — 已经到底了 · 甄选好物已全部加载完毕 (共 {{ displayedProducts.length }} 款) —
@@ -192,7 +194,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { MASSIVE_PRODUCTS, type EnhancedProduct } from '@/data/products'
+import { apiProducts } from '@/api'
+import type { EnhancedProduct } from '@/data/products'
 
 const router = useRouter()
 
@@ -200,6 +203,10 @@ const initialLoading = ref(true)
 const loadingMore = ref(false)
 const currentPage = ref(1)
 const PAGE_SIZE = 12
+const displayedProducts = ref<EnhancedProduct[]>([])
+const isFinished = ref(false)
+const loadError = ref(false)
+let disposed = false
 
 // 实时倒计时计算
 const nowTick = ref(Date.now())
@@ -224,13 +231,6 @@ function goToOrders() {
   router.push('/orders')
 }
 
-// 520 款商品分页展示
-const allFilteredProducts = computed(() => MASSIVE_PRODUCTS)
-
-const displayedProducts = computed(() => {
-  return allFilteredProducts.value.slice(0, currentPage.value * PAGE_SIZE)
-})
-
 const leftColumnProducts = computed(() => {
   return displayedProducts.value.filter((_, idx) => idx % 2 === 0)
 })
@@ -239,16 +239,21 @@ const rightColumnProducts = computed(() => {
   return displayedProducts.value.filter((_, idx) => idx % 2 === 1)
 })
 
-const isFinished = computed(() => {
-  return displayedProducts.value.length >= allFilteredProducts.value.length
-})
-
 async function loadNextPage() {
-  if (loadingMore.value || isFinished.value) return
+  if (loadingMore.value || isFinished.value || disposed) return
   loadingMore.value = true
-  await new Promise((resolve) => setTimeout(resolve, 300))
-  currentPage.value++
-  loadingMore.value = false
+  loadError.value = false
+  try {
+    const result = await apiProducts({ page: currentPage.value, size: PAGE_SIZE })
+    if (disposed) return
+    displayedProducts.value.push(...result.records)
+    isFinished.value = !result.records.length || displayedProducts.value.length >= result.total
+    currentPage.value++
+  } catch {
+    if (!disposed) loadError.value = true
+  } finally {
+    if (!disposed) { loadingMore.value = false; initialLoading.value = false }
+  }
 }
 
 function handleScroll() {
@@ -263,7 +268,7 @@ function handleScroll() {
 
 function formatSales(sales?: number): string {
   const s = Number(sales) || 0
-  if (s < 100) return '100+'
+  if (s < 100) return String(s)
   if (s < 1000) return `${Math.floor(s / 100) * 100}+`
   if (s < 10000) return `${Math.floor(s / 1000)}000+`
   return `${Math.floor(s / 10000)}w+`
@@ -272,12 +277,11 @@ function formatSales(sales?: number): string {
 onMounted(() => {
   timer = window.setInterval(() => (nowTick.value = Date.now()), 1000)
   window.addEventListener('scroll', handleScroll, { passive: true })
-  setTimeout(() => {
-    initialLoading.value = false
-  }, 250)
+  void loadNextPage()
 })
 
 onUnmounted(() => {
+  disposed = true
   if (timer) window.clearInterval(timer)
   window.removeEventListener('scroll', handleScroll)
 })

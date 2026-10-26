@@ -222,13 +222,16 @@
       </div>
 
       <!-- 空结果提示 -->
-      <div v-if="filteredProducts.length === 0" class="stream-empty">
+      <p v-if="catalogLoading" role="status">商品加载中...</p>
+      <p v-else-if="catalogError" role="alert">商品加载失败 <button @click="loadCatalogPage">重试</button></p>
+      <button v-else-if="!catalogFinished" @click="loadCatalogPage">加载更多商品</button>
+      <div v-if="!catalogLoading && !catalogError && filteredProducts.length === 0" class="stream-empty">
         <div class="empty-icon">🛍️</div>
         <div class="empty-text">暂无符合条件的商品</div>
         <el-button size="small" type="primary" round @click="resetAllFilters">重置全部筛选</el-button>
       </div>
 
-      <div v-else class="stream-end">
+      <div v-else-if="catalogFinished && filteredProducts.length > 0" class="stream-end">
         — 已经到底了 · 甄选好物持续更新中 (共 {{ filteredProducts.length }} 款) —
       </div>
     </main>
@@ -305,16 +308,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, CircleClose, LocationInformation, Operation } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { MASSIVE_PRODUCTS, type EnhancedProduct } from '@/data/products'
+import { apiProducts } from '@/api'
+import type { EnhancedProduct } from '@/data/products'
 
 const route = useRoute()
 const router = useRouter()
+const products = ref<EnhancedProduct[]>([])
+const catalogLoading = ref(false)
+const catalogError = ref(false)
+const catalogFinished = ref(false)
+let catalogPage = 1
+let catalogGeneration = 0
+let disposed = false
 
 const keywordInput = ref((route.query.keyword as string) || '')
+const searchKeyword = ref(keywordInput.value)
 const showSearchPanel = ref(false)
 const showFilterDrawer = ref(false)
 
@@ -331,6 +343,7 @@ const filterInStockOnly = ref(false)
 
 // 配送定位
 const deliveryCity = ref('北京市')
+const shortCity = computed(() => deliveryCity.value)
 
 function locateCity() {
   if (navigator.geolocation) {
@@ -386,6 +399,7 @@ function clearAllHistory() {
 }
 
 function handleSearch() {
+  searchKeyword.value = keywordInput.value.trim()
   const kw = keywordInput.value.trim()
   if (kw) saveHistory(kw)
   showSearchPanel.value = false
@@ -446,8 +460,8 @@ const currentSubcategories = computed(() => {
 // 对应当前分类拥有的品牌
 const currentCategoryBrands = computed(() => {
   const set = new Set<string>()
-  for (const p of MASSIVE_PRODUCTS) {
-    if (p.category === activeCategoryCode.value && p.brand) {
+  for (const p of products.value) {
+    if (p.brand && (p.category === activeCategoryCode.value || p.category === MAIN_CATEGORIES.find(c => c.code === activeCategoryCode.value)?.name)) {
       set.add(p.brand)
     }
   }
@@ -459,6 +473,7 @@ function selectCategory(code: string) {
   selectedSub.value = ''
   selectedBrand.value = ''
   keywordInput.value = ''
+  searchKeyword.value = ''
 }
 
 function selectSubcategory(sub: string) {
@@ -496,6 +511,7 @@ function resetAllFilters() {
   resetDrawerFilters()
   selectedSub.value = ''
   keywordInput.value = ''
+  searchKeyword.value = ''
   sort.value = 'default'
 }
 
@@ -511,15 +527,10 @@ const appliedFilterCount = computed(() => {
 
 // 过滤后的全量商品列表
 const filteredProducts = computed(() => {
-  let list = [...MASSIVE_PRODUCTS]
+  let list = [...products.value]
 
-  if (keywordInput.value.trim()) {
-    const kw = keywordInput.value.trim().toLowerCase()
-    list = list.filter((p) => p.name.toLowerCase().includes(kw) || (p.brand && p.brand.toLowerCase().includes(kw)))
-  } else {
-    list = list.filter((p) => p.category === activeCategoryCode.value)
-  }
-
+  // The server owns keyword/category matching (including selling-point matches).
+  // Editing an unsubmitted input must not discard the previous server response.
   if (selectedSub.value) {
     const sk = selectedSub.value.toLowerCase()
     list = list.filter(
@@ -574,11 +585,50 @@ function goToDetail(id: number) {
 
 function formatSales(sales?: number): string {
   const s = Number(sales) || 0
-  if (s < 100) return '100+'
+  if (s < 100) return String(s)
   if (s < 1000) return `${Math.floor(s / 100) * 100}+`
   if (s < 10000) return `${Math.floor(s / 1000)}000+`
   return `${Math.floor(s / 10000)}w+`
 }
+
+async function loadCatalogPage() {
+  if (catalogLoading.value || catalogFinished.value || disposed) return
+  const generation = catalogGeneration
+  catalogLoading.value = true
+  catalogError.value = false
+  try {
+    const result = await apiProducts({
+      page: catalogPage, size: 24,
+      ...(searchKeyword.value.trim() ? { keyword: searchKeyword.value.trim() } : {
+        category: MAIN_CATEGORIES.find(c => c.code === activeCategoryCode.value)?.name || activeCategoryCode.value,
+        ...(selectedBrand.value ? { keyword: selectedBrand.value } : {}),
+      }),
+      ...(filterMinPrice.value !== '' ? { minPrice: filterMinPrice.value } : {}),
+      ...(filterMaxPrice.value !== '' ? { maxPrice: filterMaxPrice.value } : {}),
+      sort: sort.value,
+    })
+    if (disposed || generation !== catalogGeneration) return
+    products.value.push(...result.records)
+    catalogFinished.value = !result.records.length || products.value.length >= result.total
+    catalogPage++
+  } catch {
+    if (!disposed && generation === catalogGeneration) catalogError.value = true
+  } finally {
+    if (generation === catalogGeneration) catalogLoading.value = false
+  }
+}
+
+function reloadCatalog() {
+  catalogGeneration++
+  catalogPage = 1
+  products.value = []
+  catalogFinished.value = false
+  catalogLoading.value = false
+  void loadCatalogPage()
+}
+watch([searchKeyword, activeCategoryCode, selectedBrand, filterMinPrice, filterMaxPrice, sort], reloadCatalog, { immediate: true })
+watch(() => route.query.keyword, value => { keywordInput.value = typeof value === 'string' ? value : ''; searchKeyword.value = keywordInput.value })
+onUnmounted(() => { disposed = true; catalogGeneration++ })
 
 watch(
   () => route.query.category,

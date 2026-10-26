@@ -119,6 +119,7 @@
           <span class="crs-line" />
         </div>
 
+        <p v-if="recommendError" role="alert">推荐商品加载失败 <button @click="loadRecommendations">重试</button></p>
         <div class="recommend-grid">
           <div
             v-for="p in recommendProducts"
@@ -286,7 +287,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Delete, Shop } from '@element-plus/icons-vue'
@@ -294,9 +295,9 @@ import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vu
 import CouponPicker from '@/components/mall/CouponPicker.vue'
 import {
   apiCartCheckAll, apiCartCheckout, apiCartList, apiCartRemove, apiCartUpdate,
-  apiPayOrder, type CartRow,
+  apiPayOrder, apiProducts, type CartRow,
 } from '@/api'
-import { MASSIVE_PRODUCTS } from '@/data/products'
+import type { ProductVO } from '@/types/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -321,13 +322,23 @@ const allChecked = computed(
 )
 
 // 猜你喜欢推荐池
-const recommendProducts = computed(() => {
-  return MASSIVE_PRODUCTS.slice(0, 8)
-})
+const recommendProducts = ref<ProductVO[]>([])
+const recommendError = ref(false)
+let disposed = false
+async function loadRecommendations() {
+  recommendError.value = false
+  try {
+    const result = await apiProducts({ page: 1, size: 8 })
+    if (!disposed) recommendProducts.value = result.records
+  } catch {
+    if (!disposed) { recommendProducts.value = []; recommendError.value = true }
+  }
+}
+onUnmounted(() => { disposed = true })
 
 function formatSales(sales?: number): string {
   const s = Number(sales) || 0
-  if (s < 100) return '100+'
+  if (s < 100) return String(s)
   if (s < 1000) return `${Math.floor(s / 100) * 100}+`
   return `${Math.floor(s / 1000)}000+`
 }
@@ -427,6 +438,7 @@ function spText(spData?: string): string {
 }
 
 onMounted(async () => {
+  void loadRecommendations()
   await load()
   if (route.query.checkout === '1' && items.value.length > 0) {
     openCheckout()

@@ -5,6 +5,10 @@ import com.aimall.backend.common.BizException;
 import com.aimall.backend.common.PageResult;
 import com.aimall.backend.mapper.ProductMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +23,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
+
+    private static final ObjectReader SPECS_JSON = new ObjectMapper().reader()
+            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     private final ProductMapper productMapper;
     private final CatalogService catalogService;
@@ -36,7 +43,9 @@ public class ProductService {
             throw new BizException(2001, "分页参数不合法，page须为正整数，size范围1~500");
         }
         // 有关键词优先走 ngram 全文检索（相关度排序）；索引/语法异常时降级 LIKE
-        if (keyword != null && !keyword.isBlank()) {
+        boolean explicitSort = "price_asc".equals(sort) || "price_desc".equals(sort) || "sales_desc".equals(sort);
+        // The relevance-only fulltext query cannot provide a global explicit sort before LIMIT.
+        if (keyword != null && !keyword.isBlank() && !explicitSort) {
             try {
                 long total = productMapper.countByKeyword(keyword.trim(), category, categoryId, brandId,
                         minPrice, maxPrice);
@@ -134,7 +143,17 @@ public class ProductService {
         product.setImageUrl(req.getImageUrl());
         product.setDescription(req.getDescription());
         product.setSellingPoints(req.getSellingPoints());
-        product.setSpecs(req.getSpecs());
+        String specs = req.getSpecs();
+        if (specs != null && !specs.isBlank()) {
+            try {
+                SPECS_JSON.readTree(specs);
+            } catch (JsonProcessingException e) {
+                throw new BizException(2001, "商品规格须为合法JSON");
+            }
+            product.setSpecs(specs);
+        } else {
+            product.setSpecs(null);
+        }
     }
 
     @Data
