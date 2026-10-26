@@ -84,13 +84,8 @@ class GuardedLinkBuffer:
             ready.append(self.pending[:start])
             self.pending = self.pending[start:]
             close = self.pending.find("]")
-            newline = self.pending.find("\n")
-            if close < 0 or (newline >= 0 and newline < close):
-                if newline < 0:
-                    break
-                ready.append(self.pending[:newline + 1])
-                self.pending = self.pending[newline + 1:]
-                continue
+            if close < 0:
+                break
             if close + 1 == len(self.pending):
                 break
             if self.pending[close + 1] != "(":

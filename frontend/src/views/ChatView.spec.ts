@@ -19,6 +19,7 @@ function createChat() {
     conversations: [{ conversationId: 7, status: 'PENDING_HUMAN' }], messages: [],
     loadingConversations: false, loadingConversationId: null,
     pendingByConv: {}, streaming: false, webSearchEnabled: false,
+    refreshCurrent: vi.fn().mockResolvedValue(undefined),
     expireOrderActions: vi.fn(), loadConversations: vi.fn(), openConversation: vi.fn(),
     pollNewMessages: vi.fn().mockResolvedValue(undefined), cancelHumanHandoff: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn(),

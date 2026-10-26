@@ -274,8 +274,9 @@ async function initializeChat() {
   try {
     const routeId = Number(route.params.conversationId)
     if (chat.current && (!routeId || routeId === chat.current.conversationId)) {
-      // Keep cached messages/background streams mounted; refresh only the sidebar.
+      // Keep cached messages/background streams mounted while revalidating metadata.
       void Promise.resolve(chat.loadConversations()).catch(() => {})
+      void chat.refreshCurrent().catch(() => {})
       await nextTick()
       if (!disposed) scrollToBottom()
     } else if (routeId) {

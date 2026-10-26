@@ -90,7 +90,11 @@ export const useChatStore = defineStore('chat', {
             if (ai.status === 'PENDING' || !alreadyLoaded) messages.push(ai)
           }
           // Commit title, messages and stream state together; ignore stale selections.
-          this.$patch({ current: conversation, messages, streaming: pending?.streaming ?? false })
+          this.$patch((state) => {
+            state.current = conversation
+            state.messages = messages
+            state.streaming = pending?.streaming ?? false
+          })
           // Status hydration must not hold up history or overwrite a newer buyer decision.
           for (const action of this.messages.flatMap((message) => message.actions || [])) {
             const status = action.status
@@ -108,6 +112,14 @@ export const useChatStore = defineStore('chat', {
         }
       })()
       return load.promise
+    },
+
+    /** Revalidate cached metadata without blanking or refetching the displayed history. */
+    async refreshCurrent() {
+      const conversation = this.current
+      if (!conversation) return
+      const fresh = await apiConversationDetail(conversation.conversationId)
+      if (this.current === conversation) this.current = fresh
     },
 
     /** 转人工后轮询：新消息（含 AGENT 消息）+ 会话状态（感知客服接入/服务结束） */
@@ -235,6 +247,9 @@ export const useChatStore = defineStore('chat', {
         } else if (aiMsg.status === 'STOPPED') {
           flushPartial()
           if (!aiMsg.content) aiMsg.content = '已停止生成'
+        }
+        for (const card of toolCards) {
+          if (card.status === 'running') card.status = 'interrupted'
         }
         // 清理流式状态：完成后服务端已落库，切回时走接口加载，不再依赖内存
         if (this.pendingByConv[conversationId]?.aiMessage === aiMsg) {

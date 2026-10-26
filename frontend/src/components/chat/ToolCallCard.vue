@@ -63,7 +63,8 @@
       <el-icon class="tool-icon"><component :is="icon" /></el-icon>
       <span class="tool-label">{{ label }}</span>
       <el-icon v-if="card.status === 'running'" class="is-loading"><Loading /></el-icon>
-      <el-icon v-else class="done-icon"><CircleCheck /></el-icon>
+      <el-icon v-else-if="card.status === 'done'" class="done-icon"><CircleCheck /></el-icon>
+      <span v-else class="interrupted-label">未完成</span>
     </div>
     <el-collapse v-if="card.result?.preview" class="tool-detail">
       <el-collapse-item title="查看结果" name="detail"><div class="preview">{{ card.result.preview }}</div></el-collapse-item>
@@ -186,6 +187,7 @@ function maskPhone(phone?: string) { return (phone || '').replace(/(\d{3})\d{4}(
   color: var(--el-text-color-regular, #606266);
   font-size: 12px;
 }
+.interrupted-label { color: var(--el-text-color-secondary); font-size: 11px; }
 .tool-card.running { border-color: var(--el-color-primary-light-7); }
 .tool-head { display: flex; align-items: center; gap: 6px; }
 .tool-icon { color: var(--el-color-primary); }

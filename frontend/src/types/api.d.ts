@@ -200,7 +200,7 @@ export interface ToolCard {
   args?: Record<string, unknown>
   result?: { preview?: string }
   elapsedMs?: number
-  status: 'running' | 'done'
+  status: 'running' | 'done' | 'interrupted'
 }
 
 export interface OrderApprovalForm {

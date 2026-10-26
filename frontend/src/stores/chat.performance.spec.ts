@@ -103,6 +103,20 @@ describe('conversation loading performance', () => {
     expect(chat.messages[0].actions![0].status).toBe('CONFIRMING')
   })
 
+  it('refreshes cached conversation metadata without refetching or replacing history', async () => {
+    const chat = useChatStore(), detail = deferred<any>()
+    chat.current = conversation(7)
+    chat.messages = [{ role: 'AI', content: '缓存的回答' }]
+    api.detail.mockReturnValue(detail.promise)
+    const refresh = chat.refreshCurrent()
+    expect(chat.messages[0].content).toBe('缓存的回答')
+    expect(api.messages).not.toHaveBeenCalled()
+    detail.resolve({ ...conversation(7), status: 'CLOSED' })
+    await refresh
+    expect(chat.current.status).toBe('CLOSED')
+    expect(chat.messages[0].content).toBe('缓存的回答')
+  })
+
   it('retains the old view and clears loading on failure', async () => {
     const chat = useChatStore()
     chat.current = conversation(7)
@@ -175,6 +189,15 @@ describe('stream rendering lifecycle', () => {
     completion.resolve(); await sending
     expect(chat.messages[1].status).toBe('FAILED')
     expect(chat.messages[1].content).toContain('中断')
+  })
+
+  it.each(['error', 'stop'])('ends running tool indicators on %s', async (reason) => {
+    const { chat, completion, sending, handlers } = start()
+    handlers.onToolCall({ callId: 'pending-tool', tool: 'product_search' })
+    if (reason === 'stop') chat.stopStream()
+    else { handlers.onError({ code: 5001, message: '中断' }); completion.resolve() }
+    await sending
+    expect(chat.messages[1].toolCalls?.[0].status).toBe('interrupted')
   })
 
   it('does not clear a newer stream when a stopped older stream finishes', async () => {
