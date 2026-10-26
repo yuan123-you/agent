@@ -275,7 +275,7 @@
                 :disabled="!selectedAddressId"
                 @click="submit"
               >
-                立即支付 ￥{{ payableAmount }}
+                模拟支付 ￥{{ payableAmount }}
               </el-button>
             </div>
           </div>

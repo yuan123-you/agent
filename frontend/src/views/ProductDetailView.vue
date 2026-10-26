@@ -250,6 +250,7 @@
             <span class="smb-qty-label">选购数量</span>
             <el-input-number v-model="quantity" :min="1" :max="stockLimit" size="small" />
           </div>
+          <p class="smb-qty-label" role="note">演示商城：仅支持模拟支付，不产生真实扣款或发货。</p>
         </div>
 
         <template #footer>
