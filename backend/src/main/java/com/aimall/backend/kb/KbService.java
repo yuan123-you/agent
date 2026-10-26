@@ -8,6 +8,7 @@ import com.aimall.backend.entity.KbDoc;
 import com.aimall.backend.mapper.KbChunkMapper;
 import com.aimall.backend.mapper.KbDocMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,27 +90,35 @@ public class KbService {
         body.put("doc_version", doc.getVersion());
         body.put("file_url", "/internal/files/" + doc.getId());
         body.put("file_format", doc.getFileFormat());
+        Long docId = doc.getId();
+        Integer docVersion = doc.getVersion();
         aiClient.triggerIngest(body).subscribe(
                 ok -> { },
                 e -> {
-                    log.warn("trigger ingest failed doc={}: {}", doc.getId(), e.getMessage());
-                    markStatus(doc.getId(), "FAILED", "AI 服务不可达: " + e.getMessage());
+                    log.warn("trigger ingest failed doc={}: {}", docId, e.getMessage());
+                    KbDoc failed = new KbDoc();
+                    failed.setStatus("FAILED");
+                    failed.setFailReason("AI 服务不可达: " + e.getMessage());
+                    kbDocMapper.update(failed, new LambdaUpdateWrapper<KbDoc>()
+                            .eq(KbDoc::getId, docId)
+                            .eq(KbDoc::getVersion, docVersion)
+                            .eq(KbDoc::getStatus, "PROCESSING"));
                 }
         );
     }
 
     /** Scheduler entry point: mark one seed PROCESSING before asynchronously dispatching it. */
     public void dispatchSeedDocument(KbDoc doc) {
-        markStatus(doc.getId(), "PROCESSING", null);
-        doc.setStatus("PROCESSING");
-        triggerIngest(doc);
+        if (markSeedProcessing(doc)) {
+            triggerIngest(doc);
+        }
     }
     /** 停用：删除 Milvus 向量（检索即失效）；启用：重建索引 */
     public void toggleStatus(Long id, String status) {
         KbDoc doc = requireDoc(id);
         if ("DISABLED".equals(status)) {
-            blockDelete(doc, 0);
             markStatus(id, "DISABLED", null);
+            blockDelete(doc, 0);
         } else if ("ACTIVE".equals(status)) {
             if ("ACTIVE".equals(doc.getStatus())) {
                 return;
@@ -127,7 +136,13 @@ public class KbService {
         upd.setId(doc.getId());
         upd.setVersion(doc.getVersion() + 1);
         upd.setStatus("PROCESSING");
-        kbDocMapper.updateById(upd);
+        int changed = kbDocMapper.update(upd, new LambdaUpdateWrapper<KbDoc>()
+                .eq(KbDoc::getId, id)
+                .eq(KbDoc::getVersion, doc.getVersion())
+                .eq(KbDoc::getStatus, doc.getStatus()));
+        if (changed != 1) {
+            throw new BizException(2001, "文档状态已变化，请重试");
+        }
         doc.setVersion(doc.getVersion() + 1);
         doc.setStatus("PROCESSING");
         triggerIngest(doc);
@@ -183,10 +198,10 @@ public class KbService {
     public void seedPolicyIfNeeded() {
         try {
             KbDoc doc = ensureSeedPolicy();
-            if (doc == null || "ACTIVE".equals(doc.getStatus())) {
+            if (doc == null || !("PENDING".equals(doc.getStatus()) || "FAILED".equals(doc.getStatus()))
+                    || !markSeedProcessing(doc)) {
                 return;
             }
-            markSeedProcessing(doc);
             triggerIngest(doc);
             log.info("seed policy ingest triggered: id={}", doc.getId());
         } catch (Exception e) {
@@ -205,11 +220,10 @@ public class KbService {
                 return;
             }
             boolean failed = "FAILED".equals(doc.getStatus());
-            boolean stuck = doc.getUpdatedAt() != null
+            boolean stuck = "PROCESSING".equals(doc.getStatus()) && doc.getUpdatedAt() != null
                     && doc.getUpdatedAt().isBefore(LocalDateTime.now().minusSeconds(120));
-            if (failed || stuck) {
+            if ((failed || stuck) && markSeedProcessing(doc)) {
                 log.info("seed policy retry: id={} status={}", doc.getId(), doc.getStatus());
-                markSeedProcessing(doc);
                 triggerIngest(doc);
             }
         } catch (Exception e) {
@@ -217,13 +231,30 @@ public class KbService {
         }
     }
 
-    private void markSeedProcessing(KbDoc doc) {
-        KbDoc upd = new KbDoc();
-        upd.setId(doc.getId());
-        upd.setStatus("PROCESSING");
-        upd.setFailReason(null);
-        kbDocMapper.updateById(upd);
+    private boolean markSeedProcessing(KbDoc doc) {
+        String status = doc.getStatus();
+        if (!Set.of("PENDING", "FAILED", "PROCESSING").contains(status)) {
+            return false;
+        }
+        // A retry is a new task: old callbacks must not complete the replacement attempt.
+        int nextVersion = "PENDING".equals(status) ? doc.getVersion() : doc.getVersion() + 1;
+        LambdaUpdateWrapper<KbDoc> guard = new LambdaUpdateWrapper<KbDoc>()
+                .eq(KbDoc::getId, doc.getId())
+                .eq(KbDoc::getVersion, doc.getVersion())
+                .eq(KbDoc::getStatus, status);
+        if ("PROCESSING".equals(status)) {
+            guard.eq(KbDoc::getUpdatedAt, doc.getUpdatedAt());
+        }
+        guard.set(KbDoc::getStatus, "PROCESSING")
+                .set(KbDoc::getVersion, nextVersion)
+                .set(KbDoc::getFailReason, null)
+                .set(KbDoc::getUpdatedAt, LocalDateTime.now());
+        if (kbDocMapper.update(null, guard) != 1) {
+            return false;
+        }
+        doc.setVersion(nextVersion);
         doc.setStatus("PROCESSING");
+        return true;
     }
 
     public record DocumentContent(String title, String format, byte[] bytes) { }

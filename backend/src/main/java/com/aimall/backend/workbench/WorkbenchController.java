@@ -66,8 +66,8 @@ public class WorkbenchController {
     }
 
     @GetMapping("/conversations/{id}/messages")
-    public ApiResponse<List<Message>> messages(@PathVariable Long id) {
-        return ApiResponse.ok(workbenchService.history(id));
+    public ApiResponse<List<Message>> messages(@AuthenticationPrincipal Long agentId, @PathVariable Long id) {
+        return ApiResponse.ok(workbenchService.history(agentId, id));
     }
 
     /** 会话状态（客服端轮询：感知买家主动结束会话） */

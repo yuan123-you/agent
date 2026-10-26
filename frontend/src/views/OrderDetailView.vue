@@ -23,7 +23,7 @@
         <el-button v-if="order.status === 'SHIPPED'" type="success" size="small" round @click="confirmReceipt">
           确认收货
         </el-button>
-        <el-button v-if="order.status === 'DELIVERED'" type="warning" size="small" round @click="goToReview">
+        <el-button v-if="canReview" type="warning" size="small" round @click="goToReview">
           评价晒单
         </el-button>
       </div>
@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -159,6 +159,8 @@ const route = useRoute()
 const router = useRouter()
 const order = ref<OrderVO | null>(null)
 const shippingSimulating = ref(false)
+let generation = 0
+const canReview = computed(() => order.value?.status === 'DELIVERED' && order.value.items.some(i => i.canReview && !i.reviewed))
 
 function goBack() {
   if (window.history.length > 1) router.back()
@@ -183,17 +185,21 @@ const statusBannerSub = computed(() => {
     case 'PENDING_PAYMENT': return '请在 30 分钟内完成支付，超时订单将自动关闭'
     case 'PAID': return '智能仓储正在加急出库，点击右侧可模拟商家发货'
     case 'SHIPPED': return '顺丰特快专递直达，预计明日送达'
-    case 'DELIVERED': return '已确认收货，可点击右侧评价商品分享使用心得'
+    case 'DELIVERED': return canReview.value ? '已确认收货，可点击右侧评价商品分享使用心得' : '已确认收货，感谢您的支持'
     case 'CANCELLED': return '款项已原路退回，库存已回补'
     default: return ''
   }
 })
 
 async function load() {
+  const requestGeneration = ++generation
+  const id = Number(route.params.id)
+  if (!Number.isSafeInteger(id) || id <= 0) { void router.replace('/404'); return }
   try {
-    order.value = await apiOrderDetail(Number(route.params.id))
-  } catch {
-    router.replace('/404')
+    const result = await apiOrderDetail(id)
+    if (requestGeneration === generation) order.value = result
+  } catch (error: any) {
+    if (requestGeneration === generation && error?.code === 2002) void router.replace('/404')
   }
 }
 
@@ -217,17 +223,28 @@ async function handleSimulateShip() {
 }
 
 async function confirmReceipt() {
-  await ElMessageBox.confirm('确认已收到商品？', '确认收货', { type: 'info' })
-  await apiConfirmReceipt(order.value!.orderId)
-  ElMessage.success('已确认收货，感谢您的支持！')
-  await load()
+  const id = order.value?.orderId
+  const requestGeneration = generation
+  if (!id) return
+  try {
+    await ElMessageBox.confirm('确认已收到商品？', '确认收货', { type: 'info' })
+    if (requestGeneration !== generation || order.value?.orderId !== id) return
+    await apiConfirmReceipt(id)
+    if (requestGeneration !== generation || order.value?.orderId !== id) return
+    ElMessage.success('已确认收货，感谢您的支持！')
+    await load()
+  } catch {
+    // Dialog dismissal is not an error; API failures are already reported.
+  }
 }
 
 function goToReview() {
+  if (!canReview.value) return
   router.push({ path: '/orders', query: { reviewOrderId: order.value?.orderId } })
 }
 
-onMounted(load)
+watch(() => route.params.id, () => { order.value = null; void load() }, { immediate: true })
+onUnmounted(() => { generation++ })
 </script>
 
 <style scoped>

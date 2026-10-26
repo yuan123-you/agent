@@ -21,6 +21,7 @@ public interface OrderInfoMapper extends BaseMapper<OrderInfo> {
             "<if test='update.shippedAt != null'>, shipped_at=#{update.shippedAt}</if>",
             "<if test='update.deliveredAt != null'>, delivered_at=#{update.deliveredAt}</if>",
             "<if test='update.logisticsNo != null'>, logistics_no=#{update.logisticsNo}</if>",
+            "<if test='update.deliveryCompany != null'>, delivery_company=#{update.deliveryCompany}</if>",
             "WHERE id=#{update.id} AND status=#{expectedStatus}",
             "</script>"})
     int transition(@Param("expectedStatus") String expectedStatus, @Param("update") OrderInfo update);

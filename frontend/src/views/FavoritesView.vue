@@ -40,11 +40,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiFavoriteToggle, apiFavorites } from '@/api'
 import type { ProductVO } from '@/types/api'
 
 type FavProduct = ProductVO & { time: string }
+
+const router = useRouter()
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
+}
 
 const products = ref<FavProduct[]>([])
 const loading = ref(false)

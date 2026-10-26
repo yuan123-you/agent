@@ -45,11 +45,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiHistory, apiHistoryClear } from '@/api'
 import type { ProductVO } from '@/types/api'
 
 type HisProduct = ProductVO & { time: string }
+
+const router = useRouter()
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
+}
 
 const products = ref<HisProduct[]>([])
 const loading = ref(false)

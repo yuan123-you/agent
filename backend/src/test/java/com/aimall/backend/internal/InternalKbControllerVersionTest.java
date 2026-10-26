@@ -53,10 +53,12 @@ class InternalKbControllerVersionTest {
 
     @Test
     void activeIngestPrunesSupersededRelationalChunks() {
-        KbDoc doc = doc(7L, "ACTIVE", 3, "退换货政策");
-        when(docMapper.selectById(7L)).thenReturn(doc);
+        KbDoc doc = doc(7L, "PROCESSING", 3, "退换货政策");
+        when(docMapper.selectForUpdate(7L)).thenReturn(doc);
+        when(docMapper.update(any(KbDoc.class), any())).thenReturn(1);
         InternalKbController.ResultBody body = new InternalKbController.ResultBody();
         body.setDocId(7L);
+        body.setDocVersion(3);
         body.setStatus("ACTIVE");
         body.setChunkCount(4);
 
@@ -68,7 +70,7 @@ class InternalKbControllerVersionTest {
         String sql = captor.getValue().getSqlSegment();
         assertTrue(sql.contains("doc_id"), sql);
         assertTrue(sql.contains("doc_version"), sql);
-        verify(docMapper).updateById(any(KbDoc.class));
+        verify(docMapper).update(any(KbDoc.class), any());
     }
 
     @Test

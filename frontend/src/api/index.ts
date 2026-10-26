@@ -115,7 +115,7 @@ export interface ReviewVO {
 export const apiReviews = (productId: number, params: Record<string, unknown>) =>
   get<PageResult<ReviewVO> & { avgRating: number; ratingDistribution: Record<string, number> }>(
     `/products/${productId}/reviews`, { params })
-export const apiReviewCreate = (productId: number, body: { rating: number; content: string; specInfo?: string }) =>
+export const apiReviewCreate = (productId: number, body: { orderItemId?: number; rating: number; content: string; specInfo?: string }) =>
   post<void>(`/products/${productId}/reviews`, body)
 
 // ---------- 商家端 ----------
@@ -198,53 +198,56 @@ export const apiAddressDelete = (id: number) => del<void>(`/addresses/${id}`)
 export function subscribeOrderStatus(onEvent: (o: { orderId: number; orderNo: string; status: string }) => void): { stop: () => void } {
   const controller = new AbortController()
   const token = localStorage.getItem('token') || ''
-  if (!token) {
-    return { stop: () => {} }
-  }
+  if (!token) return { stop: () => {} }
+  let stopped = false
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+  let cancellation: Promise<void> | undefined
+  const cancelReader = () => reader && (cancellation ??= reader.cancel().catch(() => {}))
   const run = async () => {
     try {
       const resp = await fetch(`${API_BASE}/orders/subscribe`, {
         headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
-      if (!resp.ok) return
-      const reader = resp.body?.getReader()
+      if (!resp.ok) { await resp.body?.cancel(); return }
+      reader = resp.body?.getReader()
       if (!reader) return
       const decoder = new TextDecoder()
       let buffer = ''
       let event = ''
       let data = ''
-      while (!controller.signal.aborted) {
+      while (!stopped) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done || stopped) break
         buffer += decoder.decode(value, { stream: true })
         let idx: number
-        while ((idx = buffer.indexOf('\n')) >= 0) {
+        while (!stopped && (idx = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, idx).replace(/\r$/, '')
           buffer = buffer.slice(idx + 1)
           if (line === '') {
             if (event === 'order_status' && data) {
-              try { onEvent(JSON.parse(data)) } catch { /* ignore */ }
+              try { onEvent(JSON.parse(data)) } catch { /* ignore malformed events */ }
             }
-            event = ''
-            data = ''
-          } else if (line.startsWith('event:')) {
-            event = line.slice(6).trim()
-          } else if (line.startsWith('data:')) {
-            data += line.slice(5).trimStart()
-          }
+            event = ''; data = ''
+          } else if (line.startsWith('event:')) event = line.slice(6).trim()
+          else if (line.startsWith('data:')) data += line.slice(5).trimStart()
         }
       }
     } catch {
-      // AbortError is normal during navigation teardown
+      // Cancellation is normal during navigation; never leave an unhandled rejection.
+    } finally {
+      await cancelReader()
+      reader?.releaseLock()
     }
   }
-  run().catch(() => {})
+  void run().catch(() => {})
   return {
     stop: () => {
-      try {
-        if (!controller.signal.aborted) controller.abort()
-      } catch {}
+      if (stopped) return
+      stopped = true
+      // Cancel the response body after connection; abort only an unfinished handshake.
+      if (reader) void cancelReader()
+      else controller.abort()
     },
   }
 }

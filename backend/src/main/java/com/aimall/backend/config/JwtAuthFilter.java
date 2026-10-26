@@ -1,5 +1,7 @@
 package com.aimall.backend.config;
 
+import com.aimall.backend.entity.User;
+import com.aimall.backend.mapper.UserMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * JWT 认证过滤器：校验签名/过期/黑名单，注入 userId 与角色
+ * JWT 认证过滤器：校验签名/过期/黑名单/账号状态，注入 userId 与角色
  */
 @Component
 @RequiredArgsConstructor
@@ -25,6 +27,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final StringRedisTemplate redisTemplate;
+    private final UserMapper userMapper;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -54,6 +57,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 } catch (Exception ignore) {
                 }
                 Long userId = Long.valueOf(claims.getSubject());
+                User user = userMapper.selectById(userId);
+                if (user == null || !"ACTIVE".equals(user.getStatus())) {
+                    throw new IllegalArgumentException("account unavailable");
+                }
                 String role = claims.get(JwtService.CLAIM_ROLE, String.class);
                 var auth = new UsernamePasswordAuthenticationToken(
                         userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));

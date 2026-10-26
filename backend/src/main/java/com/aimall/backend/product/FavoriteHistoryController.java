@@ -70,6 +70,7 @@ public class FavoriteHistoryController {
     public ApiResponse<Map<String, Object>> list(@AuthenticationPrincipal Long userId,
                                                  @RequestParam(defaultValue = "1") long page,
                                                  @RequestParam(defaultValue = "20") long size) {
+        requirePagination(page, size);
         List<Favorite> favors = favoriteMapper.selectList(new LambdaQueryWrapper<Favorite>()
                 .eq(Favorite::getUserId, userId)
                 .orderByDesc(Favorite::getId)
@@ -115,6 +116,7 @@ public class FavoriteHistoryController {
     public ApiResponse<Map<String, Object>> history(@AuthenticationPrincipal Long userId,
                                                     @RequestParam(defaultValue = "1") long page,
                                                     @RequestParam(defaultValue = "20") long size) {
+        requirePagination(page, size);
         List<BrowseHistory> list = historyMapper.selectList(new LambdaQueryWrapper<BrowseHistory>()
                 .eq(BrowseHistory::getUserId, userId)
                 .orderByDesc(BrowseHistory::getViewedAt)
@@ -141,8 +143,15 @@ public class FavoriteHistoryController {
 
     // ==================== 通用 ====================
 
+    private void requirePagination(long page, long size) {
+        if (page < 1 || size < 1 || size > 500 || page - 1 > Long.MAX_VALUE / size) {
+            throw new BizException(2001, "分页参数不合法，page须为正整数，size范围1~500");
+        }
+    }
+
     private Map<String, Object> productBrief(Product p, Object time) {
         Map<String, Object> row = new HashMap<>();
+        row.put("id", p.getId());
         row.put("productId", p.getId());
         row.put("name", p.getName());
         row.put("imageUrl", p.getImageUrl());

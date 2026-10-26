@@ -85,7 +85,16 @@ public class WorkbenchService {
         conversationMapper.updateById(upd);
     }
 
-    public List<Message> history(Long conversationId) {
+    public List<Message> history(Long agentId, Long conversationId) {
+        Conversation conv = conversationMapper.selectById(conversationId);
+        if (conv == null) {
+            throw new BizException(2002, "会话不存在");
+        }
+        // 保留本人已结束会话的轮询读取，不开放未接管会话或其他客服的会话。
+        if (!agentId.equals(conv.getAgentId())
+                || !("SERVICING".equals(conv.getStatus()) || "CLOSED".equals(conv.getStatus()))) {
+            throw new BizException(2004, "会话不在您的服务中");
+        }
         return messageMapper.selectList(new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId)
                 .orderByAsc(Message::getId));

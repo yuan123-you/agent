@@ -73,9 +73,11 @@ instance.interceptors.response.use(
         ElMessage.error(body?.message || '用户名或密码错误')
         return Promise.reject(body)
       }
-      const token = await tryRefresh()
-      if (token) {
-        return instance(error.config)
+      const config = error.config as (AxiosRequestConfig & { _authRetried?: boolean }) | undefined
+      if (config && !config._authRetried) {
+        config._authRetried = true
+        const token = await tryRefresh()
+        if (token) return instance(config)
       }
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')

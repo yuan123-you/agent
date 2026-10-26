@@ -22,7 +22,10 @@ public class MybatisPlusConfig {
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        PaginationInnerInterceptor pagination = new PaginationInnerInterceptor(DbType.MYSQL);
+        // A negative Page size otherwise disables LIMIT entirely. Preserve the existing 500-row admin selector.
+        pagination.setMaxLimit(500L);
+        interceptor.addInnerInterceptor(pagination);
         return interceptor;
     }
 

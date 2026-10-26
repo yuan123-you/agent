@@ -141,14 +141,16 @@ public class OrderService {
                 continue;
             }
             Product product = productMapper.selectById(item.getProductId());
-            if (product != null) {
-                restock(product, item.getQuantity());
+            if (product == null) {
+                throw new BizException(2005, "订单商品不存在，库存回补失败");
             }
+            restock(product, item.getQuantity());
             if (item.getSkuId() != null) {
                 MallSku sku = skuMapper.selectById(item.getSkuId());
-                if (sku != null) {
-                    restockSku(sku, item.getQuantity());
+                if (sku == null) {
+                    throw new BizException(2108, "订单商品规格不存在，库存回补失败");
                 }
+                restockSku(sku, item.getQuantity());
             }
         }
         // 优惠券回退为未使用

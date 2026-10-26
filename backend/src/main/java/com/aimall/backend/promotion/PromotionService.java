@@ -112,10 +112,13 @@ public class PromotionService {
         int updated = couponMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<MallCoupon>()
                         .eq(MallCoupon::getId, couponId)
+                        .eq(MallCoupon::getStatus, "ENABLE")
+                        .apply("(start_time IS NULL OR start_time <= CURRENT_TIMESTAMP)")
+                        .apply("(end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)")
                         .apply("received_count < total_count")
                         .setSql("received_count = received_count + 1"));
         if (updated != 1) {
-            throw new BizException(2204, "优惠券已领完");
+            throw new BizException(2204, "优惠券已领完或领取状态已变化");
         }
         int validDays = coupon.getValidDays() == null ? 7 : coupon.getValidDays();
         UserCoupon uc = new UserCoupon();
@@ -234,7 +237,7 @@ public class PromotionService {
                 return;
             }
         }
-        log.warn("seckill stock restock failed after retries: seckillId={}, qty={}", seckillId, quantity);
+        throw new BizException(2206, "秒杀库存回补失败，请重试");
     }
 
     /** 券优惠金额校验（不核销）：返回优惠额 */
@@ -279,12 +282,18 @@ public class PromotionService {
         if (uc == null || !"USED".equals(uc.getStatus())) {
             return;
         }
-        UserCoupon upd = new UserCoupon();
-        upd.setId(uc.getId());
-        upd.setStatus("UNUSED");
-        upd.setUsedOrderId(null);
-        upd.setUsedAt(null);
-        userCouponMapper.updateById(upd);
+        int updated = userCouponMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserCoupon>()
+                        .eq(UserCoupon::getId, uc.getId())
+                        .eq(UserCoupon::getStatus, "USED")
+                        .eq(uc.getUsedOrderId() != null, UserCoupon::getUsedOrderId, uc.getUsedOrderId())
+                        .isNull(uc.getUsedOrderId() == null, UserCoupon::getUsedOrderId)
+                        .set(UserCoupon::getStatus, "UNUSED")
+                        .set(UserCoupon::getUsedOrderId, null)
+                        .set(UserCoupon::getUsedAt, null));
+        if (updated != 1) {
+            throw new BizException(2209, "优惠券使用状态已变化，回退失败");
+        }
     }
 
     /** 下单前可用券预览（结算页展示） */
@@ -360,7 +369,18 @@ public class PromotionService {
         if (req.getStartTime() != null) upd.setStartTime(req.getStartTime());
         if (req.getEndTime() != null) upd.setEndTime(req.getEndTime());
         if (req.getValidDays() != null) upd.setValidDays(req.getValidDays());
-        couponMapper.updateById(upd);
+        var guard = new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<MallCoupon>()
+                .eq(MallCoupon::getId, id);
+        if (req.getTotalCount() != null) {
+            if (req.getTotalCount() <= 0) {
+                throw new BizException(2001, "发行量必须大于0");
+            }
+            // Compare against the current database count, not the earlier template snapshot.
+            guard.le(MallCoupon::getReceivedCount, req.getTotalCount());
+        }
+        if (couponMapper.update(upd, guard) != 1) {
+            throw new BizException(2001, "发行量不能小于已领取数量或优惠券已变化");
+        }
     }
 
     @Transactional

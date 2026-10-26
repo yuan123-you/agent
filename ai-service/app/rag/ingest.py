@@ -110,7 +110,7 @@ async def run_ingest(task: IngestTask) -> None:
         chunks = [{"chunkIndex": i, "content": t, "tokenCount": len(t) // 2} for i, t in enumerate(texts)]
 
         # ① 网关预分配 chunk id（MySQL kb_chunk 落库）——关键词检索的数据基础
-        resp = await backend_client.kb_chunks_batch(task.doc_id, chunks)
+        resp = await backend_client.kb_chunks_batch(task.doc_id, chunks, doc_version=task.doc_version)
         if "ids" not in resp:
             raise RuntimeError(str(resp.get("error", "chunks batch failed")))
         ids = resp["ids"]
@@ -149,11 +149,13 @@ async def run_ingest(task: IngestTask) -> None:
                 task.doc_id, e)
             vectorized = 0
 
-        await backend_client.kb_result(task.doc_id, "ACTIVE", len(chunks), vector_count=vectorized)
+        await backend_client.kb_result(
+            task.doc_id, "ACTIVE", len(chunks), vector_count=vectorized, doc_version=task.doc_version)
         logger.info("ingest done doc=%s chunks=%s", task.doc_id, len(chunks))
     except Exception as e:
         logger.error("ingest failed doc=%s: %s", task.doc_id, e)
-        await backend_client.kb_result(task.doc_id, "FAILED", 0, str(e)[:200])
+        await backend_client.kb_result(
+            task.doc_id, "FAILED", 0, str(e)[:200], doc_version=task.doc_version)
 
 
 # ========== 商品语料向量化 ==========

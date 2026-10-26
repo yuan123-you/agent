@@ -44,7 +44,6 @@
           </div>
           <div class="spb-right">
             <span class="spb-sales">销量 {{ formatSales(product.sales) }}</span>
-            <span class="spb-rate">好评率 99.4%</span>
           </div>
         </div>
       </div>
@@ -63,8 +62,7 @@
           <div class="coupon-cell-row">
             <span class="cell-label">领　券</span>
             <div class="coupon-chips">
-              <span class="coupon-chip" @click="claimDetailCoupon('满100减20')">满100减20 <i>领</i></span>
-              <span class="coupon-chip" @click="claimDetailCoupon('满300减50')">满300减50 <i>领</i></span>
+              <span class="coupon-chip" @click="router.push('/coupons')">查看可领取优惠券 <i>去领券</i></span>
             </div>
             <span class="cell-more" @click="$router.push('/coupons')">更多券 ›</span>
           </div>
@@ -97,6 +95,12 @@
           </div>
         </div>
 
+        <p v-if="skuLoading" class="sku-loading" role="status">规格加载中…</p>
+        <p v-else-if="skuError" class="sku-error" role="alert">
+          {{ skuError }}
+          <el-button link type="primary" @click="loadSkus">重试</el-button>
+        </p>
+
         <!-- ============ 模块 1：买家评价 (单独卡片，不使用 Tab 栏，大厂标配置顶) ============ -->
         <section class="section-card mall-card">
           <div class="sc-header">
@@ -104,18 +108,19 @@
               <h3 class="sc-title">商品评价</h3>
               <span class="sc-subtitle">({{ reviews.length }})</span>
             </div>
-            <span class="sc-more-link">好评率 99.4% ›</span>
           </div>
 
           <div class="review-tag-chips">
             <span class="r-chip active">全部 ({{ reviews.length }})</span>
-            <span class="r-chip">质量很好</span>
-            <span class="r-chip">顺丰极速</span>
-            <span class="r-chip">音质好评</span>
-            <span class="r-chip">做工精细</span>
           </div>
 
           <div class="reviews-list">
+            <p v-if="reviewLoading" role="status">评价加载中…</p>
+            <p v-else-if="reviewError" class="review-error" role="alert">
+              {{ reviewError }}
+              <el-button link type="primary" @click="loadReviews">重试</el-button>
+            </p>
+            <p v-else-if="!reviews.length">暂无评价</p>
             <div v-for="r in reviews" :key="r.reviewId" class="review-item-row">
               <div class="ri-user">
                 <el-avatar :size="28" class="ri-avatar">{{ r.nickname.slice(0, 1) }}</el-avatar>
@@ -182,7 +187,7 @@
           <el-icon :size="18"><ChatDotRound /></el-icon>
           <span>客服</span>
         </div>
-        <div class="mobile-icon-btn" @click="toggleFavorite">
+        <div class="mobile-icon-btn" :aria-busy="favoriteLoading" :aria-disabled="favoriteLoading" @click="toggleFavorite">
           <el-icon :size="18" :class="{ 'is-favorited': favorited }">
             <StarFilled v-if="favorited" />
             <Star v-else />
@@ -198,14 +203,14 @@
         <div class="mobile-act-btns">
           <button
             class="m-cart-btn"
-            :disabled="stockLimit === 0 || buyBlocked"
+            :disabled="purchaseLoading || stockLimit === 0 || buyBlocked"
             @click="showSpec = true"
           >
             加入购物车
           </button>
           <button
             class="m-buy-btn"
-            :disabled="stockLimit === 0 || buyBlocked"
+            :disabled="purchaseLoading || stockLimit === 0 || buyBlocked"
             @click="showSpec = true"
           >
             立即购买
@@ -255,8 +260,8 @@
 
         <template #footer>
           <div class="modal-footer-btns">
-            <button class="mf-cart-btn" @click="handleConfirmAddToCart">加入购物车</button>
-            <button class="mf-buy-btn" @click="handleConfirmBuyNow">立即购买</button>
+            <button class="mf-cart-btn" :disabled="purchaseLoading || stockLimit === 0 || buyBlocked" @click="handleConfirmAddToCart">加入购物车</button>
+            <button class="mf-buy-btn" :disabled="purchaseLoading || stockLimit === 0 || buyBlocked" @click="handleConfirmBuyNow">立即购买</button>
           </div>
         </template>
       </el-dialog>
@@ -287,11 +292,16 @@
         </transition>
       </Teleport>
     </div>
+    <p v-else-if="productLoading" class="product-loading" role="status">商品加载中…</p>
+    <div v-else-if="productError" class="product-error" role="alert">
+      {{ productError }}
+      <el-button type="primary" @click="loadProduct">重试</el-button>
+    </div>
   </el-scrollbar>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, HomeFilled, ChatDotRound, Star, StarFilled, ShoppingCart } from '@element-plus/icons-vue'
@@ -304,13 +314,13 @@ import {
   apiProductDetail,
   apiCatalogProductSkus,
   apiReviews,
+  type ReviewVO,
   apiSeckills,
 } from '@/api'
 import { categoryName } from '@/constants/categories'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
-import { MASSIVE_PRODUCTS } from '@/data/products'
-import type { ProductVO, ReviewVO, SkuVO } from '@/types/api'
+import type { ProductVO, SkuVO } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -318,10 +328,18 @@ const auth = useAuthStore()
 const cart = useCartStore()
 
 const product = ref<ProductVO | null>(null)
+const productLoading = ref(false)
+const productError = ref('')
+let productRequest = 0
 const skus = ref<SkuVO[]>([])
+const skuLoading = ref(false)
+const skuError = ref('')
 const quantity = ref(1)
 const selectedSpecs = ref<Record<string, string>>({})
 const favorited = ref(false)
+const favoriteLoading = ref(false)
+let favoriteRequest = 0
+const purchaseLoading = ref(false)
 const showSpec = ref(false)
 const showImageMask = ref(false)
 
@@ -448,12 +466,12 @@ const stockLimit = computed(() => {
   if (seckill.value) {
     return Math.min(seckill.value.seckillStock, seckill.value.seckillLimit)
   }
-  const limit = selectedSku.value ? selectedSku.value.stock : product.value?.stock || 45
+  const limit = selectedSku.value ? selectedSku.value.stock : (product.value?.stock ?? 0)
   return Math.min(99, Math.max(0, limit))
 })
 
 const buyBlocked = computed(
-  () => skuGroups.value.length > 0 && (!selectedSku.value || selectedSku.value.stock === 0)
+  () => skuLoading.value || !!skuError.value || (skuGroups.value.length > 0 && (!selectedSku.value || selectedSku.value.stock === 0))
 )
 
 function pickSpec(key: string, value: string) {
@@ -490,26 +508,33 @@ const specs = computed(() => {
     })
 })
 
-function claimDetailCoupon(name: string) {
-  ElMessage.success(`已成功领取「${name}」优惠券，下单直接抵扣！`)
+async function handleConfirmAddToCart(): Promise<boolean> {
+  if (!product.value || purchaseLoading.value || stockLimit.value === 0 || buyBlocked.value) return false
+  const request = productRequest
+  const skuId = selectedSku.value?.id ?? 0
+  purchaseLoading.value = true
+  try {
+    const added = await cart.addToCart(product.value.id, quantity.value, skuId, true)
+    if (request !== productRequest) return false
+    if (added) showSpec.value = false
+    return added
+  } finally {
+    if (request === productRequest) purchaseLoading.value = false
+  }
 }
 
-async function handleConfirmAddToCart() {
-  if (!product.value) return
-  const skuId = selectedSku.value?.skuId || 0
-  await cart.addToCart(product.value.id, quantity.value, skuId, true)
-  showSpec.value = false
-}
-
-function handleConfirmBuyNow() {
+async function handleConfirmBuyNow() {
+  if (!product.value || purchaseLoading.value || stockLimit.value === 0 || buyBlocked.value) return
   if (!auth.isCustomer) {
     ElMessage.warning('请先登录后再进行购买')
     router.push({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
-  showSpec.value = false
-  handleConfirmAddToCart()
-  router.push({ path: '/cart', query: { checkout: '1' } })
+  const request = productRequest
+  const added = await handleConfirmAddToCart()
+  if (added && request === productRequest) {
+    router.push({ path: '/cart', query: { checkout: '1' } })
+  }
 }
 
 function openCartFromMobile() {
@@ -527,129 +552,124 @@ async function toggleFavorite() {
     ElMessage.warning('请先登录后再收藏')
     return
   }
-  if (!product.value) return
+  if (!product.value || favoriteLoading.value) return
+  const request = ++favoriteRequest
+  favoriteLoading.value = true
   try {
     const res = await apiFavoriteToggle(product.value.id)
+    if (request !== favoriteRequest) return
     favorited.value = res.favorited
     ElMessage.success(favorited.value ? '已添加到收藏' : '已取消收藏')
   } catch {
-    favorited.value = !favorited.value
+    if (request === favoriteRequest) ElMessage.error('收藏操作失败，请重试')
+  } finally {
+    if (request === favoriteRequest) favoriteLoading.value = false
   }
 }
 
-// 评价列表
+// 评价列表：空列表与加载失败分开呈现，不生成买家内容。
 const reviews = ref<ReviewVO[]>([])
 const reviewLoading = ref(false)
+const reviewError = ref('')
+let reviewRequest = 0
 
 async function loadReviews() {
-  if (!product.value) return
+  if (!product.value || reviewLoading.value) return
+  const id = product.value.id
+  const request = ++reviewRequest
   reviewLoading.value = true
+  reviewError.value = ''
   try {
-    const res = await apiReviews(product.value.id, { page: 1, size: 10 })
-    if (res.records && res.records.length > 0) {
-      reviews.value = res.records
-    } else {
-      throw new Error('empty')
-    }
+    const res = await apiReviews(id, { page: 1, size: 10 })
+    if (request !== reviewRequest) return
+    if (!Array.isArray(res.records)) throw new Error('Invalid reviews')
+    reviews.value = res.records
   } catch {
-    // 真实评价数据 (包含契约要求的 商家回复)
-    reviews.value = [
-      {
-        reviewId: 1,
-        nickname: '科技先锋买家_张**',
-        rating: 5,
-        content: '做工质感完全超出预期！原装顺丰次日达，包装完好无损，正品验机无误，体验非常棒。',
-        specInfo: '官方标配 / 太空灰',
-        createdAt: new Date().toISOString(),
-        merchantReply: '感谢您对官方旗舰店的支持与肯定！您的满意是我们最大的动力，祝您生活愉快！',
-      },
-      {
-        reviewId: 2,
-        nickname: '数码发烧友_Jack',
-        rating: 5,
-        content: '体验了三天再来评价，续航非常顶，佩戴舒适不压头，细节做工堪称艺术品，推荐购买！',
-        specInfo: '无线充电尊享版 / 皓月白',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        merchantReply: '收到您的好评倍感温暖！官方承诺 12 个月全国联保无忧售后，有任何问题随时联系我们！',
-      },
-    ]
+    if (request !== reviewRequest) return
+    reviews.value = []
+    reviewError.value = '评价加载失败，请重试。'
   } finally {
-    reviewLoading.value = false
+    if (request === reviewRequest) reviewLoading.value = false
   }
 }
 
-onMounted(async () => {
-  updateMobile()
-  window.addEventListener('resize', updateMobile)
+async function loadSkus() {
+  if (!product.value || skuLoading.value) return
+  const id = product.value.id
+  const request = productRequest
+  skuLoading.value = true
+  skuError.value = ''
+  try {
+    const list = await apiCatalogProductSkus(id)
+    if (request !== productRequest) return
+    skus.value = list
+  } catch {
+    if (request !== productRequest) return
+    skus.value = []
+    skuError.value = '规格加载失败，请重试。'
+  } finally {
+    if (request === productRequest) skuLoading.value = false
+  }
+}
+
+async function loadProduct() {
+  const request = ++productRequest
+  const favoriteVersion = ++favoriteRequest
+  ++reviewRequest
+  product.value = null
+  productLoading.value = true
+  productError.value = ''
+  reviews.value = []
+  reviewLoading.value = false
+  reviewError.value = ''
+  skus.value = []
+  skuLoading.value = false
+  skuError.value = ''
+  selectedSpecs.value = {}
+  quantity.value = 1
+  favorited.value = false
+  favoriteLoading.value = false
+  purchaseLoading.value = false
+  showSpec.value = false
+  showImageMask.value = false
+  activeImage.value = ''
+  activeImgIndex.value = 0
+  seckill.value = null
 
   const id = Number(route.params.id)
-
   try {
-    product.value = await apiProductDetail(id)
-  } catch {
-    const found = MASSIVE_PRODUCTS.find((p) => p.id === id) || MASSIVE_PRODUCTS[0]
-    product.value = {
-      id: found.id,
-      name: found.name,
-      price: found.price,
-      sales: found.sales,
-      stock: 48,
-      category: found.category,
-      brand: found.brand,
-      imageUrl: found.imageUrl,
-      sellingPoints: found.sellingPoints,
-      description: `### ${found.name} 官方正品旗舰介绍\n\n- **精选材质与工艺**：甄选航空级材质与人体工学精密结构，带来前所未有的纯粹质感体验。\n- **核心功能亮点**：全方位性能调优，出厂严苛质量测试，保障持久长效稳定输出。\n- **官方履约保障**：顺丰速运全国直发，支持 7 天无理由退换货与破损包赔。\n- **包装清单**：主机 × 1、原装快充线 × 1、使用说明指南 × 1、全国联保卡 × 1。\n- **关于物流**：当日 16:00 前下单当日出库，顺丰空运闪电送达。\n\n欢迎选购！`,
-      shipFrom: '北京顺义智能总仓',
-      origin: '中国广东',
-      material: '阳极氧化铝合金 / 亲肤环保材质',
-      productionDate: '2026年3月最新批次',
-      specs: '蓝牙5.3 / 顺丰直达 / 全国联保 / 7天无理由退货',
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid product id')
+    const detail = await apiProductDetail(id)
+    if (request !== productRequest) return
+    if (!detail || detail.id !== id) throw new Error('Product does not match route')
+    product.value = detail
+    activeImage.value = detail.imageUrl || ''
+    void loadSkus()
+    void loadReviews()
+    if (auth.isCustomer) {
+      apiFavoriteStatus(id).then((s) => {
+        if (request === productRequest && favoriteVersion === favoriteRequest) favorited.value = s.favorited
+      }).catch(() => {})
+      apiHistoryRecord(id).catch(() => {})
     }
+  } catch {
+    if (request === productRequest) productError.value = '商品加载失败，请重试。'
+  } finally {
+    if (request === productRequest) productLoading.value = false
   }
+}
 
-  activeImage.value = product.value?.imageUrl || ''
+watch(() => route.params.id, () => { void loadProduct() }, { immediate: true })
 
-  apiCatalogProductSkus(id)
-    .then((list) => {
-      if (!list || !list.length) throw new Error('empty skus')
-      skus.value = list
-    })
-    .catch(() => {
-      skus.value = [
-        {
-          skuId: 101,
-          productId: id,
-          name: '官方标配 / 太空灰',
-          price: product.value?.price || 1599,
-          stock: 45,
-          spData: JSON.stringify([
-            { key: '颜色分类', value: '太空灰' },
-            { key: '套餐版本', value: '官方标配' },
-          ]),
-        },
-        {
-          skuId: 102,
-          productId: id,
-          name: '无线快充尊享版 / 皓月白',
-          price: Math.round((product.value?.price || 1599) * 1.15),
-          stock: 28,
-          spData: JSON.stringify([
-            { key: '颜色分类', value: '皓月白' },
-            { key: '套餐版本', value: '无线快充尊享版' },
-          ]),
-        },
-      ]
-      selectedSpecs.value = { 颜色分类: '太空灰', 套餐版本: '官方标配' }
-    })
-
-  loadReviews()
-  if (auth.isCustomer) {
-    apiFavoriteStatus(id).then((s) => (favorited.value = s.favorited)).catch(() => {})
-    apiHistoryRecord(id).catch(() => {})
-  }
+onMounted(() => {
+  updateMobile()
+  window.addEventListener('resize', updateMobile)
 })
 
 onUnmounted(() => {
+  ++productRequest
+  ++reviewRequest
+  ++favoriteRequest
   window.removeEventListener('resize', updateMobile)
 })
 </script>

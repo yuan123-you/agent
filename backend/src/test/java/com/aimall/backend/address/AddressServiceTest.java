@@ -15,6 +15,7 @@ class AddressServiceTest {
 
     @Test
     void addComposesStructuredAddressAndMakesFirstAddressDefault() {
+        when(mapper.lockUser(7L)).thenReturn(7L);
         when(mapper.selectCount(any())).thenReturn(0L);
         var request = structuredRequest();
 

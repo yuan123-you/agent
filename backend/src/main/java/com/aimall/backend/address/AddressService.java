@@ -44,6 +44,7 @@ public class AddressService {
 
     @Transactional
     public Address add(Long userId, AddressDtos.AddressRequest req) {
+        lockOwner(userId);
         boolean first = count(userId) == 0;
         Address address = new Address();
         address.setUserId(userId);
@@ -58,6 +59,7 @@ public class AddressService {
 
     @Transactional
     public void update(Long userId, Long id, AddressDtos.AddressRequest req) {
+        lockOwner(userId);
         Address current = requireOwned(userId, id);
         Address update = new Address();
         update.setId(id);
@@ -71,6 +73,7 @@ public class AddressService {
 
     @Transactional
     public void setDefault(Long userId, Long id) {
+        lockOwner(userId);
         requireOwned(userId, id);
         clearDefault(userId);
         Address update = new Address();
@@ -81,6 +84,7 @@ public class AddressService {
 
     @Transactional
     public void delete(Long userId, Long id) {
+        lockOwner(userId);
         Address address = requireOwned(userId, id);
         addressMapper.deleteById(id);
         if (Boolean.TRUE.equals(address.getIsDefault()) && count(userId) > 0) {
@@ -105,6 +109,12 @@ public class AddressService {
         if (composed.isBlank() && legacy != null) composed = legacy;
         if (composed.isBlank()) throw new BizException(2001, "请完整填写收货地址");
         address.setReceiverAddress(composed);
+    }
+
+    private void lockOwner(Long userId) {
+        if (addressMapper.lockUser(userId) == null) {
+            throw new BizException(2002, "用户不存在");
+        }
     }
 
     private void clearDefault(Long userId) {

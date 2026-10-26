@@ -151,6 +151,9 @@ export interface SeckillVO {
 }
 
 export interface OrderItemVO {
+  orderItemId?: number
+  reviewed?: boolean
+  canReview?: boolean
   productId: number
   productName: string
   productImage?: string

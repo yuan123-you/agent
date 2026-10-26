@@ -6,6 +6,7 @@ import com.aimall.backend.config.MybatisPlusConfig;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.entity.OrderItem;
 import com.aimall.backend.entity.Product;
+import com.aimall.backend.entity.MallSku;
 import com.aimall.backend.mapper.OrderInfoMapper;
 import com.aimall.backend.mapper.OrderItemMapper;
 import com.aimall.backend.mapper.ProductMapper;
@@ -45,7 +46,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class OrderLifecycleTransactionTest {
-    static class RaceGate { volatile CyclicBarrier afterRead; }
+    static class RaceGate {
+        volatile CyclicBarrier afterRead, afterProductRead;
+        final java.util.concurrent.atomic.AtomicInteger productReads = new java.util.concurrent.atomic.AtomicInteger();
+    }
 
     @Configuration
     @EnableTransactionManagement(proxyTargetClass = true)
@@ -80,10 +84,14 @@ class OrderLifecycleTransactionTest {
             MapperFactoryBean<ProductMapper> mapper = new MapperFactoryBean<>(ProductMapper.class);
             mapper.setSqlSessionFactory(factory); return mapper;
         }
+        @Bean MapperFactoryBean<com.aimall.backend.mapper.MallSkuMapper> skus(SqlSessionFactory factory) {
+            var mapper = new MapperFactoryBean<>(com.aimall.backend.mapper.MallSkuMapper.class);
+            mapper.setSqlSessionFactory(factory); return mapper;
+        }
         @Bean RaceGate raceGate() { return new RaceGate(); }
         @Bean OrderSseNotifier notifier() { return mock(OrderSseNotifier.class); }
         @Bean OrderService orderService(OrderInfoMapper orders, OrderItemMapper items, ProductMapper products,
-                                       OrderSseNotifier notifier, RaceGate gate) {
+                                       OrderSseNotifier notifier, RaceGate gate, com.aimall.backend.mapper.MallSkuMapper skus) {
             // Keep real mapper/SQL; force both commands to finish reading the same stale state.
             OrderInfoMapper observed = (OrderInfoMapper) Proxy.newProxyInstance(OrderInfoMapper.class.getClassLoader(),
                     new Class<?>[]{OrderInfoMapper.class}, (proxy, method, args) -> {
@@ -94,7 +102,18 @@ class OrderLifecycleTransactionTest {
                         if ("selectById".equals(method.getName()) && barrier != null) barrier.await(5, TimeUnit.SECONDS);
                         return value;
                     });
-            return new OrderService(observed, items, products, mock(com.aimall.backend.mapper.MallSkuMapper.class), mock(com.aimall.backend.promotion.PromotionService.class), notifier, mock(AddressService.class));
+            ProductMapper observedProducts = (ProductMapper) Proxy.newProxyInstance(ProductMapper.class.getClassLoader(),
+                    new Class<?>[]{ProductMapper.class}, (proxy, method, args) -> {
+                        Object value;
+                        try { value = method.invoke(products, args); }
+                        catch (InvocationTargetException e) { throw e.getCause(); }
+                        CyclicBarrier barrier = gate.afterProductRead;
+                        if ("selectById".equals(method.getName()) && barrier != null && gate.productReads.incrementAndGet() <= 2) {
+                            barrier.await(5, TimeUnit.SECONDS);
+                        }
+                        return value;
+                    });
+            return new OrderService(observed, items, observedProducts, skus, mock(com.aimall.backend.promotion.PromotionService.class), notifier, mock(AddressService.class));
         }
     }
 
@@ -111,6 +130,7 @@ class OrderLifecycleTransactionTest {
         createEntityTable("order_info", OrderInfo.class);
         createEntityTable("order_item", OrderItem.class);
         createEntityTable("product", Product.class);
+        createEntityTable("mall_sku", MallSku.class);
         jdbc.execute("alter table order_item add constraint fk_test_order foreign key(order_id) references order_info(id)");
         jdbc.update("insert into product(id,name,status,price,stock,version) values(1,'Product','ON_SALE',10,3,1)");
         jdbc.update("insert into order_info(id,user_id,order_no,status,total_amount) values(30,7,'ORD-30','PENDING_PAYMENT',20)");
@@ -231,6 +251,147 @@ class OrderLifecycleTransactionTest {
         verifyNoInteractions(notifier);
     }
 
+    @Test void concurrentCreationsCannotOversellRealVersionGuardedStock() throws Exception {
+        context.getBean(RaceGate.class).afterProductRead = new CyclicBarrier(2);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Callable<Boolean> create = () -> {
+                var request = new OrderDtos.CreateOrderRequest();
+                request.setProductId(1L); request.setQuantity(2);
+                request.setReceiverName("Buyer"); request.setReceiverPhone("13800000000"); request.setReceiverAddress("Test address");
+                try { service.create(7L, request, "USER", null); return true; }
+                catch (BizException e) { assertEquals(2006, e.getCode()); return false; }
+            };
+            var first = pool.submit(create); var second = pool.submit(create);
+            assertNotEquals(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS));
+        } finally { pool.shutdownNow(); }
+        assertEquals(1, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(2, jdbc.queryForObject("select count(*) from order_info", Integer.class));
+        assertEquals(2, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        verify(notifier).publish(any(OrderInfo.class));
+    }
+
+    @Test void insufficientSkuRollsBackProductDeductionAndCreatedRows() {
+        attachSku();
+        jdbc.update("update mall_sku set stock=1 where id=99");
+        assertEquals(2006, assertThrows(BizException.class, () -> service.checkout(7L,
+                List.of(new OrderService.CheckoutItem(1L, 99L, 2)), null,
+                "Buyer", "13800000000", "Test address", null)).getCode());
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_info", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+
+    @Test void laterCheckoutItemFailureRollsBackEarlierStockDeduction() {
+        assertEquals(2005, assertThrows(BizException.class, () -> service.checkout(7L,
+                List.of(new OrderService.CheckoutItem(1L, null, 2), new OrderService.CheckoutItem(2L, null, 1)), null,
+                "Buyer", "13800000000", "Test address", null)).getCode());
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_info", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+    private void attachSku() {
+        jdbc.update("insert into mall_sku(id,product_id,status,price,stock,version) values(99,1,'ENABLE',12,3,1)");
+        jdbc.update("update order_item set sku_id=99 where order_id=30");
+    }
+
+    @Test void deletedSkuMustRollBackProductRestockAndCancellation() {
+        attachSku();
+        jdbc.update("update mall_sku set deleted=1 where id=99");
+        assertEquals(2108, assertThrows(BizException.class, () -> service.cancel(7L, 30L)).getCode());
+        assertEquals("PENDING_PAYMENT", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(3, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+
+    @Test void skuRestockSqlFailureRollsBackBothInventoriesAndCancellation() {
+        attachSku();
+        jdbc.execute("alter table mall_sku add constraint reject_sku_restore check(stock <= 3)");
+        assertThrows(RuntimeException.class, () -> service.cancel(7L, 30L));
+        assertEquals("PENDING_PAYMENT", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(3, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+
+    @Test void duplicateConcurrentCancellationRestoresProductAndSkuExactlyOnce() throws Exception {
+        attachSku();
+        assertEquals(1, race(() -> service.cancel(7L, 30L), () -> service.cancel(7L, 30L)));
+        assertEquals(5, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(5, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        assertEquals(2004, assertThrows(BizException.class, () -> service.cancel(7L, 30L)).getCode());
+        verify(notifier).publish(any(OrderInfo.class));
+    }
+
+    @Test void skuCheckoutAndCancellationRestoreOnlyTheReservedQuantity() {
+        attachSku();
+        OrderInfo order = service.checkout(7L, List.of(new OrderService.CheckoutItem(1L, 99L, 2)), null,
+                "Buyer", "13800000000", "Test address", null);
+        assertEquals(1, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        service.cancel(7L, order.getId());
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        assertEquals(3, jdbc.queryForObject("select stock from mall_sku where id=99", Integer.class));
+        verify(notifier, times(2)).publish(any(OrderInfo.class));
+    }
+
+    @Test void concurrentReceiptAndAutoDeliveryHaveOneWinnerAndPreserveTimestampOnRetry() throws Exception {
+        jdbc.update("update order_info set status='SHIPPED' where id=30");
+        assertEquals(1, race(() -> service.confirmReceipt(7L, 30L), () -> service.deliver(30L)));
+        var delivered = jdbc.queryForObject("select delivered_at from order_info where id=30", java.sql.Timestamp.class);
+        assertNotNull(delivered);
+        assertEquals(2004, assertThrows(BizException.class, () -> service.confirmReceipt(7L, 30L)).getCode());
+        assertEquals(delivered, jdbc.queryForObject("select delivered_at from order_info where id=30", java.sql.Timestamp.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        verify(notifier).publish(any(OrderInfo.class));
+    }
+
+    @Test void duplicateConcurrentPaymentOnlyUpdatesAndNotifiesOnce() throws Exception {
+        assertEquals(1, race(() -> service.pay(7L, 30L), () -> service.pay(7L, 30L)));
+        assertEquals("PAID", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertNotNull(jdbc.queryForObject("select paid_at from order_info where id=30", java.sql.Timestamp.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        verify(notifier).publish(any(OrderInfo.class));
+    }
+
+    @Test void nonOwnerCannotPayCancelOrReceiveWithRealSql() {
+        assertEquals(2003, assertThrows(BizException.class, () -> service.pay(8L, 30L)).getCode());
+        assertEquals(2003, assertThrows(BizException.class, () -> service.cancel(8L, 30L)).getCode());
+        jdbc.update("update order_info set status='SHIPPED' where id=30");
+        assertEquals(2003, assertThrows(BizException.class, () -> service.confirmReceipt(8L, 30L)).getCode());
+        assertEquals("SHIPPED", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertNull(jdbc.queryForObject("select delivered_at from order_info where id=30", java.sql.Timestamp.class));
+        verifyNoInteractions(notifier);
+    }
+    @Test void deletedProductMustNotSilentlyLoseCancellationRestock() {
+        jdbc.update("update product set deleted=1 where id=1");
+        BizException error = assertThrows(BizException.class, () -> service.cancel(7L, 30L));
+        assertEquals(2005, error.getCode());
+        assertEquals("PENDING_PAYMENT", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+
+    @Test void missingSkuMustRollBackProductRestockAndCancellation() {
+        jdbc.update("update order_item set sku_id=99 where order_id=30");
+        BizException error = assertThrows(BizException.class, () -> service.cancel(7L, 30L));
+        assertEquals(2108, error.getCode());
+        assertEquals("PENDING_PAYMENT", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertEquals(3, jdbc.queryForObject("select stock from product where id=1", Integer.class));
+        verifyNoInteractions(notifier);
+    }
+
+    @Test void shippingMustPersistDeliveryCompanyAlongsideTrackingNumber() {
+        jdbc.update("update order_info set status='PAID' where id=30");
+        service.ship(30L, "TRACK-30", "Carrier");
+        assertEquals("SHIPPED", jdbc.queryForObject("select status from order_info where id=30", String.class));
+        assertEquals("Carrier", jdbc.queryForObject("select delivery_company from order_info where id=30", String.class));
+        assertEquals("TRACK-30", jdbc.queryForObject("select logistics_no from order_info where id=30", String.class));
+    }
     @Test void shipAndDeliverUseRealGuardedMapperWithTimestamps() {
         jdbc.update("update order_info set status='PAID' where id=30");
         service.ship(30L, "TRACK-30", null);

@@ -41,7 +41,8 @@
             取消订单
           </el-button>
         <el-button v-if="o.status === 'SHIPPED'" type="success" size="small" @click="confirmReceipt(o)">确认收货</el-button>
-          <el-button v-if="o.status === 'DELIVERED'" type="warning" size="small" @click="openReview(o)">评价晒单</el-button>
+          <el-button v-if="reviewableItems(o).length" type="warning" size="small" @click="openReview(o)">评价晒单</el-button>
+          <el-tag v-else-if="o.status === 'DELIVERED' && o.items.length && o.items.every(i => i.reviewed)" type="info" size="small">已评价</el-tag>
           <el-button size="small" @click="$router.push(`/orders/${o.orderId}`)">查看详情</el-button>
         </div>
       </el-card>
@@ -66,10 +67,14 @@
       <div class="ro-item-info">
         <div class="ro-prod-badge">🛍️</div>
         <div class="ro-prod-meta">
-          <span class="ro-prod-name">{{ activeReviewOrder.items?.[0]?.productName || '已选商品' }}</span>
+          <span class="ro-prod-name">{{ activeReviewItem?.productName || '已选商品' }}</span>
           <span class="ro-order-no">订单编号：{{ activeReviewOrder.orderNo }}</span>
         </div>
       </div>
+
+      <el-select v-if="reviewableItems(activeReviewOrder).length > 1" v-model="activeReviewItemId" aria-label="选择评价商品">
+        <el-option v-for="item in reviewableItems(activeReviewOrder)" :key="item.orderItemId" :label="item.productName" :value="item.orderItemId" />
+      </el-select>
 
       <!-- 动态星级评分与感受反馈 -->
       <div class="ro-rate-row">
@@ -109,11 +114,6 @@
         />
       </div>
 
-      <!-- 匿名保护 -->
-      <div class="ro-options-row">
-        <el-checkbox v-model="anonymousReview">匿名评价</el-checkbox>
-        <span class="ro-options-tip">隐藏昵称，保护个人隐私</span>
-      </div>
     </div>
     <template #footer>
       <div class="ro-footer-bar">
@@ -121,7 +121,8 @@
         <el-button
           type="primary"
           class="ro-submit-btn"
-          :disabled="!reviewContent.trim()"
+          :disabled="!reviewContent.trim() || !activeReviewItem || reviewRating < 1"
+          :loading="reviewSubmitting"
           @click="submitOrderReview"
         >
           发表评价
@@ -132,13 +133,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { apiCancelOrder, apiConfirmReceipt, apiMyOrders, apiPayOrder, apiReviewCreate, subscribeOrderStatus } from '@/api'
+import { apiCancelOrder, apiConfirmReceipt, apiMyOrders, apiOrderDetail, apiPayOrder, apiReviewCreate, subscribeOrderStatus } from '@/api'
 import type { OrderVO } from '@/types/api'
 
 const route = useRoute()
+const router = useRouter()
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
+}
+let generation = 0
+let mounted = false
+let pendingReview: { id: number; detail?: Promise<OrderVO> } | undefined
+const reviewedProducts = new Set<number>()
 const orders = ref<OrderVO[]>([])
 const loading = ref(false)
 const finished = ref(false)
@@ -149,7 +160,11 @@ const showReviewDialog = ref(false)
 const activeReviewOrder = ref<OrderVO | null>(null)
 const reviewRating = ref(5)
 const reviewContent = ref('')
-const anonymousReview = ref(true)
+const activeReviewItemId = ref<number>()
+const reviewSubmitting = ref(false)
+const activeReviewItem = computed(() => activeReviewOrder.value
+  ? reviewableItems(activeReviewOrder.value).find(i => i.orderItemId === activeReviewItemId.value)
+  : undefined)
 const selectedChips = ref<string[]>([])
 const quickChips = ['质量很好', '做工精细', '顺丰极速', '正品保障', '性价比高', '包装严实', '外观漂亮']
 
@@ -177,43 +192,91 @@ function ratingDesc(r: number): string {
   }
 }
 
+function reviewableItems(o: OrderVO) {
+  return o.status === 'DELIVERED'
+    ? o.items.filter(i => i.canReview === true && !i.reviewed && i.productId > 0 && !!i.orderItemId)
+    : []
+}
+
 function openReview(o: OrderVO) {
+  const item = reviewableItems(o)[0]
+  if (!item) return
   activeReviewOrder.value = o
+  activeReviewItemId.value = item.orderItemId
   reviewRating.value = 5
   reviewContent.value = ''
   selectedChips.value = []
-  anonymousReview.value = true
   showReviewDialog.value = true
 }
 
 async function submitOrderReview() {
-  if (!activeReviewOrder.value || !reviewContent.value.trim()) return
-  const item = activeReviewOrder.value.items?.[0]
-  const productId = item?.productId || 1
+  const item = activeReviewItem.value
+  if (reviewSubmitting.value || !item || !reviewContent.value.trim() || reviewRating.value < 1) return
+  reviewSubmitting.value = true
   try {
-    await apiReviewCreate(productId, {
+    await apiReviewCreate(item.productId, {
+      orderItemId: item.orderItemId,
       rating: reviewRating.value,
       content: reviewContent.value.trim(),
-      specInfo: '标准规格',
     })
+    reviewedProducts.add(item.productId)
+    // A list request started before this commit may still return an older snapshot.
+    for (const o of [...orders.value, ...(activeReviewOrder.value ? [activeReviewOrder.value] : [])]) {
+      applyReviewedProducts(o)
+    }
     ElMessage.success('评价提交成功！感谢您的真实心得')
     showReviewDialog.value = false
-  } catch (e: any) {
-    ElMessage.success('评价提交成功！感谢您的真实心得')
-    showReviewDialog.value = false
+  } catch {
+    // The API layer reports the real error. Keep the draft and never claim success.
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
+watch(() => route.query.reviewOrderId, (value) => {
+  if (value === undefined) return
+  const id = Number(value)
+  pendingReview = Number.isSafeInteger(id) && id > 0 ? { id } : undefined
+  const { reviewOrderId: _, ...query } = route.query
+  void router.replace({ query }).catch(() => {})
+  if (mounted) void openRequestedReview(generation)
+}, { immediate: true })
+
+function applyReviewedProducts(o: OrderVO) {
+  for (const item of o.items) {
+    if (reviewedProducts.has(item.productId)) { item.reviewed = true; item.canReview = false }
+  }
+}
+
+async function openRequestedReview(requestGeneration: number) {
+  const intent = pendingReview
+  if (!intent) return
+  try {
+    const target = orders.value.find(o => o.orderId === intent.id)
+      || await (intent.detail ??= apiOrderDetail(intent.id))
+    if (!mounted || requestGeneration !== generation || intent !== pendingReview) return
+    pendingReview = undefined
+    applyReviewedProducts(target)
+    openReview(target)
+  } catch {
+    if (intent === pendingReview) pendingReview = undefined
+    // Authorization/not-found failures are already reported by the API layer.
   }
 }
 
 function reload() {
+  generation++
   page.value = 1
   finished.value = false
   orders.value = []
-  load()
+  loading.value = false
+  void load()
 }
 
-/** 懒加载：滚动到底部自动追加下一页 */
+/** Ignore stale requests after filter changes, status pushes or navigation. */
 async function load() {
   if (loading.value || finished.value) return
+  const requestGeneration = generation
   loading.value = true
   try {
     const result = await apiMyOrders({
@@ -221,19 +284,16 @@ async function load() {
       size: 10,
       ...(status.value ? { status: status.value } : {}),
     })
+    if (!mounted || requestGeneration !== generation) return
+    result.records.forEach(applyReviewedProducts)
     orders.value.push(...result.records)
-    const reviewId = Number(route.query.reviewOrderId)
-    if (reviewId) {
-      const match = orders.value.find(o => o.orderId === reviewId)
-      if (match) openReview(match)
-    }
-    if (result.records.length === 0 || orders.value.length >= result.total) {
-      finished.value = true
-    } else {
-      page.value++
-    }
+    if (result.records.length === 0 || orders.value.length >= result.total) finished.value = true
+    else page.value++
+    await openRequestedReview(requestGeneration)
+  } catch {
+    // API errors are already displayed; leave this page retryable.
   } finally {
-    loading.value = false
+    if (requestGeneration === generation) loading.value = false
   }
 }
 
@@ -271,7 +331,8 @@ function tagType(status: string): 'warning' | 'primary' | 'success' | 'info' {
 }
 
 onMounted(() => {
-  load()
+  mounted = true
+  void load()
   // 订单状态推送：支付/发货/送达等状态变更时自动刷新
   sub = subscribeOrderStatus((o) => {
     ElMessage.success(`订单 ${o.orderNo} 状态更新：${statusTextOf(o.status)}`)
@@ -279,7 +340,7 @@ onMounted(() => {
   })
 })
 
-onUnmounted(() => sub?.stop())
+onUnmounted(() => { mounted = false; generation++; sub?.stop() })
 
 let sub: { stop: () => void } | undefined
 
@@ -541,4 +602,3 @@ html.dark .ro-rate-label {
   font-size: 13px;
 }
 </style>
-

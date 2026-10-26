@@ -143,6 +143,11 @@ public class CartController {
                         .eq(com.aimall.backend.entity.MallSku::getProductId, product.getId())
                         .eq(com.aimall.backend.entity.MallSku::getStatus, "ENABLE"));
         if (skus.isEmpty()) {
+            if (skuId != null && skuId > 0 || skuMapper.selectCount(
+                    new LambdaQueryWrapper<com.aimall.backend.entity.MallSku>()
+                            .eq(com.aimall.backend.entity.MallSku::getProductId, product.getId())) > 0) {
+                throw new BizException(2108, "商品规格不存在或已停用");
+            }
             return 0L;
         }
         if (skuId == null || skuId <= 0) {
@@ -191,7 +196,7 @@ public class CartController {
             row.put("price", unitPrice);
             row.put("quantity", ci.getQuantity());
             row.put("checked", ci.getChecked());
-            row.put("stock", p.getStock());
+            row.put("stock", sku != null ? Math.min(p.getStock(), sku.getStock()) : p.getStock());
             BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
             row.put("subtotal", subtotal);
             rows.add(row);
@@ -294,7 +299,12 @@ public class CartController {
             // Explicit buy-now remains valid without a cart row. Lock only existing matching rows.
             snapshots = cartItemMapper.selectList(new LambdaQueryWrapper<CartItem>()
                     .eq(CartItem::getUserId, userId)
-                    .in(CartItem::getProductId, items.stream().map(OrderService.CheckoutItem::productId).toList())
+                    .and(w -> {
+                        for (OrderService.CheckoutItem item : items) {
+                            w.or(pair -> pair.eq(CartItem::getProductId, item.productId())
+                                    .eq(CartItem::getSkuId, item.skuId()));
+                        }
+                    })
                     .orderByAsc(CartItem::getProductId).last("FOR UPDATE"));
         } else {
             // 勾选商品结算

@@ -4,6 +4,10 @@ import com.aimall.backend.common.ApiResponse;
 import com.aimall.backend.common.PageResult;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.entity.OrderItem;
+import com.aimall.backend.entity.ProductReview;
+import com.aimall.backend.mapper.ProductReviewMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +32,9 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderSseNotifier orderSseNotifier;
+
+    @Autowired
+    private ProductReviewMapper reviewMapper;
 
     /** 订单状态订阅（SSE）：状态变更时接收 order_status 事件 */
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -82,16 +91,16 @@ public class OrderController {
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
         Page<OrderInfo> result = orderService.myOrders(userId, status, page, size);
-        return ApiResponse.ok(PageResult.of(result, this::toVo));
+        return ApiResponse.ok(PageResult.of(result, order -> toVo(order, userId)));
     }
 
     @GetMapping("/{id}")
     public ApiResponse<Map<String, Object>> detail(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
         OrderInfo order = orderService.requireOwned(userId, id);
-        return ApiResponse.ok(toVo(order));
+        return ApiResponse.ok(toVo(order, userId));
     }
 
-    private Map<String, Object> toVo(OrderInfo order) {
+    private Map<String, Object> toVo(OrderInfo order, Long userId) {
         Map<String, Object> vo = new HashMap<>();
         vo.put("orderId", order.getId());
         vo.put("orderNo", order.getOrderNo());
@@ -100,6 +109,7 @@ public class OrderController {
         vo.put("totalAmount", order.getTotalAmount());
         vo.put("source", order.getSource());
         vo.put("logisticsNo", order.getLogisticsNo());
+        vo.put("deliveryCompany", order.getDeliveryCompany());
         vo.put("receiverName", order.getReceiverName());
         vo.put("receiverPhone", order.getReceiverPhone());
         vo.put("receiverAddress", order.getReceiverAddress());
@@ -108,8 +118,18 @@ public class OrderController {
         vo.put("shippedAt", order.getShippedAt());
         vo.put("deliveredAt", order.getDeliveredAt());
         List<OrderItem> items = orderService.itemsOf(order.getId());
+        List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().toList();
+        Set<Long> reviewedProducts = productIds.isEmpty() ? Set.of() : new HashSet<>(
+                reviewMapper.<Long>selectObjs(new LambdaQueryWrapper<ProductReview>()
+                        .select(ProductReview::getProductId)
+                        .eq(ProductReview::getUserId, userId)
+                        .in(ProductReview::getProductId, productIds)));
         vo.put("items", items.stream().map(i -> {
             Map<String, Object> itemVo = new HashMap<>();
+            boolean reviewed = reviewedProducts.contains(i.getProductId());
+            itemVo.put("orderItemId", i.getId());
+            itemVo.put("reviewed", reviewed);
+            itemVo.put("canReview", "DELIVERED".equals(order.getStatus()) && !reviewed);
             itemVo.put("productId", i.getProductId());
             itemVo.put("productName", i.getProductName());
             itemVo.put("productImage", i.getProductImage());

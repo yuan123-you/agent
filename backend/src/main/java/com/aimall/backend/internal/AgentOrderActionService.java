@@ -24,6 +24,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 import java.math.BigDecimal;
@@ -266,14 +268,28 @@ public class AgentOrderActionService {
         if (actionMapper.markConfirmed(actionId, order.getId(), order.getTotalAmount()) != 1) {
             throw new BizException(2012, "操作已被处理，请勿重复确认");
         }
-        try {
-            redisTemplate.opsForValue().set(idempotencyKey, String.valueOf(order.getId()), ACTION_TTL);
-        } catch (Exception ignored) {
-            // 数据库行锁和状态机是正确性保障；Redis 仅保留现有的快速幂等缓存能力。
-        }
+        cacheAfterCommit(idempotencyKey, order.getId());
         return order;
     }
 
+    private void cacheAfterCommit(String key, Long orderId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { cacheOrder(key, orderId); }
+            });
+        } else {
+            cacheOrder(key, orderId);
+        }
+    }
+
+    private void cacheOrder(String key, Long orderId) {
+        try {
+            redisTemplate.opsForValue().set(key, String.valueOf(orderId), ACTION_TTL);
+        } catch (Exception ignored) {
+            // Database locks and action state remain authoritative if the post-commit cache write fails.
+        }
+    }
     @Transactional(readOnly = true)
     public ActionStatusResult status(Long userId, String actionId) {
         if (userId == null || actionId == null || actionId.isBlank()) {

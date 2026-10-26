@@ -131,7 +131,7 @@ class CartConcurrencyTransactionTest {
     @BeforeEach void setup() {
         context = new AnnotationConfigApplicationContext(Config.class);
         jdbc = context.getBean(JdbcTemplate.class); controller = context.getBean(CartController.class); gate = context.getBean(RaceGate.class);
-        table("cart_item", CartItem.class); table("product", Product.class); table("order_info", OrderInfo.class); table("order_item", OrderItem.class);
+        table("mall_sku", com.aimall.backend.entity.MallSku.class); table("cart_item", CartItem.class); table("product", Product.class); table("order_info", OrderInfo.class); table("order_item", OrderItem.class);
         jdbc.execute("alter table cart_item add constraint uk_user_product_sku unique(user_id,product_id,sku_id)");
         jdbc.update("insert into product(id,name,status,price,stock,version,deleted) values(1,'Product','ON_SALE',10,1000,1,0)");
     }

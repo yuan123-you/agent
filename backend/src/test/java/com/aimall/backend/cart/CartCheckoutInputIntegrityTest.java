@@ -63,10 +63,12 @@ class CartCheckoutInputIntegrityTest {
         assertTrue(selectionSql.contains("ORDER BY product_id ASC"));
         assertTrue(selectionSql.endsWith("FOR UPDATE"));
         var selectionParameters = selected.getValue().getParamNameValuePairs();
-        assertEquals(2, selectionParameters.size());
+        assertEquals(explicit ? 3 : 2, selectionParameters.size());
         assertTrue(selectionParameters.containsValue(7L));
         if (explicit) {
-            assertTrue(selectionSql.contains("product_id IN"));
+            assertTrue(selectionSql.contains("product_id ="));
+            assertTrue(selectionSql.contains("sku_id ="));
+            assertTrue(selectionParameters.containsValue(expected.get(0).skuId()));
             assertTrue(selectionParameters.containsValue(snapshot.getProductId()));
         } else {
             assertTrue(selectionSql.contains("checked ="));

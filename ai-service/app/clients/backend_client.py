@@ -109,10 +109,11 @@ class BackendClient:
 
     # ---------- 知识库回写 ----------
 
-    async def kb_chunks_batch(self, doc_id: int, chunks: list[dict]) -> dict:
+    async def kb_chunks_batch(self, doc_id: int, chunks: list[dict], *,
+                              doc_version: int | None = None) -> dict:
         """分块元数据落库，返回预分配的 chunk id 列表"""
         return await self._post_long("/internal/kb/chunks/batch", {
-            "docId": doc_id, "chunks": chunks,
+            "docId": doc_id, "docVersion": doc_version, "chunks": chunks,
         })
 
     async def _post_long(self, path: str, body: dict) -> dict:
@@ -128,10 +129,12 @@ class BackendClient:
             return {"error": str(e)}
 
     async def kb_result(self, doc_id: int, status: str, chunk_count: int = 0,
-                        fail_reason: str | None = None, vector_count: int | None = None) -> None:
+                        fail_reason: str | None = None, vector_count: int | None = None, *,
+                        doc_version: int | None = None) -> None:
         try:
             body = {
-                "docId": doc_id, "status": status, "chunkCount": chunk_count, "failReason": fail_reason,
+                "docId": doc_id, "docVersion": doc_version, "status": status,
+                "chunkCount": chunk_count, "failReason": fail_reason,
             }
             if vector_count is not None:
                 body["vectorCount"] = vector_count

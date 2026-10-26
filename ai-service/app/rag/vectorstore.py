@@ -117,10 +117,12 @@ class VectorStore:
         )
 
     async def delete_by_doc(self, doc_id: int, exclude_version: int | None = None) -> dict:
-        """删除文档向量（可排除指定版本，用于重建索引时保留新版本）"""
+        """仅清理严格早于 exclude_version 的版本，保留当前及未来版本。
+        参数名兼容现有调用者；未指定或为 0 时仍删除该文档的所有版本。
+        """
         expr = f"doc_id == {doc_id}"
         if exclude_version:
-            expr += f" and doc_version != {exclude_version}"
+            expr += f" and doc_version < {exclude_version}"
         return await asyncio.to_thread(
             self.client.delete, collection_name=settings.milvus_collection, filter=expr,
         )

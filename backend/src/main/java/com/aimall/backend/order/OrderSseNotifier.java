@@ -17,10 +17,11 @@ public class OrderSseNotifier {
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
 
     public void register(Long userId, SseEmitter emitter) {
-        emitters.put(userId, emitter);
-        emitter.onCompletion(() -> emitters.remove(userId));
-        emitter.onTimeout(() -> emitters.remove(userId));
-        emitter.onError(e -> emitters.remove(userId));
+        emitter.onCompletion(() -> emitters.remove(userId, emitter));
+        emitter.onTimeout(() -> emitters.remove(userId, emitter));
+        emitter.onError(e -> emitters.remove(userId, emitter));
+        SseEmitter previous = emitters.put(userId, emitter);
+        if (previous != null && previous != emitter) previous.complete();
     }
 
     public void publish(OrderInfo order) {
@@ -36,7 +37,7 @@ public class OrderSseNotifier {
                 emitter.send(SseEmitter.event().name("order_status").data(body));
             }
         } catch (Exception e) {
-            emitters.remove(order.getUserId());
+            emitters.remove(order.getUserId(), emitter);
         }
     }
 
@@ -49,7 +50,7 @@ public class OrderSseNotifier {
                     emitter.send(SseEmitter.event().comment("ping"));
                 }
             } catch (Exception e) {
-                emitters.remove(userId);
+                emitters.remove(userId, emitter);
             }
         });
     }
