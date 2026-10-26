@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { streamChat } from './useSseChat'
 
 function responseFrom(text: string): Response {
@@ -34,5 +34,52 @@ describe('streamChat action events', () => {
     expect(onAction).toHaveBeenCalledOnce()
     expect(onAction).toHaveBeenCalledWith(action)
     vi.unstubAllGlobals()
+  })
+})
+
+
+describe('streamChat transport lifecycle', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const handlers = () => ({ onToken: vi.fn(), onToolCall: vi.fn(), onToolResult: vi.fn(), onAction: vi.fn(), onError: vi.fn(), onDone: vi.fn() })
+
+  it('parses a final frame even when EOF has no trailing newline', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(responseFrom('event: done\ndata: {"content":"完成"}')))
+    const callbacks = handlers()
+    await streamChat({ conversationId: 1, content: '你好' }, callbacks).promise
+    expect(callbacks.onDone).toHaveBeenCalledWith({ content: '完成' })
+    expect(callbacks.onError).not.toHaveBeenCalled()
+  })
+
+  it('reports truncated streams instead of silently accepting an unfinished answer', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(responseFrom('event: token\ndata: {"content":"部分内容"}\n\n')))
+    const callbacks = handlers()
+    await streamChat({ conversationId: 1, content: '你好' }, callbacks).promise
+    expect(callbacks.onToken).toHaveBeenCalledWith('部分内容')
+    expect(callbacks.onError).toHaveBeenCalledOnce()
+    expect(callbacks.onDone).not.toHaveBeenCalled()
+  })
+
+  it('finishes and cancels the reader after done without waiting for the server to close', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: done\ndata: {"content":"完成"}\n\nevent: token\ndata: {"content":"不应追加"}\n\n'))
+    }, cancel })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } })))
+    const callbacks = handlers()
+    await streamChat({ conversationId: 1, content: '你好' }, callbacks).promise
+    expect(callbacks.onDone).toHaveBeenCalledOnce()
+    expect(callbacks.onToken).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(body.locked).toBe(false)
+  })
+
+  it('handles CRLF, heartbeat comments and a UTF-8 character split across chunks', async () => {
+    const data = new TextEncoder().encode(': ping\r\nevent: token\r\ndata: {"content":"你"}\r\n\r\nevent: done\r\ndata: {"content":"你"}\r\n\r\n')
+    const body = new ReadableStream({ start(controller) { for (const byte of data) controller.enqueue(Uint8Array.of(byte)); controller.close() } })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } })))
+    const callbacks = handlers()
+    await streamChat({ conversationId: 1, content: '你好' }, callbacks).promise
+    expect(callbacks.onToken).toHaveBeenCalledExactlyOnceWith('你')
+    expect(callbacks.onDone).toHaveBeenCalledOnce()
   })
 })

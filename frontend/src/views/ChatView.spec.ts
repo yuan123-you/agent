@@ -6,7 +6,7 @@ import ChatView from './ChatView.vue'
 const mocks = vi.hoisted(() => ({ getChat: vi.fn() }))
 vi.mock('@/stores/chat', () => ({ useChatStore: () => mocks.getChat() }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ role: 'CUSTOMER' }) }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ params: {} }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: {} }), useRouter: () => ({ push: vi.fn(), back: vi.fn() }) }))
 vi.mock('@/components/chat/AiMessage.vue', () => ({ default: { template: '<div />' } }))
 
 let app: App
@@ -17,6 +17,7 @@ function createChat() {
   return reactive({
     current: { conversationId: 7, status: 'PENDING_HUMAN', humanWaitExpiresAt: '2099-01-01T00:00:00' },
     conversations: [{ conversationId: 7, status: 'PENDING_HUMAN' }], messages: [],
+    loadingConversations: false, loadingConversationId: null,
     pendingByConv: {}, streaming: false, webSearchEnabled: false,
     expireOrderActions: vi.fn(), loadConversations: vi.fn(), openConversation: vi.fn(),
     pollNewMessages: vi.fn().mockResolvedValue(undefined), cancelHumanHandoff: vi.fn().mockResolvedValue(undefined),
@@ -91,5 +92,82 @@ describe('human handoff controls', () => {
     complete()
     await flush()
     expect(calls).toBe(1)
+  })
+})
+
+describe('embedded input layout', () => {
+  it('embeds the customer service button and send button inside the input-box-wrapper', () => {
+    const wrapper = host.querySelector('.input-box-wrapper')!
+    expect(wrapper).not.toBeNull()
+    const textarea = wrapper.querySelector('textarea')
+    expect(textarea).not.toBeNull()
+    const serviceBtn = wrapper.querySelector('.input-actions .actions-left .el-button.is-circle')
+    expect(serviceBtn).not.toBeNull()
+    const sendBtn = wrapper.querySelector('.input-actions .actions-right .el-button')
+    expect(sendBtn).not.toBeNull()
+  })
+})
+
+
+async function remount() {
+  app.unmount()
+  host.remove()
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  app = createApp(ChatView).use(ElementPlus)
+  app.mount(host)
+  await flush()
+}
+
+describe('conversation loading and scrolling experience', () => {
+  it('reuses the current conversation on remount instead of clearing or reopening it', async () => {
+    chat.openConversation.mockClear()
+    await remount()
+    expect(chat.openConversation).not.toHaveBeenCalled()
+    expect(host.querySelector('.chat-header')).not.toBeNull()
+  })
+
+  it('shows a loading skeleton instead of empty history or welcome content during startup', async () => {
+    chat.current = null as any
+    chat.conversations = []
+    chat.loadingConversations = true
+    let complete!: () => void
+    chat.loadConversations.mockImplementation(() => new Promise<void>(resolve => { complete = resolve }))
+    await remount()
+    expect(host.querySelector('.chat-loading')).not.toBeNull()
+    expect(host.textContent).not.toContain('暂无会话')
+    expect(host.textContent).not.toContain('点击左侧')
+    complete()
+    await flush()
+  })
+
+  it('offers retry after startup fails without creating an unhandled rejection', async () => {
+    chat.current = null as any
+    chat.conversations = []
+    chat.loadConversations.mockRejectedValue(new Error('offline'))
+    await remount()
+    expect(host.querySelector('.chat-load-error')).not.toBeNull()
+    expect(host.textContent).toContain('重试')
+  })
+
+  it('follows streamed content growth but does not pull a reader away from older messages', async () => {
+    chat.current.status = 'ACTIVE'
+    chat.messages = [{ role: 'AI', content: '第一段', status: 'PENDING' }] as any
+    await flush()
+    const list = host.querySelector<HTMLElement>('.msg-list')!
+    let height = 500
+    Object.defineProperty(list, 'scrollHeight', { get: () => height, configurable: true })
+    Object.defineProperty(list, 'clientHeight', { value: 200, configurable: true })
+    list.scrollTop = 500
+    height = 600
+    ;(chat.messages[0] as any).content += '第二段'
+    await flush()
+    expect(list.scrollTop).toBe(600)
+    list.scrollTop = 0
+    list.dispatchEvent(new Event('scroll'))
+    height = 700
+    ;(chat.messages[0] as any).content += '第三段'
+    await flush()
+    expect(list.scrollTop).toBe(0)
   })
 })

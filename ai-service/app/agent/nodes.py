@@ -95,9 +95,19 @@ def fallback_intent_by_rules(user_text: str) -> str:
 
 async def intent_router_node(state: AgentState) -> dict:
     """意图识别（结构化 JSON 输出，失败规则启发式兜底）"""
-    llm = get_intent_llm()
     last = state["messages"][-1] if state["messages"] else None
     user_text = getattr(last, "content", "") if last else ""
+    # These requests already override classifier output below; avoid paying for it.
+    greeting = re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见)[！!。.?？\s]*", user_text.strip(), re.IGNORECASE)
+    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting:
+        intent = "SMALL_TALK" if greeting else fallback_intent_by_rules(user_text)
+        get_tool_ctx()["latest_user_text"] = user_text
+        await generation(
+            "intent", model="rules", input_data={"user_text": user_text},
+            usage={"intent": intent, "confidence": 1.0}, tags=["intent", "fast-path"],
+        )
+        return {"intent": intent}
+    llm = get_intent_llm()
     # Checkpoint messages are the source of truth; backend history may be empty.
     conversation = [m for m in state["messages"][:-1]
                     if isinstance(m, HumanMessage) or (isinstance(m, AIMessage) and not m.tool_calls)]
@@ -309,7 +319,7 @@ def should_continue(state: AgentState) -> str:
 
 async def finalize_without_tools(state: AgentState) -> dict:
     """工具循环打满后强制收敛：用不绑定工具的 LLM，基于已有 ToolMessage 给出最终结论"""
-    llm = get_chat_llm(streaming=False)
+    llm = get_chat_llm()
     # 提取用户最新提问，防止长决策轨迹截断导致答非所问
     user_query = ""
     for m in reversed(state["messages"]):

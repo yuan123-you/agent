@@ -3,7 +3,7 @@ import { API_BASE } from '@/api/base'
  * ⭐ SSE 流式对话核心（fetch + ReadableStream 解析，EventSource 不支持 POST+JWT）
  * 事件：token / tool_call / tool_result / action / error / done
  */
-import type { OrderAction, ToolCard } from '@/types/api'
+import type { OrderAction } from '@/types/api'
 
 export interface SseHandlers {
   onToken(content: string): void
@@ -58,9 +58,11 @@ export function streamChat(
     let buffer = ''
     let eventType = ''
     let dataLines: string[] = []
+    let terminal = false
 
     const dispatch = () => {
-      if (dataLines.length === 0) return
+      if (terminal) return
+      if (dataLines.length === 0) { eventType = ''; return }
       const data = dataLines.join('\n')
       dataLines = []
       let payload: any = null
@@ -83,9 +85,11 @@ export function streamChat(
           handlers.onAction(payload as OrderAction)
           break
         case 'error':
+          terminal = true
           handlers.onError({ code: payload.code || 5001, message: payload.message || 'AI 服务异常' })
           break
         case 'done':
+          terminal = true
           handlers.onDone(payload)
           break
         default:
@@ -94,27 +98,34 @@ export function streamChat(
       eventType = ''
     }
 
-    // 逐行解析 SSE 协议（event:/data:/空行分发/:ping 忽略）
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      let newlineIdx: number
-      while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, newlineIdx).replace(/\r$/, '')
-        buffer = buffer.slice(newlineIdx + 1)
-        if (line === '') {
-          dispatch()
-        } else if (line.startsWith(':')) {
-          // 心跳注释行，忽略
-        } else if (line.startsWith('event:')) {
-          eventType = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trimStart())
+    // Lines may cross UTF-8/network chunk boundaries, including the final EOF frame.
+    const readLine = (line: string) => {
+      line = line.replace(/\r$/, '')
+      if (line === '') dispatch()
+      else if (line.startsWith('event:')) eventType = line.slice(6).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+      // Ignore heartbeat comments and unrecognized SSE fields.
+    }
+    try {
+      while (!terminal) {
+        const { done, value } = await reader.read()
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+        let newlineIdx: number
+        while (!terminal && (newlineIdx = buffer.indexOf('\n')) >= 0) {
+          readLine(buffer.slice(0, newlineIdx))
+          buffer = buffer.slice(newlineIdx + 1)
+        }
+        if (done) {
+          if (!terminal && buffer) readLine(buffer)
+          if (!terminal) dispatch()
+          if (!terminal) handlers.onError({ code: 5001, message: '连接已中断，回复未完成，请重试' })
+          break
         }
       }
+    } finally {
+      await reader.cancel().catch(() => {})
+      reader.releaseLock()
     }
-    dispatch()
   })()
 
   return { promise, stop: () => controller.abort() }

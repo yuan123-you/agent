@@ -251,3 +251,46 @@ async def test_agent_node_runs_without_name_error(monkeypatch):
     ret_finalize = await finalize_without_tools(state)
     assert ret_finalize["messages"][0].content == "推荐了商品"
     assert ret_finalize.get("active_entities") == {"last_category": "COMPUTER"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("text", "expected"), [
+    ("你好", "SMALL_TALK"), ("谢谢！", "SMALL_TALK"),
+    ("你是谁", "ASSISTANT_META"), ("请转人工客服", "HUMAN_REQUEST"),
+])
+async def test_explicit_requests_do_not_wait_for_an_intent_model(monkeypatch, text, expected):
+    from app.agent import nodes
+    from app.tools.tools import set_tool_ctx, get_tool_ctx
+    set_tool_ctx({})
+    def forbidden():
+        pytest.fail("Unambiguous requests should not incur an intent-model roundtrip")
+    monkeypatch.setattr(nodes, "get_intent_llm", forbidden)
+    result = await nodes.intent_router_node({"messages": [HumanMessage(content=text)]})
+    assert result["intent"] == expected
+    assert get_tool_ctx()["latest_user_text"] == text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ["你好，查一下我的订单", "谢谢，顺便推荐个手机", "这个怎么样", "3000左右"])
+async def test_mixed_or_contextual_requests_still_use_the_intent_model(monkeypatch, text):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.agent import nodes
+    from app.tools.tools import set_tool_ctx
+    set_tool_ctx({})
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT"}'))
+    monkeypatch.setattr(nodes, "get_intent_llm", lambda: llm)
+    await nodes.intent_router_node({"messages": [HumanMessage(content=text)]})
+    llm.ainvoke.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_forced_finalization_requests_a_streaming_model(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.agent import nodes
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="最终回答"))
+    factory = MagicMock(return_value=llm)
+    monkeypatch.setattr(nodes, "get_chat_llm", factory)
+    await nodes.finalize_without_tools({"messages": [HumanMessage(content="你好")]})
+    assert factory.call_args.kwargs.get("streaming", True) is True

@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from app.agent.graph import checkpointer, graph
-from app.agent.link_guard import collect_known_ids, ensure_product_links, guard_links
+from app.agent.link_guard import GuardedLinkBuffer, collect_known_ids, ensure_product_links, guard_links
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
@@ -215,6 +215,8 @@ async def chat_stream(req: ChatRequest, request: Request):
         parts: list[str] = []
         usage: dict = {}
         known_ids: set[str] = set()
+        live_buffer: GuardedLinkBuffer | None = None
+        streamed_length = 0
         product_result: dict | None = None
         rag_started = False
         product_links_needed = True
@@ -250,6 +252,20 @@ async def chat_stream(req: ChatRequest, request: Request):
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
                                 parts.append(content)
+                                node = (ev.get("metadata") or {}).get("langgraph_node")
+                                # Tool-enabled agents may still retrieve evidence or replace invalid
+                                # recommendations. Only terminal nodes can safely expose early text.
+                                safe_terminal = node in {"small_talk", "finalize_without_tools"}
+                                if (safe_terminal and not rag_started and not ctx.get("rag_used")
+                                        and (product_result is None or not product_links_needed)):
+                                    if live_buffer is None:
+                                        live_buffer = GuardedLinkBuffer(known_ids, settings.link_guard_enabled)
+                                        safe_text = live_buffer.push("".join(parts))
+                                    else:
+                                        safe_text = live_buffer.push(content)
+                                    if safe_text:
+                                        streamed_length += len(safe_text)
+                                        yield sse("token", {"content": safe_text})
                             um = getattr(chunk, "usage_metadata", None)
                             if um:
                                 usage = {"promptTokens": um.get("input_tokens", 0),
@@ -337,7 +353,12 @@ async def chat_stream(req: ChatRequest, request: Request):
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):
                 yield sse("action", action)
-            if rag_used:
+            if live_buffer is not None:
+                # Already emitted the safe prefix; only flush the held link/text suffix.
+                remainder = guarded[streamed_length:]
+                if remainder:
+                    yield sse("token", {"content": remainder})
+            elif rag_used:
                 yield sse("token", {"content": guarded})
             else:
                 streamed_parts = parts if "".join(parts) == guarded else [guarded]

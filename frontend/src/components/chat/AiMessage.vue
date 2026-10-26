@@ -1,25 +1,34 @@
 <template>
-  <div class="ai-message">
+  <div class="ai-message" @click="onClick">
     <!-- 工具/技能调用卡片 -->
     <div v-if="msg.toolCalls && msg.toolCardsVisible !== false && msg.toolCalls.length" class="tool-cards">
       <ToolCallCard v-for="card in msg.toolCalls" :key="card.callId" :card="card" />
     </div>
 
     <!-- 1. 等待输出效果：首字未到达或思考检索时展示优雅波纹 -->
-    <div v-if="streaming && !msg.content?.trim()" class="ai-thinking-state">
-      <div class="thinking-dots">
+    <div v-if="streaming && !msg.content?.trim()" class="ai-thinking-state" role="status" aria-live="polite">
+      <div class="thinking-dots" aria-hidden="true">
         <span class="t-dot" />
         <span class="t-dot" />
         <span class="t-dot" />
       </div>
-      <span class="thinking-label">AI 顾问正在检索商品并思考回答…</span>
+      <div class="thinking-copy">
+        <span class="thinking-label">{{ waitingLabel }}…</span>
+        <span v-if="elapsedSeconds >= 12" class="thinking-hint">本次处理时间较长，你可以随时停止生成。</span>
+      </div>
+      <span class="thinking-elapsed" aria-hidden="true">已等待 {{ elapsedSeconds }} 秒</span>
     </div>
 
     <!-- 2. 正文流式 Markdown 输出 -->
-    <div v-if="msg.content?.trim()" ref="el" class="md-content" v-html="html"></div>
+    <div v-show="msg.content?.trim()" class="md-content" v-html="html"></div>
 
     <!-- 3. 流式打字呼吸光标 -->
     <span v-if="streaming && msg.content?.trim()" class="typing-cursor" />
+
+    <div v-if="!streaming && msg.status === 'FAILED'" class="reply-status failed" role="status">
+      {{ msg.error || '回复未完成，请重新发送消息重试' }}
+    </div>
+    <div v-else-if="!streaming && msg.status === 'STOPPED'" class="reply-status">已停止生成</div>
 
     <!-- 4. 订单动作确认卡片 -->
     <div v-if="msg.actions?.length" class="action-cards">
@@ -36,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { renderMarkdown } from '@/components/mall/link'
 import { useChatStore } from '@/stores/chat'
@@ -46,8 +55,38 @@ import type { ChatMessage } from '@/types/api'
 const props = defineProps<{ msg: ChatMessage; streaming?: boolean }>()
 const router = useRouter()
 const chat = useChatStore()
-const el = ref<HTMLElement>()
 const html = computed(() => renderMarkdown(props.msg.content))
+const now = ref(Date.now())
+const localStartedAt = ref(Date.now())
+const elapsedSeconds = computed(() => Math.max(0, Math.floor((now.value - (props.msg.startedAt ?? localStartedAt.value)) / 1000)))
+const toolLabels: Record<string, string> = {
+  product_search: '正在查找符合条件的商品', product_detail: '正在读取商品详情',
+  order_query: '正在查询订单信息', kb_search: '正在检索相关资料', web_search: '正在搜索网络信息',
+  order_create: '正在准备待确认订单', order_cancel_prepare: '正在准备取消确认',
+  after_sale_prepare: '正在准备售后确认', escalate_to_human: '正在联系人工客服',
+}
+const waitingLabel = computed(() => {
+  const cards = props.msg.toolCalls || []
+  const running = [...cards].reverse().find((card) => card.status === 'running')
+  if (running) return toolLabels[running.tool] || '正在处理你的请求'
+  if (cards.some((card) => card.tool === 'kb_search' && card.status === 'done')) return '正在核对资料与引用'
+  if (cards.length) return '正在整理回答'
+  return elapsedSeconds.value >= 12 ? '仍在思考，请稍候' : '正在思考你的问题'
+})
+let waitTimer: ReturnType<typeof setInterval> | undefined
+function clearWaitTimer() {
+  if (waitTimer !== undefined) clearInterval(waitTimer)
+  waitTimer = undefined
+}
+watch(() => props.streaming && !props.msg.content?.trim(), (waiting) => {
+  clearWaitTimer()
+  if (waiting) {
+    localStartedAt.value = props.msg.startedAt ?? Date.now()
+    now.value = Date.now()
+    waitTimer = setInterval(() => { now.value = Date.now() }, 1000)
+  }
+}, { immediate: true })
+onBeforeUnmount(clearWaitTimer)
 
 function onClick(e: MouseEvent) {
   const target = (e.target as HTMLElement).closest('.ai-link') as HTMLElement | null
@@ -58,8 +97,6 @@ function viewOrder(orderId?: number) {
   if (orderId) router.push(`/orders/${orderId}`)
 }
 
-onMounted(() => el.value?.addEventListener('click', onClick))
-onBeforeUnmount(() => el.value?.removeEventListener('click', onClick))
 </script>
 
 <style scoped>
@@ -70,18 +107,19 @@ onBeforeUnmount(() => el.value?.removeEventListener('click', onClick))
 
 /* AI 思考等待波纹动画 */
 .ai-thinking-state {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 6px 12px;
   background: rgba(37, 99, 235, 0.08);
-  border-radius: 9999px;
+  border-radius: 12px;
   color: var(--el-color-primary, #2563eb);
   font-size: 12px;
   margin: 2px 0;
 }
 
-html.dark .ai-thinking-state {
+:global(html.dark) .ai-thinking-state {
   background: rgba(37, 99, 235, 0.18);
   color: #93c5fd;
 }
@@ -119,6 +157,15 @@ html.dark .ai-thinking-state {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.2px;
+}
+
+.thinking-copy { display: flex; flex-direction: column; gap: 4px; }
+.thinking-hint { color: var(--el-text-color-secondary); font-size: 11px; line-height: 1.5; }
+.thinking-elapsed { color: var(--el-text-color-secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reply-status { margin-top: 8px; color: var(--el-text-color-secondary); font-size: 12px; }
+.reply-status.failed { color: var(--el-color-danger); }
+@media (prefers-reduced-motion: reduce) {
+  .t-dot, .typing-cursor { animation: none; }
 }
 
 /* 现代流式输出光标 */

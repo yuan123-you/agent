@@ -235,6 +235,8 @@ export interface OrderAction {
 export interface ChatMessage {
   messageId?: number
   id?: number
+  startedAt?: number
+  error?: string
   role: 'USER' | 'AI' | 'AGENT' | 'SYSTEM'
   content: string
   toolCalls?: ToolCard[]

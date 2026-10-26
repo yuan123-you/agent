@@ -21,7 +21,9 @@ class _Graph:
         answerable=True,
         reason="answerable",
         preamble_parts=(),
+        node="agent",
     ):
+        self.node = node
         self.context = context
         self.answer_parts = answer_parts
         self.rag = rag
@@ -36,7 +38,7 @@ class _Graph:
         for part in self.preamble_parts:
             yield {
                 "event": "on_chat_model_stream",
-                "metadata": {"langgraph_node": "agent"},
+                "metadata": {"langgraph_node": self.node},
                 "data": {"chunk": AIMessageChunk(content=part)},
             }
         if self.rag:
@@ -57,7 +59,7 @@ class _Graph:
         for part in self.answer_parts:
             yield {
                 "event": "on_chat_model_stream",
-                "metadata": {"langgraph_node": "agent"},
+                "metadata": {"langgraph_node": self.node},
                 "data": {"chunk": AIMessageChunk(content=part)},
             }
         self.completed = True
@@ -87,6 +89,7 @@ def _setup(
     answerable=True,
     reason="answerable",
     preamble_parts=(),
+    node="agent",
 ):
     context = {}
     graph = _Graph(
@@ -96,6 +99,7 @@ def _setup(
         answerable=answerable,
         reason=reason,
         preamble_parts=preamble_parts,
+        node=node,
     )
     monkeypatch.setattr(chat, "graph", graph)
     monkeypatch.setattr(chat, "set_tool_ctx", lambda ctx: setattr(graph, "context", ctx))
@@ -204,3 +208,40 @@ async def test_preamble_before_kb_search_never_leaks_or_duplicates(monkeypatch):
     assert "".join(token_contents) == done["content"]
     assert done["content"] == "依据条款，支持七天退货。[S1]"
     assert token_contents == [done["content"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("node", ["small_talk", "finalize_without_tools"])
+async def test_safe_terminal_model_nodes_stream_before_graph_finishes(monkeypatch, node):
+    graph = _setup(monkeypatch, answer_parts=["你好", "，很高兴帮你"], rag=False, node=node)
+    response = await chat.chat_stream(_request(), _Request())
+    stream = response.body_iterator
+    assert _decode(await anext(stream)) == ("token", {"content": "你好"})
+    assert graph.completed is False
+    events = [_decode(item) async for item in stream]
+    assert [data["content"] for event, data in events if event == "token"] == ["，很高兴帮你"]
+    assert next(data for event, data in events if event == "done")["content"] == "你好，很高兴帮你"
+
+
+@pytest.mark.asyncio
+async def test_safe_stream_never_leaks_an_unknown_link_split_across_chunks(monkeypatch):
+    graph = _setup(monkeypatch, answer_parts=["你好 [错误](", "mall://product/999", ") 后续"], rag=False, node="small_talk")
+    response = await chat.chat_stream(_request(), _Request())
+    stream = response.body_iterator
+    first = _decode(await anext(stream))
+    assert first == ("token", {"content": "你好 "})
+    assert graph.completed is False
+    events = [first] + [_decode(item) async for item in stream]
+    tokens = "".join(data["content"] for event, data in events if event == "token")
+    assert tokens == "你好 错误 后续"
+    assert "mall://product/999" not in json.dumps(events, ensure_ascii=False)
+    assert next(data for event, data in events if event == "done")["content"] == tokens
+
+
+@pytest.mark.asyncio
+async def test_finalization_keeps_rag_citations_buffered(monkeypatch):
+    graph = _setup(monkeypatch, answer_parts=["错误的答案。[S9]"], node="finalize_without_tools")
+    response = await chat.chat_stream(_request(), _Request())
+    events = [_decode(item) async for item in response.body_iterator]
+    assert graph.completed
+    assert [data["content"] for event, data in events if event == "token"] == ["当前知识库证据不足，暂时无法可靠回答该问题。"]

@@ -60,3 +60,46 @@ def ensure_product_links(text: str, result: dict | None) -> str:
         price = f"，¥{p['price']}" if p.get("price") is not None else ""
         rows.append(f"{len(rows) + 1}. [{name}]({p['link']}){price}")
     return "为您找到以下在售商品：\n" + "\n".join(rows) + "\n点击商品名可查看详情。"
+
+
+class GuardedLinkBuffer:
+    """Hold incomplete Markdown links so unknown IDs never escape in early tokens."""
+
+    def __init__(self, known_ids: set[str], enabled: bool = True):
+        self.known_ids = known_ids
+        self.enabled = enabled
+        self.pending = ""
+
+    def push(self, text: str) -> str:
+        if not self.enabled:
+            return text
+        self.pending += text
+        ready: list[str] = []
+        while self.pending:
+            start = self.pending.find("[")
+            if start < 0:
+                ready.append(self.pending)
+                self.pending = ""
+                break
+            ready.append(self.pending[:start])
+            self.pending = self.pending[start:]
+            close = self.pending.find("]")
+            newline = self.pending.find("\n")
+            if close < 0 or (newline >= 0 and newline < close):
+                if newline < 0:
+                    break
+                ready.append(self.pending[:newline + 1])
+                self.pending = self.pending[newline + 1:]
+                continue
+            if close + 1 == len(self.pending):
+                break
+            if self.pending[close + 1] != "(":
+                ready.append(self.pending[:close + 1])
+                self.pending = self.pending[close + 1:]
+                continue
+            end = self.pending.find(")", close + 2)
+            if end < 0:
+                break
+            ready.append(guard_links(self.pending[:end + 1], self.known_ids))
+            self.pending = self.pending[end + 1:]
+        return "".join(ready)

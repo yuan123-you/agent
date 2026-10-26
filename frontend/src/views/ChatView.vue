@@ -11,8 +11,9 @@
         </div>
         <button class="cph-close-btn mobile-only" title="关闭" @click="showConvList = false">✕</button>
       </div>
-      <button class="new-conv-pill-btn" @click="handleCreateConv">+ 新建对话</button>
-      <div class="conv-list">
+      <button class="new-conv-pill-btn" :disabled="creatingConversation" @click="handleCreateConv">{{ creatingConversation ? '正在创建…' : '+ 新建对话' }}</button>
+      <div class="conv-list" :aria-busy="chat.loadingConversations">
+        <el-skeleton v-if="chat.loadingConversations && !chat.conversations.length" :rows="4" animated />
         <div
           v-for="c in chat.conversations"
           :key="c.conversationId"
@@ -21,7 +22,7 @@
           @click="handleSelectConv(c.conversationId)"
         >
           <div class="conv-title">
-            <el-icon v-if="isStreaming(c.conversationId)" class="is-loading conv-spinner">
+            <el-icon v-if="isStreaming(c.conversationId) || chat.loadingConversationId === c.conversationId" class="is-loading conv-spinner">
               <Loading />
             </el-icon>
             <span>{{ c.title || '新对话' }}</span>
@@ -33,12 +34,12 @@
             <span class="time">{{ formatConvTime(c.updatedAt) }}</span>
           </div>
         </div>
-        <el-empty v-if="chat.conversations.length === 0" description="暂无会话" :image-size="60" />
+        <el-empty v-if="!chat.loadingConversations && !initializing && chat.conversations.length === 0" description="暂无会话" :image-size="60" />
       </div>
     </aside>
 
     <!-- 右侧对话区 -->
-    <section class="chat-panel">
+    <section class="chat-panel" :aria-busy="initializing || chat.loadingConversationId != null">
       <template v-if="chat.current">
         <header class="chat-header">
           <button class="translucent-circle-back" title="返回" @click="goBack">
@@ -79,6 +80,9 @@
           </el-button>
         </header>
 
+        <div v-if="chat.loadingConversationId != null" class="conversation-loading" role="status">
+          <el-icon class="is-loading"><Loading /></el-icon> 正在加载对话，当前内容会保留
+        </div>
         <!-- 针对具体商品的智能客服咨询挂载条 -->
         <div v-if="consultProduct" class="consult-product-banner">
           <el-image :src="consultProduct.imageUrl" fit="cover" class="cpb-img">
@@ -128,42 +132,50 @@
         </div>
 
         <footer class="input-bar">
-          <el-input
-            v-model="input"
-            type="textarea"
-            :rows="2"
-            :disabled="chat.streaming || chat.current.status === 'PENDING_HUMAN'"
-            :placeholder="
-              chat.current.status === 'PENDING_HUMAN'
-                ? '正在等待人工客服接入…'
-                : chat.current.status === 'SERVICING'
-                  ? '人工客服服务中，直接输入消息即可（Ctrl+Enter 发送）'
-                  : '描述你的需求，如：推荐一款3000以内拍照好的手机（Ctrl+Enter 发送）'
-            "
-            resize="none"
-            @keydown.ctrl.enter.prevent="send(input)"
-          />
-          <div class="input-actions">
-            <!-- 人工客服入口：触发 AI escalate 链路，客服工作台接入 -->
-            <el-tooltip :content="chat.current.status === 'PENDING_HUMAN' ? '取消转人工，返回 AI 客服' : '转接人工客服（工作时间 9:00-22:00）'" placement="top">
-              <el-button
-                circle
-                :type="chat.current.status !== 'ACTIVE' ? 'success' : 'default'"
-                :disabled="cancellingHuman || (chat.streaming && chat.current.status !== 'PENDING_HUMAN')"
-                :aria-label="chat.current.status === 'PENDING_HUMAN' ? '取消转人工' : '转接人工客服'"
-                @click="transferHuman"
-              >
-                <el-icon><Service /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-button v-if="chat.streaming" type="danger" @click="chat.stopStream()">停止</el-button>
-            <el-button v-else type="primary" :disabled="!input.trim() || chat.current.status === 'PENDING_HUMAN'"
-              @click="send(input)">
-              发送
-            </el-button>
+          <div class="input-box-wrapper">
+            <el-input
+              v-model="input"
+              type="textarea"
+              :rows="2"
+              :disabled="chat.loadingConversationId != null || chat.streaming || chat.current.status === 'PENDING_HUMAN'"
+              :placeholder="inputPlaceholder"
+              resize="none"
+              @keydown.ctrl.enter.prevent="send(input)"
+            />
+            <div class="input-actions">
+              <div class="actions-left">
+                <!-- 人工客服入口：触发 AI escalate 链路，客服工作台接入 -->
+                <el-tooltip :content="chat.current.status === 'PENDING_HUMAN' ? '取消转人工，返回 AI 客服' : '转接人工客服（工作时间 9:00-22:00）'" placement="top">
+                  <el-button
+                    circle
+                    :type="chat.current.status !== 'ACTIVE' ? 'success' : 'default'"
+                    :disabled="cancellingHuman || (chat.streaming && chat.current.status !== 'PENDING_HUMAN')"
+                    :aria-label="chat.current.status === 'PENDING_HUMAN' ? '取消转人工' : '转接人工客服'"
+                    @click="transferHuman"
+                  >
+                    <el-icon><Service /></el-icon>
+                  </el-button>
+                </el-tooltip>
+              </div>
+              <div class="actions-right">
+                <el-button v-if="chat.streaming" type="danger" round size="small" @click="chat.stopStream()">停止</el-button>
+                <el-button v-else type="primary" round size="small" :disabled="chat.loadingConversationId != null || !input.trim() || chat.current.status === 'PENDING_HUMAN'"
+                  @click="send(input)">
+                  发送
+                </el-button>
+              </div>
+            </div>
           </div>
         </footer>
       </template>
+      <div v-else-if="initializing" class="chat-loading" role="status" aria-label="正在加载对话">
+        <el-skeleton :rows="5" animated />
+        <p>正在加载你的对话…</p>
+      </div>
+      <div v-else-if="initializationError" class="chat-load-error" role="alert">
+        <p>对话加载失败，请检查网络后重试</p>
+        <el-button type="primary" @click="initializeChat">重新加载</el-button>
+      </div>
       <el-empty v-else description="点击左侧「新对话」开始" style="margin: auto" />
     </section>
 
@@ -181,7 +193,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ChatDotRound, Link, Loading, Menu, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -192,6 +204,11 @@ import { remainingHumanWaitSeconds } from './humanHandoff'
 const auth = useAuthStore()
 const chat = useChatStore()
 const route = useRoute()
+const router = useRouter()
+const initializing = ref(!chat.current)
+const initializationError = ref(false)
+const creatingConversation = ref(false)
+let disposed = false
 
 const input = ref('')
 const showConvList = ref(false)
@@ -242,25 +259,47 @@ onMounted(async () => {
   }
   chat.expireOrderActions()
   updateHumanWaitCountdown()
-    loadConsultProduct()
+  loadConsultProduct()
   actionExpiryTimer = window.setInterval(() => {
     chat.expireOrderActions()
     updateHumanWaitCountdown()
   }, 1000)
-  await chat.loadConversations()
-  const routeId = Number(route.params.conversationId)
-  if (routeId) {
-    await openConv(routeId)
-  } else if (chat.conversations.length > 0) {
-    await openConv(chat.conversations[0].conversationId)
-  } else {
-    await chat.createConversation()
-  }
-  startPollingIfNeeded()
+  await initializeChat()
+  if (!disposed) startPollingIfNeeded()
 })
 
+async function initializeChat() {
+  initializing.value = true
+  initializationError.value = false
+  try {
+    const routeId = Number(route.params.conversationId)
+    if (chat.current && (!routeId || routeId === chat.current.conversationId)) {
+      // Keep cached messages/background streams mounted; refresh only the sidebar.
+      void Promise.resolve(chat.loadConversations()).catch(() => {})
+      await nextTick()
+      if (!disposed) scrollToBottom()
+    } else if (routeId) {
+      void Promise.resolve(chat.loadConversations()).catch(() => {})
+      await openConv(routeId)
+    } else {
+      await chat.loadConversations()
+      if (disposed) return
+      if (chat.conversations.length > 0) await openConv(chat.conversations[0].conversationId)
+      else await chat.createConversation()
+    }
+  } catch {
+    initializationError.value = true
+  } finally {
+    initializing.value = false
+  }
+}
+
 watch(
-  () => chat.messages.length,
+  () => {
+    const last = chat.messages[chat.messages.length - 1]
+    return [chat.messages.length, last?.content, last?.status,
+      last?.toolCalls?.map((card) => card.status).join(','), last?.actions?.length]
+  },
   async () => {
     if (stickBottom) {
       await nextTick()
@@ -278,6 +317,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  disposed = true
   window.removeEventListener('resize', updateMobile)
   if (pollTimer) window.clearInterval(pollTimer)
   if (actionExpiryTimer) window.clearInterval(actionExpiryTimer)
@@ -309,7 +349,7 @@ async function openConv(id: number) {
 
 async function send(content: string) {
   const text = (content || '').trim()
-  if (!text || chat.streaming) return
+  if (!text || chat.streaming || chat.loadingConversationId != null) return
   input.value = ''
   stickBottom = true
   // 人工客服服务中：消息直达客服（不经过 AI）
@@ -437,17 +477,37 @@ function goBack() {
 }
 
 function handleSelectConv(id: number) {
-  openConv(id)
+  if (chat.current?.conversationId === id && chat.loadingConversationId == null) return
+  void openConv(id).catch(() => ElMessage.error('加载对话失败，请重试'))
   showConvList.value = false
 }
 
 async function handleCreateConv() {
-  await chat.createConversation()
-  showConvList.value = false
+  if (creatingConversation.value) return
+  creatingConversation.value = true
+  try {
+    await chat.createConversation()
+    showConvList.value = false
+    stickBottom = true
+    await nextTick()
+    scrollToBottom()
+  } catch {
+    ElMessage.error('创建对话失败，请重试')
+  } finally {
+    creatingConversation.value = false
+  }
 }
 </script>
 
 <style scoped>
+.chat-loading, .chat-load-error { width: min(480px, 85%); margin: auto; padding: 32px 20px; color: var(--el-text-color-secondary); }
+.chat-load-error { text-align: center; }
+.conversation-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; font-size: 12px; color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.new-conv-pill-btn:disabled { opacity: .6; cursor: wait; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-view :deep(.el-skeleton__item), .chat-view :deep(.is-loading) { animation: none !important; }
+}
+
 .chat-view {
   display: flex;
   height: calc(100vh - 56px - env(safe-area-inset-bottom));
@@ -791,15 +851,127 @@ html.dark .bubble.user {
   }
 }
 
-.chat-header,
-.input-bar,
-.input-actions {
-  flex-wrap: wrap;
+.input-bar {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--mall-border-light, #f4f4f5);
+  background: var(--mall-surface, #ffffff);
+  flex-shrink: 0;
+  z-index: 10;
 }
 
-.input-bar :deep(.el-textarea) {
-  flex: 1 1 180px;
-  min-width: 0;
+.input-box-wrapper {
+  display: flex;
+  flex-direction: column;
+  background: var(--mall-surface-2, #f4f4f5);
+  border: 1px solid var(--mall-border, #e4e4e7);
+  border-radius: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  overflow: hidden;
+}
+
+.input-box-wrapper:focus-within {
+  border-color: var(--el-color-primary, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  background: var(--mall-surface, #ffffff);
+}
+
+html.dark .input-box-wrapper {
+  background: var(--mall-surface-2, #18181b);
+  border-color: var(--mall-border, #27272a);
+}
+
+html.dark .input-box-wrapper:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  background: var(--mall-surface, #121215);
+}
+
+.input-box-wrapper :deep(.el-textarea) {
+  width: 100%;
+}
+
+.input-box-wrapper :deep(.el-textarea__inner) {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 10px 12px 4px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: inherit;
+  resize: none;
+}
+
+.input-box-wrapper :deep(.el-textarea__inner:focus) {
+  box-shadow: none !important;
+}
+
+.input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 8px 10px;
+  gap: 8px;
+}
+
+.actions-left,
+.actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions-left .el-button.is-circle {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  border: 1px solid var(--mall-border, #e4e4e7);
+  background: var(--mall-surface, #ffffff);
+  color: #52525b;
+  transition: all 0.2s ease;
+}
+
+.actions-left .el-button.is-circle:not(.is-disabled):hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+html.dark .actions-left .el-button.is-circle {
+  background: #27272a;
+  border-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+html.dark .actions-left .el-button.is-circle:not(.is-disabled):hover {
+  border-color: #3b82f6;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.actions-left .el-button.el-button--success.is-circle {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #10b981 !important;
+}
+
+.actions-right .el-button {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.chat-header {
+  flex-wrap: wrap;
 }
 
 @media (max-width: 768px) {
@@ -825,11 +997,6 @@ html.dark .bubble.user {
 
   .input-bar {
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-    gap: 6px;
-  }
-
-  .input-bar .el-button {
-    height: 44px;
   }
 }
 

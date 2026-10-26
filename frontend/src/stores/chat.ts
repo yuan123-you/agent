@@ -16,7 +16,12 @@ interface PendingStream {
   streaming: boolean
 }
 
+const listLoads = new WeakMap<object, Promise<void>>()
+const conversationLoads = new WeakMap<object, { id: number; promise: Promise<void> }>()
+
 interface ChatState {
+  loadingConversations: boolean
+  loadingConversationId: number | null
   conversations: ConversationVO[]
   current: ConversationVO | null
   messages: ChatMessage[]
@@ -28,6 +33,8 @@ interface ChatState {
 
 export const useChatStore = defineStore('chat', {
   state: (): ChatState => ({
+    loadingConversations: false,
+    loadingConversationId: null,
     conversations: [],
     current: null,
     messages: [],
@@ -37,45 +44,70 @@ export const useChatStore = defineStore('chat', {
   }),
   actions: {
     async loadConversations() {
-      const page = await apiConversations({ page: 1, size: 50 })
-      this.conversations = page.records
+      const existing = listLoads.get(this)
+      if (existing) return existing
+      this.loadingConversations = true
+      const request = (async () => {
+        try {
+          const page = await apiConversations({ page: 1, size: 50 })
+          this.conversations = page.records
+        } finally {
+          this.loadingConversations = false
+          listLoads.delete(this)
+        }
+      })()
+      listLoads.set(this, request)
+      return request
     },
 
     async createConversation() {
       const data = await apiCreateConversation()
-      await this.loadConversations()
+      void this.loadConversations().catch(() => {})
       await this.openConversation(data.conversationId)
     },
 
     async openConversation(id: number) {
-      this.current = await apiConversationDetail(id)
-      const page = await apiMessages(id, { page: 1, size: 100 })
-      // 接口倒序返回 → 反转为时间正序
-      this.messages = page.records.slice().reverse().map((m) => ({
-        ...m,
-        toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }),
-        actions: parseOrderActions(m as unknown as { toolCalls?: unknown }),
-      }))
-      await Promise.all(this.messages.flatMap((message) => message.actions || []).map(async (action) => {
+      const existing = conversationLoads.get(this)
+      if (existing?.id === id) return existing.promise
+      this.loadingConversationId = id
+      const load = { id, promise: Promise.resolve() }
+      conversationLoads.set(this, load)
+      load.promise = (async () => {
         try {
-          Object.assign(action, await apiOrderActionStatus(action.actionId))
-        } catch {
-          if (Date.parse(action.expiresAt) <= Date.now()) action.status = 'EXPIRED'
+          const [conversation, page] = await Promise.all([
+            apiConversationDetail(id), apiMessages(id, { page: 1, size: 100 }),
+          ])
+          if (conversationLoads.get(this) !== load) return
+          const messages: ChatMessage[] = page.records.slice().reverse().map((m) => ({
+            ...m,
+            toolCalls: parseToolCalls(m as unknown as { toolCalls?: unknown }),
+            actions: parseOrderActions(m as unknown as { toolCalls?: unknown }),
+          }))
+          const pending = this.pendingByConv[id]
+          if (pending) {
+            const ai = pending.aiMessage
+            const alreadyLoaded = messages.some((m) => ai.messageId != null && m.messageId === ai.messageId)
+            if (ai.status === 'PENDING' || !alreadyLoaded) messages.push(ai)
+          }
+          // Commit title, messages and stream state together; ignore stale selections.
+          this.$patch({ current: conversation, messages, streaming: pending?.streaming ?? false })
+          // Status hydration must not hold up history or overwrite a newer buyer decision.
+          for (const action of this.messages.flatMap((message) => message.actions || [])) {
+            const status = action.status
+            void apiOrderActionStatus(action.actionId).then((fresh) => {
+              if (action.status === status) Object.assign(action, fresh)
+            }).catch(() => {
+              if (action.status === status && Date.parse(action.expiresAt) <= Date.now()) action.status = 'EXPIRED'
+            })
+          }
+        } finally {
+          if (conversationLoads.get(this) === load) {
+            this.loadingConversationId = null
+            conversationLoads.delete(this)
+          }
         }
-      }))
-      // 恢复该会话后台未完成的流式 AI 消息（切走会话/页面后返回继续渲染）
-      const pending = this.pendingByConv[id]
-      if (pending) {
-        const ai = pending.aiMessage
-        const alreadyLoaded = this.messages.some(
-          (m) => ai.messageId != null && m.messageId === ai.messageId,
-        )
-        // PENDING 说明服务端尚未落库；否则仅在竞态窗口内（已落库但记录未清理）补推
-        if (ai.status === 'PENDING' || !alreadyLoaded) {
-          this.messages.push(ai)
-        }
-      }
-      this.streaming = pending?.streaming ?? false
+      })()
+      return load.promise
     },
 
     /** 转人工后轮询：新消息（含 AGENT 消息）+ 会话状态（感知客服接入/服务结束） */
@@ -116,7 +148,7 @@ export const useChatStore = defineStore('chat', {
 
       // 乐观插入用户消息与流式 AI 消息
       this.messages.push({ role: 'USER', content })
-      this.messages.push({ role: 'AI', content: '', toolCalls: [], status: 'PENDING' })
+      this.messages.push({ role: 'AI', content: '', toolCalls: [], status: 'PENDING', startedAt: Date.now() })
       // ⚡ 必须通过响应式数组重新取引用：直接持有 push 前的原始对象会被 Vue 深响应式
       // 包装成副本，后续对其 content 的修改不会触发视图更新（"要刷新才显示"根因）
       const aiMsg = this.messages[this.messages.length - 1] as ChatMessage
@@ -128,12 +160,27 @@ export const useChatStore = defineStore('chat', {
       const buffer = new StreamBuffer()
       const toolCards = aiMsg.toolCalls as ToolCard[]
       let stream: SseStream | null = null
+      let renderTimer: ReturnType<typeof setTimeout> | undefined
+      const cancelRender = () => {
+        if (renderTimer !== undefined) clearTimeout(renderTimer)
+        renderTimer = undefined
+      }
+      const flushPartial = () => {
+        cancelRender()
+        if (buffer.full) aiMsg.content = buffer.full
+      }
 
       try {
         stream = streamChat({ conversationId, content, webSearchEnabled: this.webSearchEnabled }, {
           onToken: (t) => {
+            if (aiMsg.status !== 'PENDING') return
             buffer.push(t)
-            aiMsg.content = buffer.renderable
+            if (renderTimer === undefined) {
+              renderTimer = setTimeout(() => {
+                renderTimer = undefined
+                aiMsg.content = buffer.renderable
+              }, 32)
+            }
           },
           onToolCall: (evt) => {
             toolCards.push({
@@ -153,13 +200,18 @@ export const useChatStore = defineStore('chat', {
             this.upsertOrderAction(aiMsg, action)
           },
           onError: (evt) => {
+            if (aiMsg.status === 'STOPPED') return
+            flushPartial()
             aiMsg.status = 'FAILED'
+            aiMsg.error = evt.message
             if (!aiMsg.content) aiMsg.content = evt.message
             ElMessage.error(evt.message)
           },
           onDone: (evt) => {
             // 终态：渲染完整文本（含闭合链接）
-            aiMsg.content = evt.content || buffer.full
+            if (aiMsg.status === 'STOPPED') return
+            cancelRender()
+            aiMsg.content = evt.content ?? buffer.full
             aiMsg.messageId = evt.messageId
             aiMsg.status = 'SUCCESS'
           },
@@ -167,15 +219,29 @@ export const useChatStore = defineStore('chat', {
         pending.stream = stream
         await stream.promise
       } catch {
-        aiMsg.status = 'FAILED'
-        if (!aiMsg.content) aiMsg.content = '生成中断，请重试'
+        flushPartial()
+        if (aiMsg.status !== 'STOPPED') {
+          aiMsg.status = 'FAILED'
+          aiMsg.error = '生成中断，请重试'
+        }
+        if (!aiMsg.content) aiMsg.content = aiMsg.status === 'STOPPED' ? '已停止生成' : '生成中断，请重试'
       } finally {
+        cancelRender()
+        if (aiMsg.status === 'PENDING') {
+          flushPartial()
+          aiMsg.status = 'FAILED'
+          aiMsg.error = '连接已中断，请重试'
+          if (!aiMsg.content) aiMsg.content = aiMsg.error
+        } else if (aiMsg.status === 'STOPPED') {
+          flushPartial()
+          if (!aiMsg.content) aiMsg.content = '已停止生成'
+        }
         // 清理流式状态：完成后服务端已落库，切回时走接口加载，不再依赖内存
         if (this.pendingByConv[conversationId]?.aiMessage === aiMsg) {
           delete this.pendingByConv[conversationId]
         }
         if (this.current?.conversationId === conversationId) {
-          this.streaming = false
+          this.streaming = this.pendingByConv[conversationId]?.streaming ?? false
         }
         // 刷新会话列表与状态（可能已转人工/建单）
         this.loadConversations().catch(() => {})
@@ -285,6 +351,7 @@ export const useChatStore = defineStore('chat', {
       const pending = this.pendingByConv[this.current.conversationId]
       if (pending) {
         // 真正中断后台 SSE 流；fetch 中止后由 sendMessage 的 catch/finally 兜底复位
+        pending.aiMessage.status = 'STOPPED'
         pending.stream?.stop()
         pending.streaming = false
       }
