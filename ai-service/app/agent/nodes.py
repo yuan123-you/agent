@@ -270,16 +270,26 @@ async def agent_node(state: AgentState) -> dict:
 
     # Require a real lookup before first recommendations, including vague "buy me a phone".
     latest_user = max((i for i, m in enumerate(state["messages"]) if isinstance(m, HumanMessage)), default=-1)
-    searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") in {"product_search", "product_detail"}
+    searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") in {"product_search", "product_detail", "web_search"}
                    for m in state["messages"][latest_user + 1:])
     budget_changed = bool(budget)
     preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
-    is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜", latest_text))
+    is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜|对比|评测|区别|怎么样|百科", latest_text))
+    must_web_search = (state.get("web_search_enabled")
+                       and is_external_query
+                       and not searched
+                       and not state.get("tool_loop_count"))
+    if must_web_search:
+        response = AIMessage(content="", tool_calls=[{
+            "name": "web_search", "id": f"search_{uuid4().hex}",
+            "args": {"query": latest_text, "max_results": 5},
+        }])
+        return {"messages": [response], "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+                "active_entities": entities}
     must_search = (intent in {"PRODUCT_CONSULT", "ORDER_CREATE"}
                    and bool(requested_category)
                    and (not entities.get("last_products") or budget_changed or preferences_changed)
-                   and not searched and not state.get("tool_loop_count")
-                   and not (state.get("web_search_enabled") and is_external_query))
+                   and not searched and not state.get("tool_loop_count"))
     if must_search:
         # Some compatible models silently ignore tool_choice. Schedule the read-only
         # lookup in the graph itself rather than trusting a generated recommendation.

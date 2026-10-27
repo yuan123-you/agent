@@ -296,24 +296,16 @@ async def test_agent_node_does_not_force_product_search_for_external_query_when_
     from langchain_core.messages import HumanMessage
     from app.agent import nodes
 
-    class MockLLM:
-        def bind_tools(self, tools, **kwargs):
-            return self
-
-        async def ainvoke(self, messages):
-            from langchain_core.messages import AIMessage
-            return AIMessage(content="联网搜索结果", tool_calls=[])
-
-    monkeypatch.setattr(nodes, "get_chat_llm", lambda: MockLLM())
     res = await nodes.agent_node({
         "intent": "PRODUCT_CONSULT",
         "messages": [HumanMessage(content="最新的苹果手机是什么")],
         "web_search_enabled": True,
         "active_entities": {},
     })
-    # Should not force tool_calls to product_search directly in must_search
     tool_calls = getattr(res["messages"][0], "tool_calls", None) or []
-    assert not any(tc.get("name") == "product_search" for tc in tool_calls)
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["name"] == "web_search"
+    assert "苹果手机" in tool_calls[0]["args"]["query"]
 
 
 def test_get_tools_for_all_intents_when_web_search_enabled():
