@@ -446,9 +446,17 @@ async def small_talk_node(state: AgentState) -> dict:
     naming = parse_naming_command(user_text)
     if naming:
         profile.update(naming)
-        assistant_name = profile.get("assistant_name", "AI Mall")
-        user_name = profile.get("user_name", "朋友")
-        resp = AIMessage(content=f"记住了！我是「{assistant_name}」，你是「{user_name}」，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？")
+        assistant_name = (profile.get("assistant_name") or "").strip()
+        user_name = (profile.get("user_name") or "").strip()
+        if assistant_name and user_name:
+            content = f"记住了！我是「{assistant_name}」，你是「{user_name}」，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
+        elif assistant_name:
+            content = f"记住了！从现在开始我就叫「{assistant_name}」啦，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
+        elif user_name:
+            content = f"记住了！您是「{user_name}」，我是「AI Mall」智能购物助手，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
+        else:
+            content = "记住了！我是「AI Mall」智能购物助手，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
+        resp = AIMessage(content=content)
         await generation(
             "generate", model="rules", input_data={"node": "small_talk", "naming": naming},
             usage={"content": resp.content}, tags=["generate", "small_talk", "naming-fast-path"],
@@ -457,12 +465,16 @@ async def small_talk_node(state: AgentState) -> dict:
 
     # 2. 双方互问名字快速响应: "你叫什么名字，我叫什么名字" / "你是谁我是谁"
     if asks_mutual_identity(user_text):
-        assistant_name = profile.get("assistant_name", "AI Mall")
-        user_name = profile.get("user_name") or profile.get("nickname")
-        if user_name:
+        assistant_name = (profile.get("assistant_name") or "").strip()
+        user_name = (profile.get("user_name") or profile.get("nickname") or "").strip()
+        if assistant_name and user_name:
             content = f"我是「AI Mall」的专属伙伴「{assistant_name}」，你是「{user_name}」呀！很高兴为您服务~"
-        else:
+        elif assistant_name:
             content = f"我是「AI Mall」的专属伙伴「{assistant_name}」，您还没有告诉我您的称呼呢~ 请问怎么称呼您？"
+        elif user_name:
+            content = f"我是「AI Mall」智能购物助手，你是「{user_name}」呀！很高兴为您服务~"
+        else:
+            content = "我是「AI Mall」智能购物助手，您还没有告诉我您的称呼呢~ 请问怎么称呼您？"
         resp = AIMessage(content=content)
         await generation(
             "generate", model="rules", input_data={"node": "small_talk", "type": "mutual_identity"},
@@ -472,7 +484,7 @@ async def small_talk_node(state: AgentState) -> dict:
 
     # 3. 询问用户自己名字/身份快速响应: "我叫什么名字" / "我是谁" / "你还记得我叫什么吗"
     if asks_user_identity(user_text):
-        user_name = profile.get("user_name") or profile.get("nickname")
+        user_name = (profile.get("user_name") or profile.get("nickname") or "").strip()
         if user_name:
             content = f"您好，您是「{user_name}」呀！请问有什么想了解的商品或需要帮忙的吗？"
         else:

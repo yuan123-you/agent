@@ -180,3 +180,38 @@ async def test_background_memory_extraction_calls_backend():
         keys = {m["key"]: m["value"] for m in memories}
         assert keys.get("assistant_name") == "大肥鱼"
         assert keys.get("user_name") == "派蒙"
+
+
+@pytest.mark.asyncio
+async def test_mutual_identity_when_assistant_name_not_set_or_empty():
+    cp = MemorySaver()
+    graph = build_graph(cp)
+
+    # 1. 用户未设置助手名字，但有昵称 paimeng: 绝对不产生空书名号「」
+    result1 = await graph.ainvoke(
+        {
+            "messages": [HumanMessage(content="你是谁，我是谁")],
+            "user_id": "1",
+            "conversation_id": "103",
+            "user_profile": {"nickname": "paimeng", "assistant_name": ""},
+        },
+        {"configurable": {"thread_id": "conv_103"}},
+    )
+    ans1 = result1["messages"][-1].content
+    assert "「」" not in ans1, f"Empty bracket found in: {ans1}"
+    assert "paimeng" in ans1
+    assert "我是「AI Mall」智能购物助手" in ans1
+
+    # 2. 用户设定了助手名字大肥鱼: 正常呈现专属伙伴大肥鱼
+    result2 = await graph.ainvoke(
+        {
+            "messages": [HumanMessage(content="你是谁，我是谁")],
+            "user_id": "1",
+            "conversation_id": "104",
+            "user_profile": {"user_name": "派蒙", "assistant_name": "大肥鱼"},
+        },
+        {"configurable": {"thread_id": "conv_104"}},
+    )
+    ans2 = result2["messages"][-1].content
+    assert "「大肥鱼」" in ans2
+    assert "「派蒙」" in ans2

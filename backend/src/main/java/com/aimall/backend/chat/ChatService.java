@@ -108,10 +108,19 @@ public class ChatService {
         User user = userMapper.selectById(userId);
         Map<String, String> memoryMap = userMemoryService != null ? userMemoryService.getMemoryMap(userId) : Collections.emptyMap();
         Map<String, Object> userProfile = new HashMap<>();
-        userProfile.put("nickname", user != null ? user.getNickname() : "");
-        userProfile.put("user_name", memoryMap.getOrDefault("user_name", user != null ? user.getNickname() : ""));
-        userProfile.put("assistant_name", memoryMap.getOrDefault("assistant_name", ""));
+        String nickname = user != null && user.getNickname() != null ? user.getNickname().trim() : "";
+        userProfile.put("nickname", nickname);
+        String userName = memoryMap.getOrDefault("user_name", nickname);
+        if (org.springframework.util.StringUtils.hasText(userName)) {
+            userProfile.put("user_name", userName.trim());
+        }
         userProfile.putAll(memoryMap);
+        Object assistantNameObj = userProfile.get("assistant_name");
+        if (assistantNameObj instanceof String assistantName && !org.springframework.util.StringUtils.hasText(assistantName)) {
+            userProfile.remove("assistant_name");
+        } else if (assistantNameObj == null) {
+            userProfile.remove("assistant_name");
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("conversation_id", conv.getId());
