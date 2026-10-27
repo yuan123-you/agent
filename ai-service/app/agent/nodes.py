@@ -314,7 +314,10 @@ async def agent_node(state: AgentState) -> dict:
                           "args": {"category": requested_category, "keyword": clean_search_keyword(query),
                                    **ctx["requested_budget"]}})
         if must_kb:
-            calls.append({"name": "kb_search", "id": f"kb_{uuid4().hex}", "args": {"query": latest_text}})
+            kb_args = {"query": latest_text}
+            if re.search(r"平台|本商城|AI\s*Mall", latest_text, re.IGNORECASE):
+                kb_args.update(doc_type="POLICY", product_id=-1)
+            calls.append({"name": "kb_search", "id": f"kb_{uuid4().hex}", "args": kb_args})
         return {"messages": [AIMessage(content="", tool_calls=calls)],
                 "tool_loop_count": state.get("tool_loop_count", 0) + 1, "active_entities": entities}
     if intent == "AFTER_SALE_FAQ" and kb_searched and settings.kb_response_mode == "extractive":

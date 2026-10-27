@@ -37,6 +37,8 @@ async def test_policy_agent_schedules_real_lookup_before_a_tool_ignoring_model(m
     result=await nodes.agent_node({'intent':'AFTER_SALE_FAQ','messages':[HumanMessage(content=QUESTION)],'tool_loop_count':0})
     assert result['messages'][0].tool_calls[0]['name']=='kb_search'
     assert result['messages'][0].tool_calls[0]['args']['query']==QUESTION
+    assert result['messages'][0].tool_calls[0]['args'].get('doc_type')=='POLICY'
+    assert result['messages'][0].tool_calls[0]['args'].get('product_id')==-1
     model.ainvoke.assert_not_awaited()
 
 @pytest.mark.asyncio
