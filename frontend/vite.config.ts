@@ -1,10 +1,20 @@
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: process.env.VITE_BASE_PATH || "/",
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    // Unit tests provide explicit UI stubs; the browser harness exercises real resolution.
+    mode !== 'test' && Components({
+      dirs: [],
+      dts: false,
+      resolvers: [ElementPlusResolver()],
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -15,13 +25,13 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('element-plus') || id.includes('@element-plus/icons-vue')) {
-              return 'element-plus'
-            }
-            if (id.includes('vue') || id.includes('pinia')) {
+            if (/\/node_modules\/(?:@vue\/|vue\/|vue-router\/|pinia\/)/.test(id)) {
               return 'vue-vendor'
             }
-            if (id.includes('marked') || id.includes('dompurify') || id.includes('axios')) {
+            if (id.includes('marked') || id.includes('dompurify')) {
+              return 'markdown-vendor'
+            }
+            if (id.includes('axios')) {
               return 'utils-vendor'
             }
           }
@@ -44,4 +54,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

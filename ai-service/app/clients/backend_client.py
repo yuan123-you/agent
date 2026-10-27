@@ -172,7 +172,12 @@ class BackendClient:
     async def kb_keyword_search(self, query: str, doc_type: str = "ALL",
                                 product_id: int | None = None, top_k: int = 4) -> dict:
         """关键词检索（RAG 兜底）：向量 Embedding 不可用或无命中时调用后端检索 ACTIVE 文档分块"""
-        return await self._post("/internal/kb/search", {"query": query, "topK": top_k})
+        body = {"query": query, "topK": top_k}
+        if doc_type and doc_type != "ALL":
+            body["docType"] = doc_type
+        if product_id is not None:
+            body["productId"] = product_id
+        return await self._post("/internal/kb/search", body)
 
     async def kb_current_chunks(self, chunk_ids: list[int]) -> dict[int, str]:
         """校验候选分块仍属于 ACTIVE 文档当前版本，并返回 chunkId → title。"""
@@ -180,7 +185,7 @@ class BackendClient:
             return {}
         r = await self._post("/internal/kb/chunks/current", {"chunkIds": list(chunk_ids)}, retries=1)
         if "error" in r:
-            return {}
+            raise RuntimeError("current chunk validation unavailable")
         return {int(k): str(v) for k, v in r.items()}
 
     async def kb_titles(self, doc_ids: list[int]) -> dict:

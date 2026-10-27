@@ -45,6 +45,14 @@ beforeEach(() => {
 afterEach(() => { app?.unmount(); app = undefined; host?.remove() })
 
 describe('order reviews and list lifecycle', () => {
+  it('shows order skeletons while the initial page is pending, then renders actual orders', async () => {
+    const pending = deferred<any>(); mocks.list.mockReturnValueOnce(pending.promise)
+    await mount(); expect(host.querySelector('[data-loading-variant="list"]')).not.toBeNull()
+    expect(host.textContent).not.toContain('加载中')
+    pending.resolve({ records: [order()], total: 1 }); await flush()
+    expect(host.querySelector('[data-loading-variant]')).toBeNull(); expect(host.textContent).toContain('ORD-5')
+  })
+
   it('does not offer another review for a persisted reviewed product', async () => {
     mocks.list.mockResolvedValue({ records: [order(true)], total: 1 }); await mount()
     expect(button('评价晒单')).toBeUndefined()

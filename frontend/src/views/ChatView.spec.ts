@@ -217,3 +217,20 @@ describe('header actions layout', () => {
     expect(searchSwitch.compareDocumentPosition(closeBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
+
+describe('cached assistant sidebar startup', () => {
+  it('opens cached history while the sidebar refresh is still pending', async () => {
+    chat.current = null as any
+    chat.conversations = [{ conversationId: 7, status: 'ACTIVE' }]
+    let complete!: () => void
+    chat.loadConversations.mockImplementation(() => new Promise<void>(resolve => { complete = resolve }))
+    chat.openConversation.mockImplementation(async () => {
+      chat.current = { conversationId: 7, status: 'ACTIVE' } as any
+    })
+    await remount()
+    expect(host.querySelector('.chat-header')).not.toBeNull()
+    expect(host.querySelector('textarea')).not.toBeNull()
+    complete()
+    await flush()
+  })
+})

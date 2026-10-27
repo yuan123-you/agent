@@ -22,6 +22,26 @@ async function mount(component:any) {
 beforeEach(()=>{vi.clearAllMocks();route=reactive({query:{}});mocks.cart.mockResolvedValue({items:[],totalAmount:0,checkedCount:0});mocks.products.mockResolvedValue({records:[product()],total:1})})
 afterEach(()=>{app?.unmount();app=undefined;host?.remove()})
 describe('live catalog identity',()=>{
+ it('category list shows product-card skeletons while the catalog is pending',async()=>{
+  let resolve!: (value:any)=>void; mocks.products.mockReturnValueOnce(new Promise(r=>{resolve=r}))
+  await mount(ProductListView);expect(host.querySelector('[data-loading-variant="cards"]')).not.toBeNull();expect(host.textContent).not.toContain('商品加载中')
+  resolve({records:[product()],total:1});await flush();expect(host.querySelector('[data-loading-variant]')).toBeNull()
+ })
+ it('keeps real catalog items visible while appending a page of skeletons',async()=>{
+  let resolve!: (value:any)=>void
+  mocks.products.mockResolvedValueOnce({records:[product()],total:2}).mockReturnValueOnce(new Promise(r=>{resolve=r}))
+  await mount(ProductListView)
+  Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(b=>b.textContent?.trim()==='加载更多商品')!.click();await flush()
+  expect(host.textContent).toContain('后端真实商品701')
+  expect(host.querySelectorAll('.loading-card')).toHaveLength(2)
+  resolve({records:[product(702)],total:2});await flush()
+  expect(host.textContent).toContain('后端真实商品702');expect(host.querySelector('[data-loading-variant]')).toBeNull()
+ })
+ it('cart shows item skeletons while its first request is pending',async()=>{
+  mocks.cart.mockReturnValueOnce(new Promise(()=>{}));await mount(CartView)
+  expect(host.querySelector('[data-loading-variant="list"]')).not.toBeNull();expect(host.querySelector('.empty-cart-card')).toBeNull()
+ })
+
  it.each([['home',HomeView,'.pdd-card'],['list',ProductListView,'.stream-product-card'],['cart recommendations',CartView,'.rec-card']] as const)('%s uses real API names, prices and ids rather than local fixture ids',async(name,component,selector)=>{
   await mount(component); expect(mocks.products).toHaveBeenCalled(); expect(host.textContent).toContain('后端真实商品701');expect(host.textContent).toContain('12.34')
   expect(host.textContent).not.toContain('Apple iPhone 15 Pro Max')

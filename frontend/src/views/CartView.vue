@@ -16,6 +16,8 @@
         </div>
       </div>
 
+      <LoadingState v-if="loading && !items.length" variant="list" :count="3" label="正在加载购物车" />
+
       <!-- 2. 包邮与权益提示条 (对标拼多多/京东满减包邮提醒) -->
       <div v-if="items.length > 0" class="shipping-benefit-bar mall-card">
         <div class="sbb-left">
@@ -120,6 +122,7 @@
         </div>
 
         <p v-if="recommendError" role="alert">推荐商品加载失败 <button @click="loadRecommendations">重试</button></p>
+        <LoadingState v-if="recommendLoading" variant="cards" :count="4" label="正在加载推荐商品" />
         <div class="recommend-grid">
           <div
             v-for="p in recommendProducts"
@@ -287,6 +290,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -324,14 +328,18 @@ const allChecked = computed(
 // 猜你喜欢推荐池
 const recommendProducts = ref<ProductVO[]>([])
 const recommendError = ref(false)
+const recommendLoading = ref(false)
 let disposed = false
 async function loadRecommendations() {
+  recommendLoading.value = true
   recommendError.value = false
   try {
     const result = await apiProducts({ page: 1, size: 8 })
     if (!disposed) recommendProducts.value = result.records
   } catch {
     if (!disposed) { recommendProducts.value = []; recommendError.value = true }
+  } finally {
+    if (!disposed) recommendLoading.value = false
   }
 }
 onUnmounted(() => { disposed = true })

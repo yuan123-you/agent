@@ -1,26 +1,30 @@
 <template>
-  <div class="coupon-picker" v-loading="loading">
-    <el-radio-group :model-value="modelValue" class="coupon-list" @update:model-value="onPick">
-      <el-radio v-for="c in coupons" :key="c.userCouponId" :value="c.userCouponId"
-        :disabled="!c.usable" class="coupon-item">
-        <div class="coupon-body">
-          <div class="coupon-amount"><i>￥</i>{{ c.discountValue }}</div>
-          <div class="coupon-info">
-            <div class="coupon-name">{{ c.name }}</div>
-            <div class="coupon-rule">
-              {{ c.minAmount > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }} · {{ shortExpire(c.expireAt) }}前有效
+  <LoadingState :loading="loading" variant="list" :count="3" label="正在加载可用优惠券">
+    <div class="coupon-picker">
+      <el-radio-group :model-value="modelValue" class="coupon-list" @update:model-value="onPick">
+        <el-radio v-for="c in coupons" :key="c.userCouponId" :value="c.userCouponId"
+          :disabled="!c.usable" class="coupon-item">
+          <div class="coupon-body">
+            <div class="coupon-amount"><i>￥</i>{{ c.discountValue }}</div>
+            <div class="coupon-info">
+              <div class="coupon-name">{{ c.name }}</div>
+              <div class="coupon-rule">
+                {{ c.minAmount > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }} · {{ shortExpire(c.expireAt) }}前有效
+              </div>
             </div>
+            <el-tag v-if="!c.usable" size="small" type="info" effect="plain">未达门槛</el-tag>
+            <el-tag v-else size="small" type="danger" effect="plain">-{{ c.discount }}</el-tag>
           </div>
-          <el-tag v-if="!c.usable" size="small" type="info" effect="plain">未达门槛</el-tag>
-          <el-tag v-else size="small" type="danger" effect="plain">-{{ c.discount }}</el-tag>
-        </div>
-      </el-radio>
-    </el-radio-group>
-    <el-empty v-if="!loading && coupons.length === 0" description="暂无可用优惠券" :image-size="56" />
-  </div>
+        </el-radio>
+      </el-radio-group>
+      <el-empty v-if="!loading && coupons.length === 0" description="暂无可用优惠券" :image-size="56" />
+    </div>
+  </LoadingState>
+
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, ref, watch } from 'vue'
 import { apiUsableCoupons } from '@/api'
 import type { UsableCouponVO } from '@/types/api'

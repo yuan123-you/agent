@@ -1,5 +1,6 @@
 <template>
-  <div v-if="order" class="page detail-page">
+  <LoadingState v-if="loading && !order" variant="list" :count="4" label="正在加载订单详情" />
+  <div v-else-if="order" class="page detail-page">
     <div class="page-header-row">
       <button class="translucent-circle-back" title="返回" @click="goBack">
         <el-icon><ArrowLeft /></el-icon>
@@ -146,6 +147,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -158,6 +160,7 @@ import type { OrderVO } from '@/types/api'
 const route = useRoute()
 const router = useRouter()
 const order = ref<OrderVO | null>(null)
+const loading = ref(false)
 const shippingSimulating = ref(false)
 let generation = 0
 const canReview = computed(() => order.value?.status === 'DELIVERED' && order.value.items.some(i => i.canReview && !i.reviewed))
@@ -195,11 +198,14 @@ async function load() {
   const requestGeneration = ++generation
   const id = Number(route.params.id)
   if (!Number.isSafeInteger(id) || id <= 0) { void router.replace('/404'); return }
+  loading.value = true
   try {
     const result = await apiOrderDetail(id)
     if (requestGeneration === generation) order.value = result
   } catch (error: any) {
     if (requestGeneration === generation && error?.code === 2002) void router.replace('/404')
+  } finally {
+    if (requestGeneration === generation) loading.value = false
   }
 }
 

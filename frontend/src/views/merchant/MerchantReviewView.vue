@@ -26,13 +26,14 @@
       <el-empty v-if="!loading && reviews.length === 0" description="暂无评论" />
     </div>
 
-    <div v-if="loading" class="load-state">加载中...</div>
+    <LoadingState v-if="loading" variant="text" :count="3" />
     <div v-else-if="finished && reviews.length > 0" class="load-state">— 没有更多了 —</div>
     </div>
   </el-scrollbar>
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiMerchantReply, apiMerchantReviews } from '@/api'

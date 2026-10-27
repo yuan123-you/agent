@@ -11,3 +11,12 @@
 可定点复测，例如：`http://127.0.0.1:5173/tests/layout.html?route=/products/1&width=375`。
 
 此入口仅用于 Vite 开发服务器，不参与生产构建。
+
+## 加载状态视觉回归
+
+在开发服务器打开 `/tests/loading.html?variant=detail` 检查真实 LoadingState 组件。
+`variant` 支持 `detail`、`cards`、`list`、`table`、`stats`、`text`、`spinner`；加 `&dark` 检查暗色主题。
+在 320/390px 与 1440px 宽度核对无横向溢出；`spinner` 应在视口正中心。
+`?variant=spinner&dialog` 在真实 Element Plus 对话框内复测视口居中。
+启用系统“减少动态效果”后，骨架渐变和加载旋转均应停用。
+此独立入口没有 API 请求，不读取或修改登录状态，也不参与生产构建。

@@ -9,27 +9,30 @@
       <el-button type="primary" @click="openAdd">新增地址</el-button>
     </div>
 
-    <div v-loading="loading" class="address-list">
-      <article v-for="address in list" :key="address.addressId" class="address-card">
-        <div class="identity">
-          <span class="avatar">{{ address.receiverName.slice(0, 1) }}</span>
-          <div>
-            <strong>{{ address.receiverName }}</strong>
-            <span>{{ maskPhone(address.receiverPhone) }}</span>
+    <LoadingState :loading="loading" variant="list" :count="3" label="正在加载收货地址">
+      <div class="address-list">
+        <article v-for="address in list" :key="address.addressId" class="address-card">
+          <div class="identity">
+            <span class="avatar">{{ address.receiverName.slice(0, 1) }}</span>
+            <div>
+              <strong>{{ address.receiverName }}</strong>
+              <span>{{ maskPhone(address.receiverPhone) }}</span>
+            </div>
+            <el-tag v-if="address.isDefault" type="success" size="small" round>默认地址</el-tag>
           </div>
-          <el-tag v-if="address.isDefault" type="success" size="small" round>默认地址</el-tag>
-        </div>
-        <p>{{ address.receiverAddress }}</p>
-        <div class="card-actions">
-          <el-button v-if="!address.isDefault" text type="primary" @click="setDefault(address)">设为默认</el-button>
-          <el-button text @click="openEdit(address)">编辑</el-button>
-          <el-button text type="danger" @click="remove(address)">删除</el-button>
-        </div>
-      </article>
-      <el-empty v-if="!loading && !list.length" :image-size="70" description="还没有收货地址">
-        <el-button type="primary" plain @click="openAdd">添加常用地址</el-button>
-      </el-empty>
-    </div>
+          <p>{{ address.receiverAddress }}</p>
+          <div class="card-actions">
+            <el-button v-if="!address.isDefault" text type="primary" @click="setDefault(address)">设为默认</el-button>
+            <el-button text @click="openEdit(address)">编辑</el-button>
+            <el-button text type="danger" @click="remove(address)">删除</el-button>
+          </div>
+        </article>
+        <el-empty v-if="!loading && !list.length" :image-size="70" description="还没有收货地址">
+          <el-button type="primary" plain @click="openAdd">添加常用地址</el-button>
+        </el-empty>
+      </div>
+    </LoadingState>
+
 
     <el-dialog v-model="visible" :title="form.addressId ? '编辑收货地址' : '新增收货地址'" width="min(520px, 92vw)" destroy-on-close>
       <el-form label-position="top">
@@ -75,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { LocationInformation } from '@element-plus/icons-vue'

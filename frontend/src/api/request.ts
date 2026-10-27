@@ -1,6 +1,6 @@
 import { API_BASE } from '@/api/base'
 /**
- * axios 封装：token 注入 + 401 自动刷新重放 + 统一错误提示
+ * axios 封装：token 注入 + 过期预刷新 + 401 自动刷新重放 + 统一错误提示
  * （token 直接读写 localStorage，避免与 store 循环依赖）
  */
 import axios from 'axios'
@@ -21,7 +21,7 @@ async function tryRefresh(): Promise<string | null> {
   if (!refreshToken) return null
   if (!refreshing) {
     refreshing = axios
-      .post(`${API_BASE}/auth/refresh`, { refreshToken })
+      .post(`${API_BASE}/auth/refresh`, { refreshToken }, { timeout: 10000 })
       .then((resp) => {
         const body = resp.data
         const token = body?.data?.accessToken as string | undefined
@@ -39,9 +39,38 @@ async function tryRefresh(): Promise<string | null> {
   return refreshing
 }
 
-instance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
+function clearAuthentication() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+  unauthorizedHandler()
+}
+
+function isExpired(token: string): boolean {
+  try {
+    // Only schedule refresh locally; signature/permission checks remain on the server.
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const { exp } = JSON.parse(atob(payload))
+    return typeof exp === 'number' && exp * 1000 <= Date.now()
+  } catch {
+    return false
+  }
+}
+
+instance.interceptors.request.use(async (config) => {
+  let token = localStorage.getItem('token')
+  const path = (config.url || '').split('?')[0]
+  const signingIn = /^\/auth\/(login|register)(\/|$)/.test(path)
+  if (token && !signingIn && !(config as AxiosRequestConfig & { _authRetried?: boolean })._authRetried && isExpired(token)) {
+    token = await tryRefresh()
+    if (!token) {
+      clearAuthentication()
+      const publicRead = config.method === 'get' && /^(?:\/(?:products|catalog)(?:\/|$)|\/promotions\/(?:seckills|coupons)$)/.test(path)
+      if (!publicRead) throw new axios.CanceledError('登录已过期，请重新登录')
+      config.headers.delete('Authorization')
+    }
+  }
+  if (token && !signingIn) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
@@ -79,10 +108,7 @@ instance.interceptors.response.use(
         const token = await tryRefresh()
         if (token) return instance(config)
       }
-      localStorage.removeItem('token')
-      localStorage.removeItem('refreshToken')
-      localStorage.removeItem('user')
-      unauthorizedHandler()
+      clearAuthentication()
       return Promise.reject(body)
     }
     // silent: true 时静默失败（轮询等高频请求，不打扰用户）

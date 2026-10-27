@@ -1,5 +1,5 @@
 <template>
-  <div class="page dashboard" v-loading="loading">
+  <div class="page dashboard">
     <div class="page-heading">
       <div><h3 class="page-title">数据看板</h3><p>平台今日运营概览</p></div>
       <el-button :loading="loading" @click="loadDashboard">刷新</el-button>
@@ -9,53 +9,56 @@
       <template #default><el-button link type="primary" @click="loadDashboard">重新加载</el-button></template>
     </el-alert>
 
-    <section class="summary-grid" aria-label="平台摘要">
-      <el-card v-for="card in summaryCards" :key="card.label" shadow="never" class="summary-card">
-        <div class="summary-value">{{ card.value }}</div><div class="summary-label">{{ card.label }}</div>
-      </el-card>
-    </section>
+    <LoadingState :loading="loading" variant="stats" :count="6">
+      <section class="summary-grid" aria-label="平台摘要">
+        <el-card v-for="card in summaryCards" :key="card.label" shadow="never" class="summary-card">
+          <div class="summary-value">{{ card.value }}</div><div class="summary-label">{{ card.label }}</div>
+        </el-card>
+      </section>
 
-    <section class="panel-grid trend-status">
-      <el-card shadow="never"><template #header>近 7 日订单与 GMV</template>
-        <div v-if="dashboard.orderTrend.length" class="trend-table">
-          <div v-for="point in dashboard.orderTrend" :key="point.date" class="trend-row">
-            <span class="trend-date">{{ dateText(point.date) }}</span><div class="bar-track"><div class="bar" :style="{ width: `${trendWidth(point.orderCount)}%` }" /></div>
-            <span class="trend-count">{{ point.orderCount }} 单</span><strong class="trend-gmv">{{ formatMoney(point.gmv) }}</strong>
+      <section class="panel-grid trend-status">
+        <el-card shadow="never"><template #header>近 7 日订单与 GMV</template>
+          <div v-if="dashboard.orderTrend.length" class="trend-table">
+            <div v-for="point in dashboard.orderTrend" :key="point.date" class="trend-row">
+              <span class="trend-date">{{ dateText(point.date) }}</span><div class="bar-track"><div class="bar" :style="{ width: `${trendWidth(point.orderCount)}%` }" /></div>
+              <span class="trend-count">{{ point.orderCount }} 单</span><strong class="trend-gmv">{{ formatMoney(point.gmv) }}</strong>
+            </div>
           </div>
-        </div>
-        <el-empty v-else description="暂无近 7 日订单数据" :image-size="72" />
-      </el-card>
-      <el-card shadow="never"><template #header>订单状态分布</template>
-        <div v-if="dashboard.orderStatusDistribution.length" class="status-list">
-          <div v-for="item in dashboard.orderStatusDistribution" :key="item.status" class="status-row"><el-tag :type="statusType(item.status)">{{ orderStatusText(item.status) }}</el-tag><b>{{ item.count }}</b></div>
-        </div>
-        <el-empty v-else description="暂无订单状态数据" :image-size="72" />
-      </el-card>
-    </section>
+          <el-empty v-else description="暂无近 7 日订单数据" :image-size="72" />
+        </el-card>
+        <el-card shadow="never"><template #header>订单状态分布</template>
+          <div v-if="dashboard.orderStatusDistribution.length" class="status-list">
+            <div v-for="item in dashboard.orderStatusDistribution" :key="item.status" class="status-row"><el-tag :type="statusType(item.status)">{{ orderStatusText(item.status) }}</el-tag><b>{{ item.count }}</b></div>
+          </div>
+          <el-empty v-else description="暂无订单状态数据" :image-size="72" />
+        </el-card>
+      </section>
 
-    <section class="panel-grid operations-quality">
-      <el-card shadow="never"><template #header>待人工处理</template>
-        <div class="waiting"><span>{{ dashboard.operations.waitingHumanConversationCount }}</span><small>个会话正在等待人工接入</small></div>
-      </el-card>
-      <el-card shadow="never"><template #header>AI 服务质量（今日）</template>
-        <div class="quality-grid"><div v-for="metric in qualityMetrics" :key="metric.label"><strong>{{ metric.value }}</strong><span>{{ metric.label }}</span></div></div>
-      </el-card>
-    </section>
+      <section class="panel-grid operations-quality">
+        <el-card shadow="never"><template #header>待人工处理</template>
+          <div class="waiting"><span>{{ dashboard.operations.waitingHumanConversationCount }}</span><small>个会话正在等待人工接入</small></div>
+        </el-card>
+        <el-card shadow="never"><template #header>AI 服务质量（今日）</template>
+          <div class="quality-grid"><div v-for="metric in qualityMetrics" :key="metric.label"><strong>{{ metric.value }}</strong><span>{{ metric.label }}</span></div></div>
+        </el-card>
+      </section>
 
-    <section class="panel-grid ranks">
-      <el-card shadow="never"><template #header>热门问题（今日）</template>
-        <el-table v-if="dashboard.topQuestions.length" :data="dashboard.topQuestions" size="small"><el-table-column type="index" width="52" /><el-table-column prop="name" label="问题" show-overflow-tooltip /><el-table-column prop="count" label="次数" width="90" /></el-table>
-        <el-empty v-else description="暂无热门问题" :image-size="72" />
-      </el-card>
-      <el-card shadow="never"><template #header>工具排行（今日）</template>
-        <el-table v-if="dashboard.toolCalls.length" :data="dashboard.toolCalls" size="small"><el-table-column type="index" width="52" /><el-table-column label="工具" show-overflow-tooltip><template #default="{ row }">{{ toolText(row.name) }}</template></el-table-column><el-table-column prop="count" label="调用次数" width="100" /></el-table>
-        <el-empty v-else description="暂无工具调用" :image-size="72" />
-      </el-card>
-    </section>
+      <section class="panel-grid ranks">
+        <el-card shadow="never"><template #header>热门问题（今日）</template>
+          <el-table v-if="dashboard.topQuestions.length" :data="dashboard.topQuestions" size="small"><el-table-column type="index" width="52" /><el-table-column prop="name" label="问题" show-overflow-tooltip /><el-table-column prop="count" label="次数" width="90" /></el-table>
+          <el-empty v-else description="暂无热门问题" :image-size="72" />
+        </el-card>
+        <el-card shadow="never"><template #header>工具排行（今日）</template>
+          <el-table v-if="dashboard.toolCalls.length" :data="dashboard.toolCalls" size="small"><el-table-column type="index" width="52" /><el-table-column label="工具" show-overflow-tooltip><template #default="{ row }">{{ toolText(row.name) }}</template></el-table-column><el-table-column prop="count" label="调用次数" width="100" /></el-table>
+          <el-empty v-else description="暂无工具调用" :image-size="72" />
+        </el-card>
+      </section>
+    </LoadingState>
   </div>
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, ref } from 'vue'
 import { apiAdminDashboard } from '@/api'
 import { formatMoney, formatPercent, normalizeDashboard, orderStatusText, toolText } from './dashboard'

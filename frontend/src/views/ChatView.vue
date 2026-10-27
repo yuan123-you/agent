@@ -279,6 +279,11 @@ async function initializeChat() {
     } else if (routeId) {
       void Promise.resolve(chat.loadConversations()).catch(() => {})
       await openConv(routeId)
+    } else if (chat.conversations.length > 0) {
+      // Sidebar revalidation should not block opening already-known history.
+      const id = chat.conversations[0].conversationId
+      void Promise.resolve(chat.loadConversations()).catch(() => {})
+      await openConv(id)
     } else {
       await chat.loadConversations()
       if (disposed) return

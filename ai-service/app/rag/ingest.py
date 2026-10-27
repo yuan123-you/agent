@@ -120,7 +120,9 @@ async def run_ingest(task: IngestTask) -> None:
         vectorized = 0
         try:
             store = get_vectorstore()
-            existing = await store.existing_ids(ids, include_legacy=True)
+            # Legacy-only vectors are not searchable in the current model's collection.
+            # Re-embed missing current IDs rather than silently skipping them.
+            existing = await store.existing_ids(ids, include_legacy=False)
             pending = [(chunk_id, text) for chunk_id, text in zip(ids, texts) if chunk_id not in existing]
             if pending:
                 embeddings = get_embeddings()
@@ -203,6 +205,10 @@ def build_product_text(p: dict) -> str:
         label,
         f"卖点 {p.get('sellingPoints')}" if p.get("sellingPoints") else "",
         _specs_text(p.get("specs")),
+        *(f"{label} {p[key]}" for key, label in (
+            ("origin", "产地"), ("shipFrom", "发货地"),
+            ("material", "材质"), ("productionDate", "生产日期"),
+        ) if p.get(key)),
         f"介绍 {p.get('description')}" if p.get("description") else "",
     ] if x)
 
@@ -215,9 +221,6 @@ async def sync_products() -> dict:
     async with _product_sync_lock:
         try:
             products = await backend_client.products_all()
-            if not products:
-                logger.warning("product sync: backend returned no on-sale products")
-                return {"indexed": 0, "vectorIndexed": 0, "reason": "no products"}
             texts = [build_product_text(product) for product in products]
             get_product_corpus().rebuild(products, texts)
         except Exception as exc:
@@ -225,8 +228,13 @@ async def sync_products() -> dict:
             return {"indexed": 0, "vectorIndexed": 0, "error": str(exc)[:200]}
 
         try:
-            vectors = await get_embeddings().aembed_documents(texts)
             version = int(time.time() * 1000)
+            if not products:
+                await get_product_index().delete_old_versions(version)
+                return {"indexed": 0, "vectorIndexed": 0, "reason": "no products"}
+            vectors = await get_embeddings().aembed_documents(texts)
+            if len(vectors) != len(products):
+                raise ValueError("embedding count does not match the catalog")
             rows = [{
                 "product_id": int(product["productId"]), "embedding": vector,
                 "name": (product.get("name") or "")[:200],

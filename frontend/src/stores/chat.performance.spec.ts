@@ -212,3 +212,38 @@ describe('stream rendering lifecycle', () => {
     next.resolve(); await newer
   })
 })
+
+describe('new conversation startup performance', () => {
+  it('makes a newly created empty conversation usable without detail/history requests', async () => {
+    const chat = useChatStore()
+    chat.current = conversation(7)
+    chat.messages = [{ role: 'AI', content: '旧消息' }]
+    chat.streaming = true
+    const list = deferred<any>()
+    api.list.mockReturnValue(list.promise)
+    api.create.mockResolvedValue({ conversationId: 9, convNo: 'C9', status: 'ACTIVE' })
+    await chat.createConversation()
+    expect(api.detail).not.toHaveBeenCalled()
+    expect(api.messages).not.toHaveBeenCalled()
+    expect(chat.current).toEqual({ conversationId: 9, convNo: 'C9', status: 'ACTIVE' })
+    expect(chat.messages).toEqual([])
+    expect(chat.streaming).toBe(false)
+    expect(chat.loadingConversationId).toBeNull()
+    list.resolve({ records: [conversation(9)] })
+    await flush()
+  })
+
+  it('does not let an older history request overwrite a newly created conversation', async () => {
+    const chat = useChatStore()
+    const old = deferred<any>()
+    api.detail.mockImplementation(id => id === 7 ? old.promise : Promise.resolve(conversation(id)))
+    const previous = chat.openConversation(7)
+    api.create.mockResolvedValue({ conversationId: 9, status: 'ACTIVE' })
+    await chat.createConversation()
+    old.resolve(conversation(7))
+    await previous
+    expect(chat.current?.conversationId).toBe(9)
+    expect(chat.messages).toEqual([])
+    expect(chat.loadingConversationId).toBeNull()
+  })
+})

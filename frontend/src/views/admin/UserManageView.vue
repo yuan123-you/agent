@@ -12,32 +12,34 @@
       <el-tab-pane v-for="tab in USER_TABS" :key="tab.role" :label="tab.label" :name="tab.role" />
     </el-tabs>
 
-    <el-table v-loading="loading && users.length === 0" :data="users" border stripe>
-      <el-table-column prop="userId" label="ID" width="70" />
-      <el-table-column prop="username" label="用户名" width="130" />
-      <el-table-column prop="nickname" label="昵称" width="120" />
-      <el-table-column label="角色" width="100">
-        <template #default="{ row }">{{ roleText(row.role) }}</template>
-      </el-table-column>
-      <el-table-column prop="phone" label="手机号" width="140" />
-      <el-table-column label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
-            {{ row.status === 'ACTIVE' ? '正常' : '已禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="注册时间" width="160" />
-      <el-table-column label="操作" width="100" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" :type="row.status === 'ACTIVE' ? 'warning' : 'success'" @click="toggleStatus(row)">
-            {{ row.status === 'ACTIVE' ? '禁用' : '启用' }}
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <LoadingState :loading="loading && users.length === 0" variant="table" :count="5">
+      <el-table :data="users" border stripe>
+        <el-table-column prop="userId" label="ID" width="70" />
+        <el-table-column prop="username" label="用户名" width="130" />
+        <el-table-column prop="nickname" label="昵称" width="120" />
+        <el-table-column label="角色" width="100">
+          <template #default="{ row }">{{ roleText(row.role) }}</template>
+        </el-table-column>
+        <el-table-column prop="phone" label="手机号" width="140" />
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
+              {{ row.status === 'ACTIVE' ? '正常' : '已禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="注册时间" width="160" />
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" :type="row.status === 'ACTIVE' ? 'warning' : 'success'" @click="toggleStatus(row)">
+              {{ row.status === 'ACTIVE' ? '禁用' : '启用' }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </LoadingState>
 
-    <div v-if="loading" class="load-state">加载中...</div>
+    <LoadingState v-if="loading && users.length > 0" variant="table" :count="2" />
     <div v-else-if="finished && users.length > 0" class="load-state">— 没有更多了 —</div>
 
     <el-dialog v-model="createDialog" title="创建客服" width="min(440px, 92vw)" @closed="resetAgentForm">
@@ -57,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'

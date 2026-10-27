@@ -85,6 +85,73 @@ beforeEach(() => {
 })
 afterEach(() => { app?.unmount(); host.remove(); ElMessage.closeAll() })
 
+describe('商品规格参数展示', () => {
+  it('shows a full product-detail skeleton while the product request is pending', async () => {
+    const pending = deferred<any>(); api.apiProductDetail.mockReturnValueOnce(pending.promise)
+    await mountPage()
+    expect(host.querySelector('[data-loading-variant="detail"]')).not.toBeNull()
+    expect(host.textContent).not.toContain('商品加载中')
+    pending.resolve(product(41)); await flush()
+    expect(host.querySelector('[data-loading-variant="detail"]')).toBeNull()
+  })
+
+  function customSpecRows() {
+    return Array.from(host.querySelectorAll('.specs-desc-table .el-descriptions__label'))
+      .slice(8)
+      .map(label => ({
+        k: label.textContent?.trim(),
+        v: label.nextElementSibling?.textContent?.trim(),
+      }))
+  }
+
+  it('将接口中的 JSON 规格渲染为干净的名称和值，不泄露引号或花括号', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), specs: '{"充电":"67W","屏幕":"6.7英寸","电池":"5000mAh"}',
+    })
+    await mountPage()
+    expect(customSpecRows()).toEqual([
+      { k: '充电', v: '67W' },
+      { k: '屏幕', v: '6.7英寸' },
+      { k: '电池', v: '5000mAh' },
+    ])
+  })
+
+  it('JSON 参数中的逗号、分号、斜杠和冒号属于原始内容，不能继续拆分', async () => {
+    const specs = { '接口/协议': 'USB-C / PD; PPS, QC: 4.0', 提示: '支持"快充"：是' }
+    api.apiProductDetail.mockResolvedValue({ ...product(41), specs: JSON.stringify(specs) })
+    await mountPage()
+    expect(customSpecRows()).toEqual(Object.entries(specs).map(([k, v]) => ({ k, v })))
+  })
+
+  it('保留数字零和布尔值，忽略空值与非标量内容', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), specs: JSON.stringify({ 重量: 180, 运费: 0, 无线充电: false, 备注: null, 嵌套: { a: 1 }, 列表: ['a'] }),
+    })
+    await mountPage()
+    expect(customSpecRows()).toEqual([
+      { k: '重量', v: '180' }, { k: '运费', v: '0' }, { k: '无线充电', v: 'false' },
+    ])
+  })
+
+  it.each(['', '   ', '{}', '[]', 'null', '{"充电":', '["充电:67W"]'])('空或无效的结构化规格 %j 不显示原始序列化内容', async specs => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), specs })
+    await mountPage()
+    expect(customSpecRows()).toEqual([])
+    expect(host.querySelector('.main-title')?.textContent).toBe('真实商品41')
+  })
+
+  it('兼容历史文本规格，且保留值内的后续冒号', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), specs: '屏幕：6.7英寸,电池:5000mAh;充电:67W/比例:20:9',
+    })
+    await mountPage()
+    expect(customSpecRows()).toEqual([
+      { k: '屏幕', v: '6.7英寸' }, { k: '电池', v: '5000mAh' },
+      { k: '充电', v: '67W' }, { k: '比例', v: '20:9' },
+    ])
+  })
+})
+
 describe('真实买家评价', () => {
   it('接口失败展示失败和重试，而不是伪造五星评价', async () => {
     api.apiReviews.mockRejectedValue(new Error('offline'))
@@ -128,7 +195,7 @@ describe('真实买家评价', () => {
     api.apiReviews.mockReturnValue(pending.promise)
     await mountPage()
     expectNoReviews()
-    expect(host.querySelector('.reviews-list')?.textContent).toContain('评价加载中')
+    expect(host.querySelector('.reviews-list [data-loading-variant="text"]')).not.toBeNull()
     expect(host.querySelector('.reviews-list')?.textContent).not.toContain('暂无评价')
     pending.resolve(page())
     await flush()
@@ -217,7 +284,7 @@ describe('同一详情组件复用与晚到响应', () => {
     await flush()
     expect(host.querySelector('.detail-container')).toBeNull()
     expect(host.textContent).not.toContain('商品41')
-    expect(host.querySelector('.product-loading')?.textContent).toContain('商品加载中')
+    expect(host.querySelector('[data-loading-variant="detail"]')).not.toBeNull()
     pending.reject(new Error('offline'))
     await flush()
     expect(host.querySelector('.product-error')).not.toBeNull()
@@ -296,6 +363,18 @@ function favoriteButton() {
   return [...host.querySelectorAll<HTMLElement>('.mobile-icon-btn')]
     .find(button => button.textContent?.includes('收藏'))!
 }
+
+describe('规格弹窗定位', () => {
+  it.each(['.spec-select-cell', '.m-cart-btn', '.m-buy-btn'])('%s 打开的规格弹窗在视口中居中', async (selector) => {
+    await mountPage()
+    host.querySelector<HTMLElement>(selector)!.click()
+    await flush()
+
+    const dialog = document.querySelector<HTMLElement>('.el-dialog')
+    expect(dialog?.textContent).toContain('选择规格与数量')
+    expect(dialog?.classList.contains('is-align-center')).toBe(true)
+  })
+})
 
 describe('购买链路的真实SKU与成功条件', () => {
   beforeEach(() => { auth.isCustomer = true })
@@ -501,4 +580,48 @@ describe('收藏的失败、重复点击与请求隔离', () => {
     } finally { success.mockRestore() }
   })
 
+})
+
+describe('original product images', () => {
+  it.each(['/api/v1/product-images/catalog/original.webp', 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E'])('does not invent broken gallery variants for %s', async imageUrl => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), imageUrl })
+    await mountPage()
+    expect(host.querySelector('.img-counter-badge')?.textContent?.trim()).toBe('1 / 1')
+    expect(host.querySelectorAll('.thumb-pic')).toHaveLength(1)
+    expect(host.querySelector('.fixed-main-img img')?.getAttribute('src')).toBe(imageUrl)
+  })
+})
+
+describe('商品事实不能被占位文案伪造', () => {
+  it('缺少参数与介绍时不补造材质、批次、产地或保修承诺', async () => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), category: 'FOOD', brand: '', description: '' })
+    await mountPage()
+    const text = host.textContent || ''
+    for (const claim of ['阳极氧化铝合金', '2026年最新生产', '12 个月官方正品联保', 'GB/T 26572',
+      '北京顺义智能总仓', '全国智能分仓', '航空级金属', '破损全额包赔', '官方标配']) {
+      expect(text).not.toContain(claim)
+    }
+    expect(host.querySelector('.md-content')?.textContent).toContain('暂无商品介绍')
+  })
+
+  it('只展示接口确实提供的产地、发货地、材质和生产日期', async () => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), origin: '法国', shipFrom: '上海浦东', material: '纯棉', productionDate: '2026-10-01' })
+    await mountPage()
+    const text = host.querySelector('.specs-table-box')?.textContent || ''
+    for (const fact of ['法国', '上海浦东', '纯棉', '2026-10-01']) expect(text).toContain(fact)
+    expect(text).not.toContain('12 个月官方正品联保')
+  })
+})
+
+describe('价格销量与服务承诺来自真实数据', () => {
+  it('普通商品不虚构划线原价、销量下限或物流保险承诺', async () => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), sales: 0 })
+    await mountPage()
+    expect(host.querySelector('.spb-old')).toBeNull()
+    expect(host.querySelector('.spb-sales')?.textContent).toBe('销量 0')
+    const text = host.textContent || ''
+    for (const claim of ['顺丰包邮', '预计明日送达', '假一赔十', '赠退货运费险', '极速退款']) {
+      expect(text).not.toContain(claim)
+    }
+  })
 })

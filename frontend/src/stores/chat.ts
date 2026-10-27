@@ -62,8 +62,17 @@ export const useChatStore = defineStore('chat', {
 
     async createConversation() {
       const data = await apiCreateConversation()
+      // The create response is enough to display an empty conversation immediately.
+      // Invalidate earlier history loads so they cannot replace the new selection.
+      conversationLoads.delete(this)
+      this.$patch((state) => {
+        state.current = data
+        state.messages = []
+        state.streaming = false
+        state.loadingConversationId = null
+        state.conversations = [data, ...state.conversations.filter(c => c.conversationId !== data.conversationId)]
+      })
       void this.loadConversations().catch(() => {})
-      await this.openConversation(data.conversationId)
     },
 
     async openConversation(id: number) {

@@ -49,7 +49,7 @@
       <el-empty v-if="!loading && orders.length === 0" description="暂无订单" />
     </div>
 
-    <div v-if="loading" class="load-state">加载中...</div>
+    <LoadingState v-if="loading" variant="list" :count="3" />
     <div v-else-if="finished && orders.length > 0" class="load-state">— 没有更多了 —</div>
     </div>
   </el-scrollbar>
@@ -133,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'

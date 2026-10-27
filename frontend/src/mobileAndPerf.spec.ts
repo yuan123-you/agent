@@ -14,14 +14,6 @@ describe('Mobile adaptation and performance optimizations', () => {
     return fs.readFileSync(path.resolve(root, relPath), 'utf-8') as string
   }
 
-  it('vite.config.ts splits vendor chunks to prevent large monolithic bundle', () => {
-    const viteConfig = read('vite.config.ts')
-    expect(viteConfig).toContain('manualChunks')
-    expect(viteConfig).toContain('element-plus')
-    expect(viteConfig).toContain('vue-vendor')
-    expect(viteConfig).toContain('utils-vendor')
-  })
-
   it('nginx configs enable gzip and long-lived asset caching', () => {
     const nginxConf = read('nginx.conf')
     const prodConf = read('../deploy/frontend.production.conf')

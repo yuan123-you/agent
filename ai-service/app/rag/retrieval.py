@@ -283,9 +283,14 @@ class RetrievalPipeline:
                 })
                 return result
 
+            scope = {}
+            if doc_type and doc_type != "ALL":
+                scope["doc_type"] = doc_type
+            if product_id is not None:
+                scope["product_id"] = product_id
             raw_results = await asyncio.gather(
-                self._vector_search(normalized, top_k=settings.rag_vector_recall_k),
-                self._bm25_search(normalized, top_k=settings.rag_bm25_recall_k),
+                self._vector_search(normalized, top_k=settings.rag_vector_recall_k, **scope),
+                self._bm25_search(normalized, top_k=settings.rag_bm25_recall_k, **scope),
                 return_exceptions=True,
             )
             reasons: list[str] = []
@@ -364,8 +369,8 @@ def get_retrieval_pipeline() -> RetrievalPipeline:
     from app.rag.reranker import get_reranker
     from app.rag.vectorstore import get_vectorstore
 
-    async def vector_search(query: str, *, top_k: int):
-        return await get_vectorstore().search(query, top_k=top_k)
+    async def vector_search(query: str, *, top_k: int, **scope):
+        return await get_vectorstore().search(query, top_k=top_k, **scope)
 
     return RetrievalPipeline(
         vector_search=vector_search,

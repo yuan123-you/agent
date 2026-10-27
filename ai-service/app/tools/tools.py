@@ -1,4 +1,5 @@
 """工具定义：身份上下文由服务端 ContextVar 注入（不信任模型生成的身份），支持会话级实体记忆"""
+import asyncio
 import contextvars
 import logging
 import re
@@ -10,7 +11,7 @@ from app.rag import retrieval
 from app.request_policy import requests_human
 from app.clients.backend_client import backend_client
 from app.observability.telemetry import observe_retrieval
-from app.rag.product_index import hybrid_product_search
+from app.rag.product_index import _match, hybrid_product_search
 from app.tools.web_search import web_search
 
 logger = logging.getLogger("ai-service.tools")
@@ -153,6 +154,55 @@ def clean_kb_query(query: str | None) -> str:
 _observe_product = observe_retrieval("rag::product_search")(hybrid_product_search)
 
 
+def _resolve_product_reference(product_id: int, products: list[dict], text: str) -> int | None:
+    """Resolve only an explicit position or an unambiguous single remembered item."""
+    if product_id:
+        return product_id
+    positions = re.findall(
+        r"第\s*([一二两三四五六七八九十\d]+)\s*(?:款|个(?!月)|件|台|部|(?=$|[，。？！!?、,.的]))",
+        text,
+    )
+    if positions:
+        numbers = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+                   "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+        ordinals = {int(value) if value.isdigit() else numbers.get(value, 0)
+                    for value in positions}
+        if len(ordinals) != 1:
+            return None
+        ordinal = ordinals.pop()
+        return products[ordinal - 1].get("id") if 1 <= ordinal <= len(products) else None
+    if "最后一" in text and products:
+        return products[-1].get("id")
+    return products[0].get("id") if len(products) == 1 else None
+
+
+async def _refresh_product_results(result: dict, user_id: int, category: str | None,
+                                   min_price: float | None, max_price: float | None) -> dict:
+    """Use the catalog only to rank; publish current business facts, never stale prices."""
+    products = result.get("products") or []
+    if not products:
+        return result
+    details = await asyncio.gather(*(
+        backend_client.product_detail(user_id=user_id, product_id=int(product["productId"]))
+        for product in products
+    ), return_exceptions=True)
+    current = []
+    unavailable = False
+    for product, detail in zip(products, details, strict=True):
+        if (not isinstance(detail, dict) or "error" in detail
+                or detail.get("productId") != product.get("productId")):
+            get_tool_ctx()["degraded"] = True
+            unavailable = True
+            continue
+        if (int(detail.get("stock") or 0) > 0 and detail.get("price") is not None
+                and _match(detail, category, min_price, max_price)):
+            current.append({**product, **detail, "link": f"mall://product/{detail['productId']}"})
+    refreshed = {**result, "products": current, "total": len(current)}
+    if unavailable and not current:
+        refreshed["error"] = "商品实时信息暂不可用，请重新查询或稍后再试"
+    return refreshed
+
+
 @tool
 async def product_search(keyword: str | None = None, category: str | None = None,
                          min_price: float | None = None, max_price: float | None = None,
@@ -185,12 +235,14 @@ async def product_search(keyword: str | None = None, category: str | None = None
         result = await _observe_product(
             keyword=cleaned_keyword, category=norm_category, min_price=min_price, max_price=max_price, top_k=top_k)
         if result is not None:
+            result = await _refresh_product_results(
+                result, int(ctx.get("user_id", 0)), norm_category, min_price, max_price)
             if norm_category:
                 entities["last_category"] = norm_category
             if isinstance(result, dict) and isinstance(result.get("products"), list):
                 entities["last_products"] = [
                     {"id": p.get("productId"), "name": p.get("name"), "price": p.get("price")}
-                    for p in result["products"][:5] if p.get("productId")
+                    for p in result["products"][:10] if p.get("productId")
                 ]
             return result
     except Exception as e:
@@ -204,7 +256,7 @@ async def product_search(keyword: str | None = None, category: str | None = None
     if isinstance(res, dict) and isinstance(res.get("products"), list):
         entities["last_products"] = [
             {"id": p.get("productId"), "name": p.get("name"), "price": p.get("price")}
-            for p in res["products"][:5] if p.get("productId")
+            for p in res["products"][:10] if p.get("productId")
         ]
     return res
 
@@ -215,17 +267,10 @@ async def product_detail(product_id: int = 0) -> dict:
     product_id 必须来自 product_search 结果。"""
     ctx = get_tool_ctx()
     entities = ctx.setdefault("active_entities", {})
-    target_id = product_id
-    if not target_id and entities.get("last_products"):
-        latest_text = ctx.get("latest_user_text", "")
-        if any(w in latest_text for w in ["第二", "第2", "第两"]) and len(entities["last_products"]) > 1:
-            target_id = entities["last_products"][1]["id"]
-        elif any(w in latest_text for w in ["第三", "第3"]) and len(entities["last_products"]) > 2:
-            target_id = entities["last_products"][2]["id"]
-        else:
-            target_id = entities["last_products"][0]["id"]
+    target_id = _resolve_product_reference(
+        product_id, entities.get("last_products") or [], ctx.get("latest_user_text", ""))
     if not target_id:
-        return {"error": "未指定商品ID，请先搜索商品"}
+        return {"error": "请明确要查询的商品，或说明列表中的第几款"}
     return await backend_client.product_detail(
         user_id=int(ctx.get("user_id", 0)), product_id=target_id,
     )
@@ -253,17 +298,10 @@ async def order_create(product_id: int = 0, quantity: int = 1,
     返回确认卡片所需的商品、数量、金额、收货信息和 actionId。"""
     ctx = get_tool_ctx()
     entities = ctx.setdefault("active_entities", {})
-    target_product_id = product_id
-    if not target_product_id and entities.get("last_products"):
-        latest_text = ctx.get("latest_user_text", "")
-        if any(w in latest_text for w in ["第二", "第2", "第两"]) and len(entities["last_products"]) > 1:
-            target_product_id = entities["last_products"][1]["id"]
-        elif any(w in latest_text for w in ["第三", "第3"]) and len(entities["last_products"]) > 2:
-            target_product_id = entities["last_products"][2]["id"]
-        else:
-            target_product_id = entities["last_products"][0]["id"]
+    target_product_id = _resolve_product_reference(
+        product_id, entities.get("last_products") or [], ctx.get("latest_user_text", ""))
     if not target_product_id:
-        return {"error": "未指定要下单的商品，请先挑选商品或告知商品名称"}
+        return {"error": "请明确要下单的商品，或说明列表中的第几款"}
     result = await backend_client.order_prepare(
         user_id=int(ctx.get("user_id", 0)),
         conversation_id=int(ctx.get("conversation_id", 0)),
@@ -323,10 +361,27 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
     result = await retrieval.get_retrieval_pipeline().search(
         cleaned_query or query, doc_type=doc_type, product_id=product_id
     )
-    citations = (
-        [asdict(citation) for citation in result.citations]
-        if result.answerable else []
-    )
+    ctx = get_tool_ctx()
+    allowed = ctx.setdefault("rag_allowed_citations", {})
+    chunk_sources = {value["chunk_id"]: key for key, value in allowed.items()}
+    next_id = max((int(key[1:]) for key in allowed), default=0) + 1
+    remap = {}
+    citations = []
+    for citation in result.citations if result.answerable else ():
+        source_id = chunk_sources.get(citation.chunk_id)
+        if source_id is None:
+            source_id = f"S{next_id}"
+            next_id += 1
+            chunk_sources[citation.chunk_id] = source_id
+        remap[citation.id] = source_id
+        serialized = {**asdict(citation), "id": source_id}
+        allowed[source_id] = serialized
+        citations.append(serialized)
+    context = re.sub(
+        r'(<source\s+id=")(S[1-9][0-9]*)(")',
+        lambda match: match[1] + remap.get(match[2], match[2]) + match[3],
+        result.context,
+    ) if result.answerable else ""
     citation_titles = {
         citation["chunk_id"]: citation["title"] for citation in citations
     }
@@ -337,15 +392,11 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
         serialized["source"] = citation_titles.get(hit.chunk_id, "知识库资料")
         hits.append(serialized)
 
-    ctx = get_tool_ctx()
-    ctx.update({
-        "rag_used": True,
-        "rag_answerable": result.answerable,
-        "rag_reason": result.reason,
-        "rag_allowed_citations": {
-            citation["id"]: citation for citation in citations
-        } if result.answerable else {},
-    })
+    previous_answerable = bool(ctx.get("rag_answerable"))
+    if result.answerable or not previous_answerable:
+        if result.answerable or ctx.get("rag_reason") != "retrieval_unavailable":
+            ctx["rag_reason"] = result.reason
+    ctx.update({"rag_used": True, "rag_answerable": previous_answerable or result.answerable})
     ctx["degraded"] = bool(
         ctx.get("degraded")
         or result.degraded
@@ -355,7 +406,7 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
     return {
         "answerable": result.answerable,
         "reason": result.reason,
-        "context": result.context if result.answerable else "",
+        "context": context,
         "citations": citations,
         "hits": hits,
         "degraded": result.degraded,

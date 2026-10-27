@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     embedding_api_base: str = ""   # 空 = 复用 llm_api_base
     embedding_api_key: str = ""    # 空 = 复用 llm_api_key
     embedding_model: str = "text-embedding-3-small"
+    # Manual migration candidates only: indexed retrieval never switches vector spaces automatically.
     embedding_fallback_models: str = "text-embedding-v1,text-embedding-v3,text-embedding-v2"
     embedding_dim: int = 1536
     embedding_provider: str = "openai"  # openai | maas | ollama
@@ -48,7 +49,7 @@ class Settings(BaseSettings):
     # Milvus
     milvus_uri: str = "http://localhost:19530"
     milvus_collection: str = "kb_chunks"
-    # Existing collections are checked before ingest so paid/already-generated vectors are never regenerated.
+    # Legacy collections are retained for migration/inspection; ingestion skips only current IDs.
     milvus_legacy_collections: str = ""
 
     @property

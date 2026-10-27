@@ -26,40 +26,44 @@
       </div>
     </div>
 
-    <div v-loading="loading" class="cc-body">
-      <div v-if="filteredCoupons.length" class="cc-grid">
-        <div v-for="c in filteredCoupons" :key="c.couponId" class="cc-card">
-          <div class="cc-left">
-            <div class="cc-val"><i>￥</i>{{ c.discountValue }}</div>
-            <div class="cc-rule">{{ c.minAmount > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }}</div>
-          </div>
-          <div class="cc-right">
-            <div class="cc-name" :title="c.name">{{ c.name }}</div>
-            <div class="cc-window">{{ windowText(c) }}</div>
-            <div class="cc-progress">
-              <div class="cc-bar" :style="{ width: receivedPercent(c) }" />
+    <LoadingState :loading="loading" variant="list" :count="3" label="正在加载优惠券">
+      <div class="cc-body">
+        <div v-if="filteredCoupons.length" class="cc-grid">
+          <div v-for="c in filteredCoupons" :key="c.couponId" class="cc-card">
+            <div class="cc-left">
+              <div class="cc-val"><i>￥</i>{{ c.discountValue }}</div>
+              <div class="cc-rule">{{ c.minAmount > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }}</div>
             </div>
-            <div class="cc-foot">
-              <span class="cc-stat">已抢 {{ receivedPercent(c) }}</span>
-              <el-button
-                size="small"
-                :type="c.received ? 'info' : 'danger'"
-                round
-                :disabled="c.received"
-                @click="receive(c)"
-              >
-                {{ c.received ? '已领取' : '立即领取' }}
-              </el-button>
+            <div class="cc-right">
+              <div class="cc-name" :title="c.name">{{ c.name }}</div>
+              <div class="cc-window">{{ windowText(c) }}</div>
+              <div class="cc-progress">
+                <div class="cc-bar" :style="{ width: receivedPercent(c) }" />
+              </div>
+              <div class="cc-foot">
+                <span class="cc-stat">已抢 {{ receivedPercent(c) }}</span>
+                <el-button
+                  size="small"
+                  :type="c.received ? 'info' : 'danger'"
+                  round
+                  :disabled="c.received"
+                  @click="receive(c)"
+                >
+                  {{ c.received ? '已领取' : '立即领取' }}
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
+        <el-empty v-else-if="!loading" description="该分类暂无可领优惠券" />
       </div>
-      <el-empty v-else-if="!loading" description="该分类暂无可领优惠券" />
-    </div>
+    </LoadingState>
   </div>
+
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'

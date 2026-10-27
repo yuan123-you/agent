@@ -85,10 +85,17 @@ class ProductCorpus:
 
     def rebuild(self, products: list[dict], texts: list[str]) -> None:
         if not products:
+            self.clear()
             return
-        self.products = {int(p["productId"]): dict(p) for p in products}
-        self._ids = list(self.products.keys())
-        self._bm25 = BM25Okapi([tokenize(t) for t in texts]) if BM25Okapi is not None else None
+        if len(products) != len(texts):
+            raise ValueError("products and texts must have the same length")
+        products_by_id = {int(p["productId"]): dict(p) for p in products}
+        tokens = [tokenize(text) for text in texts]
+        bm25 = BM25Okapi(tokens) if BM25Okapi is not None and any(tokens) else None
+        # Publish only after the complete replacement is ready.
+        self.products = products_by_id
+        self._ids = list(products_by_id)
+        self._bm25 = bm25
         logger.info("product corpus rebuilt: %s products, bm25=%s",
                     len(self.products), self._bm25 is not None)
 
@@ -273,10 +280,6 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
         vec = []
     bm = corpus.bm25_recall(kw, category, min_price, max_price, top_k * 4)
     rrf = _rrf([vec, bm])
-    if not rrf and category and kw:
-        # 当限定品类无召回结果时，放宽品类限制全库召回，避免因品类错选导致答非所问
-        bm = corpus.bm25_recall(kw, None, min_price, max_price, top_k * 4)
-        rrf = _rrf([bm])
     if not rrf:
         return {"products": [], "total": 0} if vector_available else None
 
@@ -285,9 +288,13 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
         product = corpus.products.get(pid) or {}
         return (-score, float(product.get("price") or 0), -(int(product.get("sales") or 0)))
 
-    merged = sorted(rrf.items(), key=_sort_key)
-    candidate_ids = [pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]
-                     if pid in corpus.products]
+    # A failed vector refresh can leave old scalar fields in Milvus. Recheck the
+    # current corpus before truncating so stale IDs cannot consume candidate slots.
+    merged = sorted(((pid, score) for pid, score in rrf.items()
+                     if pid in corpus.products
+                     and _match(corpus.products[pid], category, min_price, max_price)),
+                    key=_sort_key)
+    candidate_ids = [pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]]
     candidates = []
     for pid in candidate_ids:
         product = corpus.products[pid]

@@ -13,38 +13,40 @@
       </el-select>
     </div>
 
-    <el-table v-loading="loading && orders.length === 0" :data="orders" border stripe>
-      <el-table-column prop="orderNo" label="订单号" width="180" />
-      <el-table-column prop="userNickname" label="买家" width="100" />
-      <el-table-column label="商品" min-width="200">
-        <template #default="{ row }">
-          <span v-for="(i, idx) in row.items" :key="idx">{{ i.productName }}×{{ i.quantity }} </span>
-        </template>
-      </el-table-column>
-      <el-table-column label="金额" width="100">
-        <template #default="{ row }">￥{{ row.totalAmount }}</template>
-      </el-table-column>
-      <el-table-column label="来源" width="80">
-        <template #default="{ row }">
-          <el-tag v-if="row.source === 'AI'" size="small">AI</el-tag>
-          <span v-else>页面</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="tagType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="下单时间" width="160" />
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button v-if="row.status === 'PAID'" size="small" type="primary" @click="ship(row)">发货</el-button>
-          <el-button v-if="row.status === 'SHIPPED'" size="small" @click="deliver(row)">标记送达</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <LoadingState :loading="loading && orders.length === 0" variant="table" :count="5">
+      <el-table :data="orders" border stripe>
+        <el-table-column prop="orderNo" label="订单号" width="180" />
+        <el-table-column prop="userNickname" label="买家" width="100" />
+        <el-table-column label="商品" min-width="200">
+          <template #default="{ row }">
+            <span v-for="(i, idx) in row.items" :key="idx">{{ i.productName }}×{{ i.quantity }} </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="金额" width="100">
+          <template #default="{ row }">￥{{ row.totalAmount }}</template>
+        </el-table-column>
+        <el-table-column label="来源" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.source === 'AI'" size="small">AI</el-tag>
+            <span v-else>页面</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="tagType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="下单时间" width="160" />
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="row.status === 'PAID'" size="small" type="primary" @click="ship(row)">发货</el-button>
+            <el-button v-if="row.status === 'SHIPPED'" size="small" @click="deliver(row)">标记送达</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </LoadingState>
 
-    <div v-if="loading" class="load-state">加载中...</div>
+    <LoadingState v-if="loading && orders.length > 0" variant="table" :count="2" />
     <div v-else-if="finished && orders.length > 0" class="load-state">— 没有更多了 —</div>
 
     <!-- 发货弹窗 -->
@@ -67,6 +69,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiAdminDeliver, apiAdminOrders, apiAdminShip } from '@/api'

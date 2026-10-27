@@ -184,7 +184,7 @@ public class InternalKbController {
 
     /**
      * Exact in-process BM25 retrieval across storage-valid ACTIVE knowledge-base chunks.
-     * Request-side document filters intentionally belong to the AI pipeline after both legs return.
+     * Apply request scope before ranking/LIMIT; the AI pipeline also validates metadata.
      */
     @PostMapping("/search")
     public ApiResponse<Map<String, Object>> search(@RequestBody SearchBody body) {
@@ -195,9 +195,15 @@ public class InternalKbController {
             return ApiResponse.ok(data);
         }
 
-        List<KbDoc> docs = kbDocMapper.selectList(new QueryWrapper<KbDoc>()
-                .eq("status", "ACTIVE")
-                .eq("deleted", 0));
+        QueryWrapper<KbDoc> scope = new QueryWrapper<KbDoc>()
+                .eq("status", "ACTIVE").eq("deleted", 0)
+                .eq(body.getDocType() != null && !body.getDocType().isBlank()
+                        && !"ALL".equals(body.getDocType()), "doc_type", body.getDocType());
+        if (body.getProductId() != null) {
+            scope.and(w -> w.eq("product_id", body.getProductId())
+                    .or().isNull("product_id").or().eq("product_id", -1L));
+        }
+        List<KbDoc> docs = kbDocMapper.selectList(scope);
         if (docs.isEmpty()) {
             data.put("hits", List.of());
             data.put("total", 0);
@@ -212,6 +218,11 @@ public class InternalKbController {
                 .in("doc_id", docsById.keySet())
                 .apply("doc_version = (SELECT version FROM kb_doc WHERE id = kb_chunk.doc_id)"));
         List<Bm25Retriever.Document> corpus = chunks.stream()
+                .filter(chunk -> body.getDocType() == null || body.getDocType().isBlank()
+                        || "ALL".equals(body.getDocType()) || body.getDocType().equals(chunk.getDocType()))
+                .filter(chunk -> body.getProductId() == null || chunk.getProductId() == null
+                        || Long.valueOf(-1).equals(chunk.getProductId())
+                        || body.getProductId().equals(chunk.getProductId()))
                 .map(chunk -> {
                     KbDoc doc = docsById.get(chunk.getDocId());
                     return new Bm25Retriever.Document(chunk.getId(), chunk.getDocId(), chunk.getProductId(),

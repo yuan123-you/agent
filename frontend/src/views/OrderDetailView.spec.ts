@@ -17,6 +17,13 @@ async function mount() {
 beforeEach(() => { vi.clearAllMocks(); route = reactive({ params: { id: '5' } }); mocks.detail.mockResolvedValue(value()) })
 afterEach(() => { app?.unmount(); host?.remove() })
 describe('order detail state', () => {
+  it('shows an order skeleton while loading and removes it after completion', async () => {
+    let resolve!: (v: any) => void
+    mocks.detail.mockReturnValueOnce(new Promise(r => { resolve = r }))
+    await mount(); expect(host.querySelector('[data-loading-variant="list"]')).not.toBeNull()
+    resolve(value()); await flush(); expect(host.querySelector('[data-loading-variant]')).toBeNull()
+  })
+
   it('does not offer a review when all purchased products are already reviewed', async () => {
     await mount(); expect(host.querySelector('.osb-actions')?.textContent).not.toContain('评价晒单')
   })

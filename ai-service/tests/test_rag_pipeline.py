@@ -34,8 +34,8 @@ async def test_both_top_twenty_then_filter_fuse_and_build_sources():
 
     result = await pipeline.search("  退货  ", doc_type="POLICY", product_id=7)
 
-    vector.assert_awaited_once_with("退货", top_k=20)
-    bm25.assert_awaited_once_with("退货", top_k=20)
+    vector.assert_awaited_once_with("退货", top_k=20, doc_type="POLICY", product_id=7)
+    bm25.assert_awaited_once_with("退货", top_k=20, doc_type="POLICY", product_id=7)
     assert result.answerable is True
     assert result.hits[0].chunk_id == 1
     assert result.hits[0].matched_by == {"vector", "bm25"}
@@ -191,13 +191,13 @@ async def test_missing_chunk_id_is_discarded_and_logged_without_content(caplog):
 
 
 @pytest.mark.asyncio
-async def test_backend_keyword_adapter_sends_only_query_and_top_k():
+async def test_backend_keyword_adapter_sends_query_scope_and_top_k():
     client = BackendClient.__new__(BackendClient)
     client._post = AsyncMock(return_value={"hits": []})
 
     await client.kb_keyword_search("退货", doc_type="POLICY", product_id=7, top_k=20)
 
-    client._post.assert_awaited_once_with("/internal/kb/search", {"query": "退货", "topK": 20})
+    client._post.assert_awaited_once_with("/internal/kb/search", {"query": "退货", "topK": 20, "docType": "POLICY", "productId": 7})
 
 
 @pytest.mark.asyncio
@@ -223,10 +223,10 @@ async def test_vector_adapter_requests_exact_top_k_and_returns_complete_metadata
     store.client = Client()
     monkeypatch.setattr("app.rag.vectorstore.backend_client.kb_current_chunks", AsyncMock(return_value={3: "条款"}))
 
-    result = await store.search("退货", doc_type="OTHER", product_id=99, top_k=20)
+    result = await store.search("退货", doc_type="POLICY", product_id=7, top_k=20)
 
     assert calls[0]["limit"] == 20
-    assert calls[0]["filter"] == "doc_id >= 0"
+    assert calls[0]["filter"] == 'doc_id >= 0 and doc_type == "POLICY" and (product_id == 7 or product_id == -1)'
     assert calls[0]["output_fields"] == ["content", "doc_id", "product_id", "doc_type"]
     assert result["hits"] == [{
         "chunk_id": 3,

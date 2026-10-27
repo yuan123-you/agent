@@ -43,10 +43,12 @@ if (!params.has('case')) {
   const errors: string[] = []
   window.addEventListener('error', e => errors.push(e.message))
   window.addEventListener('unhandledrejection', e => errors.push(String(e.reason)))
-  const [{ createApp }, { createPinia }, { default: ElementPlus }, { default: axios }] = await Promise.all([
-    import('vue'), import('pinia'), import('element-plus'), import('axios'),
+  const [{ createApp }, { createPinia }, { default: axios }] = await Promise.all([
+    import('vue'), import('pinia'), import('axios'),
   ])
-  await import('element-plus/dist/index.css')
+  await import('element-plus/es/components/message/style/css')
+  await import('element-plus/es/components/message-box/style/css')
+  await import('element-plus/theme-chalk/dark/css-vars.css')
   await import('../src/styles.css')
   // Isolate authentication fixtures from the developer's real login state.
   const storage = new Map<string, string>()
@@ -104,8 +106,11 @@ if (!params.has('case')) {
   const { default: router } = await import('../src/router')
   const { default: App } = await import('../src/App.vue')
   document.body.innerHTML = '<div id="app"></div>'
-  const app = createApp(App).use(createPinia()).use(router).use(ElementPlus)
+  const app = createApp(App).use(createPinia()).use(router)
   app.config.errorHandler = error => errors.push(String(error))
+  app.config.warnHandler = message => {
+    if (/Failed to resolve (component|directive)/.test(message)) errors.push(message)
+  }
   await router.replace(path)
   await router.isReady()
   app.mount('#app')

@@ -39,8 +39,8 @@ class InternalKbSearchTest {
 
         InternalKbController.SearchBody body = new InternalKbController.SearchBody();
         body.setQuery("无理由退货");
-        body.setDocType("FAQ");
-        body.setProductId(999L);
+        body.setDocType("POLICY");
+        body.setProductId(100L);
         body.setTopK(20);
         Map<String, Object> data = controller.search(body).getData();
 

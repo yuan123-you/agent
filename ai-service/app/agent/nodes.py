@@ -329,12 +329,12 @@ async def agent_node(state: AgentState) -> dict:
     if entities.get("last_products"):
         prods = [
             f"{i+1}. {p['name']} (ID: {p['id']}{f', 价格: ¥{p["price"]}' if p.get('price') is not None else ''})"
-            for i, p in enumerate(entities["last_products"][:5]) if p.get("name")
+            for i, p in enumerate(entities["last_products"][:10]) if p.get("name")
         ]
         if prods:
             system_text += (
                 f"\n\n## 会话实体记忆（前序轮次推荐过的商品列表）：\n" + "\n".join(prods) + "\n"
-                f"- 代词指代规则：买家提及“第一款/第一个”对应序号 1，“第二款/第二个”对应序号 2，以此类推；提及“这款/这个”对应前序讨论或序号 1 的商品。\n"
+                f"- 代词指代规则：买家提及“第一款/第一个”对应序号 1，“第二款/第二个”对应序号 2，以此类推；提及“这款/这个”仅在前文明确唯一商品时使用该商品；无法唯一确定时先询问买家，不得猜测第一款。\n"
                 f"- 详情与操作：买家询问上述商品的参数、详情、卖点、评价或要求下单时，请优先使用上述对应的商品 ID（调用 product_detail 或 order_create）。"
             )
     if entities.get("budget"):

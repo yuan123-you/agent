@@ -1,6 +1,7 @@
 """Milvus 向量库封装：kb_chunks collection（主键=kb_chunk.id，标量过滤检索）
 惰性初始化：实例仅在被 getter 调用或应用 lifespan 显式初始化时才创建，避免 import 阶段因 Milvus 不可用而失败。"""
 import asyncio
+import json
 import logging
 
 from pymilvus import DataType, MilvusClient
@@ -49,9 +50,14 @@ class VectorStore:
 
     async def search(self, query: str, doc_type: str = "ALL",
                      product_id: int | None = None, top_k: int = 4) -> dict:
-        """Recall ACTIVE vector candidates; request metadata filters run in the pipeline."""
+        """Recall within request scope before LIMIT; backend validates current versions."""
         emb = await self.embeddings.aembed_query(query)
-        filter_expr = "doc_id >= 0"
+        filters = ["doc_id >= 0"]
+        if doc_type and doc_type != "ALL":
+            filters.append(f"doc_type == {json.dumps(doc_type, ensure_ascii=False)}")
+        if product_id is not None:
+            filters.append(f"(product_id == {int(product_id)} or product_id == -1)")
+        filter_expr = " and ".join(filters)
         res = await asyncio.to_thread(
             self.client.search,
             collection_name=settings.milvus_collection,
@@ -79,11 +85,7 @@ class VectorStore:
             })
         # 后端是版本真相源：过滤停用/旧版本向量并补充可信文档标题。
         if hits:
-            try:
-                current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
-            except Exception as e:
-                logger.warning("current chunk validation failed: %s", e)
-                current = {}
+            current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
             hits = [hit for hit in hits if hit["chunk_id"] in current]
             for hit in hits:
                 hit["source"] = current[hit["chunk_id"]]

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 
 from app.config import settings
 from app.rag.ingest import sync_products
-from app.rag.product_index import get_product_index
+from app.rag.product_index import get_product_corpus, get_product_index
 
 router = APIRouter()
 logger = logging.getLogger("ai-service.products-api")
@@ -27,8 +27,9 @@ async def sync_status() -> dict:
         exists = pidx.client.has_collection(settings.milvus_product_collection)
     except Exception as e:
         logger.warning("product collection check failed: %s", e)
+    corpus = get_product_corpus()
     return {
         "collection_exists": exists,
-        "corpus_ready": pidx.corpus.ready() if pidx else False,
-        "product_count": len(pidx.corpus.products) if pidx else 0,
+        "corpus_ready": corpus.ready(),
+        "product_count": len(corpus.products),
     }

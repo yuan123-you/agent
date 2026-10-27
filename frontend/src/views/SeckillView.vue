@@ -18,6 +18,8 @@
       </div>
     </div>
 
+    <LoadingState v-if="loading" variant="cards" :count="6" label="正在加载秒杀商品" />
+
     <!-- 进行中 -->
     <template v-if="activeList.length">
       <div class="group-head"><i class="bar-accent" />正在疯抢</div>
@@ -89,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { apiSeckills } from '@/api'
 import type { SeckillVO } from '@/types/api'

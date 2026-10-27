@@ -32,13 +32,14 @@
         去挑选商品
       </el-button>
     </el-empty>
-    <div v-if="loading" class="load-state">加载中...</div>
+    <LoadingState v-if="loading" variant="cards" :count="3" />
     <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
     </div>
   </el-scrollbar>
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'

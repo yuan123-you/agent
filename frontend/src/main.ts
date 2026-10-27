@@ -2,10 +2,9 @@ import { createApp } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from './stores/auth'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import App from './App.vue'
 import router from './router'
 import './styles.css'
@@ -18,15 +17,16 @@ void registerImageCache()
 initTheme()
 initMallTheme()
 
-// 全局未登录处理：401/1003 时清态并跳登录页（带当前页回跳），1.5s 内去重
+// 全局未登录处理：清理失效会话；仅受保护页面跳登录（带回跳），1.5s 内去重
 let authRedirecting = false
 setUnauthorizedHandler(() => {
+  const auth = useAuthStore()
+  auth.logoutLocal()
   if (authRedirecting) return
   const cur = router.currentRoute.value
-  if (cur.path === '/login') return
+  // Public browsing must not be interrupted by an expired background cart request.
+  if (cur.meta.public || cur.path === '/login') return
   authRedirecting = true
-  const auth = useAuthStore()
-  auth.user = null
   ElMessage.warning('请先登录')
   void router.push({ path: '/login', query: { redirect: cur.fullPath } })
   setTimeout(() => (authRedirecting = false), 1500)
@@ -35,5 +35,4 @@ setUnauthorizedHandler(() => {
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
-app.use(ElementPlus, { locale: zhCn })
 app.mount('#app')

@@ -37,10 +37,10 @@
         <!-- 价格条紧贴图片之下：0 间距且撑满宽度 (大厂正规大促无缝嵌入红条) -->
         <div class="seamless-price-bar">
           <div class="spb-left">
-            <span class="spb-tag">特惠价</span>
+            <span class="spb-tag">{{ seckill ? '秒杀价' : '售价' }}</span>
             <span class="spb-symbol">￥</span>
             <span class="spb-num">{{ unitPrice }}</span>
-            <span class="spb-old">￥{{ displayPrice }}</span>
+            <span v-if="seckill && displayPrice > unitPrice" class="spb-old">￥{{ displayPrice }}</span>
           </div>
           <div class="spb-right">
             <span class="spb-sales">销量 {{ formatSales(product.sales) }}</span>
@@ -53,7 +53,7 @@
         <div class="info-card mall-card">
           <!-- 标题与品牌标签 -->
           <div class="title-row">
-            <span class="brand-badge">{{ product.brand || '官方自营' }}</span>
+            <span class="brand-badge">{{ product.brand || '品牌未提供' }}</span>
             <h1 class="main-title">{{ product.name }}</h1>
           </div>
           <p v-if="product.sellingPoints" class="subtitle-desc">{{ product.sellingPoints }}</p>
@@ -67,22 +67,19 @@
             <span class="cell-more" @click="$router.push('/coupons')">更多券 ›</span>
           </div>
 
-          <!-- 物流与保障 (明确保留顺丰包邮) -->
+          <!-- 物流与售后：缺失信息不得替商家作出承诺 -->
           <div class="service-row">
             <div class="svc-item">
               <span class="svc-label">配　送</span>
               <div class="svc-val">
-                <span>📦 {{ product.shipFrom || '北京顺义智能总仓' }} 发货</span>
-                <span class="free-ship-tag">🚚 顺丰包邮 · 极速出库 (预计明日送达)</span>
+                <span>📦 {{ product.shipFrom ? `${product.shipFrom} 发货` : '发货地待商家确认' }}</span>
+                <span class="free-ship-tag">运费、承运方和送达时间以下单信息为准</span>
               </div>
             </div>
             <div class="svc-item">
               <span class="svc-label">保　障</span>
               <div class="svc-val guarantees">
-                <span>🛡️ 假一赔十</span>
-                <span>🔄 7天无理由退货</span>
-                <span>⚡ 极速退款</span>
-                <span>📦 赠退货运费险</span>
+                <span>售后服务请查看适用政策与商品说明</span>
               </div>
             </div>
           </div>
@@ -95,7 +92,7 @@
           </div>
         </div>
 
-        <p v-if="skuLoading" class="sku-loading" role="status">规格加载中…</p>
+        <LoadingState v-if="skuLoading" variant="text" :count="2" label="正在加载商品规格" />
         <p v-else-if="skuError" class="sku-error" role="alert">
           {{ skuError }}
           <el-button link type="primary" @click="loadSkus">重试</el-button>
@@ -115,7 +112,7 @@
           </div>
 
           <div class="reviews-list">
-            <p v-if="reviewLoading" role="status">评价加载中…</p>
+            <LoadingState v-if="reviewLoading" variant="text" :count="2" label="正在加载评价" />
             <p v-else-if="reviewError" class="review-error" role="alert">
               {{ reviewError }}
               <el-button link type="primary" @click="loadReviews">重试</el-button>
@@ -126,7 +123,7 @@
                 <el-avatar :size="28" class="ri-avatar">{{ r.nickname.slice(0, 1) }}</el-avatar>
                 <div class="ri-user-info">
                   <span class="ri-name">{{ r.nickname }}</span>
-                  <span class="ri-spec">{{ r.specInfo || '官方标配' }}</span>
+                  <span class="ri-spec">{{ r.specInfo || '未提供规格' }}</span>
                 </div>
                 <span class="ri-date">{{ shortTime(r.createdAt) }}</span>
               </div>
@@ -153,14 +150,14 @@
           </div>
           <div class="specs-table-box">
             <el-descriptions :column="isMobile ? 1 : 2" border class="specs-desc-table">
-              <el-descriptions-item label="品牌">{{ product.brand || '官方正品' }}</el-descriptions-item>
+              <el-descriptions-item label="品牌">{{ product.brand || '商家未提供' }}</el-descriptions-item>
               <el-descriptions-item label="商品类目">{{ categoryName(product.category) }}</el-descriptions-item>
-              <el-descriptions-item label="产地">{{ product.origin || '中国' }}</el-descriptions-item>
-              <el-descriptions-item label="发货总仓">{{ product.shipFrom || '全国智能分仓' }}</el-descriptions-item>
-              <el-descriptions-item label="材质工艺">{{ product.material || '阳极氧化铝合金 / 环保亲肤' }}</el-descriptions-item>
-              <el-descriptions-item label="生产批次">{{ product.productionDate || '2026年最新生产' }}</el-descriptions-item>
-              <el-descriptions-item label="执行标准">GB/T 26572 国家质量标准</el-descriptions-item>
-              <el-descriptions-item label="三包保障">支持 12 个月官方正品联保</el-descriptions-item>
+              <el-descriptions-item label="产地">{{ product.origin || '商家未提供' }}</el-descriptions-item>
+              <el-descriptions-item label="发货总仓">{{ product.shipFrom || '商家未提供' }}</el-descriptions-item>
+              <el-descriptions-item label="材质工艺">{{ product.material || '商家未提供' }}</el-descriptions-item>
+              <el-descriptions-item label="生产批次">{{ product.productionDate || '商家未提供' }}</el-descriptions-item>
+              <el-descriptions-item label="执行标准">商家未提供</el-descriptions-item>
+              <el-descriptions-item label="三包保障">请查看适用售后政策</el-descriptions-item>
               <el-descriptions-item v-for="s in specs" :key="s.k" :label="s.k">{{ s.v }}</el-descriptions-item>
             </el-descriptions>
           </div>
@@ -219,7 +216,7 @@
       </div>
 
       <!-- ============ 规格选择与购买抽屉 (第三张图内容转移至此！) ============ -->
-      <el-dialog v-model="showSpec" title="选择规格与数量" width="min(460px, 94vw)" destroy-on-close>
+      <el-dialog v-model="showSpec" title="选择规格与数量" width="min(460px, 94vw)" align-center destroy-on-close>
         <div class="spec-modal-body">
           <div class="smb-header">
             <el-image :src="activeImage || product.imageUrl" fit="cover" class="smb-img" lazy decoding="async" />
@@ -292,7 +289,7 @@
         </transition>
       </Teleport>
     </div>
-    <p v-else-if="productLoading" class="product-loading" role="status">商品加载中…</p>
+    <LoadingState v-else-if="productLoading" variant="detail" label="正在加载商品详情" />
     <div v-else-if="productError" class="product-error" role="alert">
       {{ productError }}
       <el-button type="primary" @click="loadProduct">重试</el-button>
@@ -301,6 +298,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -349,13 +347,8 @@ const activeImgIndex = ref(0)
 
 const galleryImages = computed(() => {
   if (!product.value?.imageUrl) return []
-  const base = product.value.imageUrl
-  return [
-    base,
-    base.replace('w=600', 'w=800') + '&flip=1',
-    base.replace('w=600', 'w=700') + '&detail=1',
-    base + '&angle=2',
-  ]
+  // The API currently supplies one image, not an image transformation service.
+  return [product.value.imageUrl]
 })
 
 function openImageMask() {
@@ -394,11 +387,8 @@ function updateMobile() {
 }
 
 function formatSales(sales?: number): string {
-  const s = Number(sales) || 0
-  if (s < 100) return '100+'
-  if (s < 1000) return `${Math.floor(s / 100) * 100}+`
-  if (s < 10000) return `${Math.floor(s / 1000)}000+`
-  return `${Math.floor(s / 10000)}w+`
+  if (sales == null || !Number.isFinite(Number(sales)) || Number(sales) < 0) return '暂无数据'
+  return String(sales)
 }
 
 function shortTime(t?: string): string {
@@ -446,7 +436,7 @@ const selectedSku = computed<SkuVO | null>(() => {
 
 const selectedSpecsText = computed(() => {
   const entries = Object.entries(selectedSpecs.value)
-  if (!entries.length) return '官方标配'
+  if (!entries.length) return '默认规格'
   return entries.map(([k, v]) => `"${v}"`).join('、')
 })
 
@@ -460,7 +450,7 @@ const minSkuPrice = computed(() => {
   return prices.length ? Math.min(...prices) : product.value?.price || 0
 })
 
-const displayPrice = computed(() => (seckill.value ? minSkuPrice.value : (Number(unitPrice.value) * 1.25).toFixed(2)))
+const displayPrice = computed(() => minSkuPrice.value)
 
 const stockLimit = computed(() => {
   if (seckill.value) {
@@ -490,21 +480,32 @@ const seckill = ref<{
 } | null>(null)
 
 const descHtml = computed(() => {
-  const desc = product.value?.description || (
-    `### 官方正品旗舰标准\n\n- **精湛工艺与材质**：严选高标准航空级金属与环保亲肤材质，兼顾坚固耐用与细腻温润触感。\n- **核心性能指标**：历经严格出厂校准，各项关键体验指标均达到业界顶尖水准。\n- **官方售后承诺**：全国多仓闪电发货，支持 7 天无理由退换，破损全额包赔。`
-  )
+  const desc = product.value?.description?.trim() || '暂无商品介绍，详细信息请咨询商家。'
   return DOMPurify.sanitize(marked.parse(desc) as string)
 })
 
 const specs = computed(() => {
-  const raw = product.value?.specs || ''
+  const raw = product.value?.specs?.trim() || ''
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return []
+    return Object.entries(parsed)
+      .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
+      .map(([k, value]) => ({ k, v: String(value) }))
+  } catch {
+    // 损坏的 JSON 不应按文本拆分后展示；仅兼容历史纯文本规格。
+    if (/^[{\[]/.test(raw)) return []
+  }
   return raw
     .split(/[,;/]/)
     .map((s) => s.trim())
     .filter(Boolean)
     .map((item, idx) => {
-      const parts = item.split(/[:：]/)
-      return { k: parts[0]?.trim() || `参数${idx + 1}`, v: parts[1]?.trim() || item }
+      const separator = item.search(/[:：]/)
+      const k = separator < 0 ? item : item.slice(0, separator).trim()
+      const v = separator < 0 ? item : item.slice(separator + 1).trim()
+      return { k: k || `参数${idx + 1}`, v: v || item }
     })
 })
 

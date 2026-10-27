@@ -222,7 +222,7 @@
       </div>
 
       <!-- 空结果提示 -->
-      <p v-if="catalogLoading" role="status">商品加载中...</p>
+      <LoadingState v-if="catalogLoading" variant="cards" :count="products.length ? 2 : 6" label="正在加载商品" />
       <p v-else-if="catalogError" role="alert">商品加载失败 <button @click="loadCatalogPage">重试</button></p>
       <button v-else-if="!catalogFinished" @click="loadCatalogPage">加载更多商品</button>
       <div v-if="!catalogLoading && !catalogError && filteredProducts.length === 0" class="stream-empty">
@@ -308,6 +308,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, CircleClose, LocationInformation, Operation } from '@element-plus/icons-vue'

@@ -108,3 +108,21 @@ async def test_all_failures_report_every_attempted_model():
     message = str(exc_info.value)
     assert "primary" in message
     assert "text-embedding-v1" in message
+
+@pytest.mark.asyncio
+async def test_index_factory_never_switches_to_a_different_embedding_space(monkeypatch):
+    from app.clients import llm
+    primary = StubEmbeddings(error=RuntimeError("primary offline"))
+    fallback = StubEmbeddings()
+    monkeypatch.setattr(llm.settings, "embedding_provider", "openai")
+    monkeypatch.setattr(llm.settings, "embedding_model", "primary")
+    monkeypatch.setattr(llm.settings, "embedding_fallback_models", "fallback")
+    monkeypatch.setattr(llm.settings, "embedding_dim", 3)
+    monkeypatch.setattr(llm, "_make_embeddings", lambda base, key, model, **kwargs: primary if model == "primary" else fallback)
+    llm.get_embeddings.cache_clear()
+    try:
+        with pytest.raises(EmbeddingFallbackError):
+            await llm.get_embeddings().aembed_query("stored vectors belong to primary")
+        assert fallback.query_calls == 0
+    finally:
+        llm.get_embeddings.cache_clear()

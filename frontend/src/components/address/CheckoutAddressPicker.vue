@@ -1,30 +1,33 @@
 <template>
   <div class="checkout-address">
-    <div v-loading="loading" class="addr-list">
-      <div
-        v-for="a in addresses"
-        :key="a.addressId"
-        class="addr-card"
-        :class="{ selected: a.addressId === modelValue }"
-        @click="select(a.addressId)"
-      >
-        <el-radio :model-value="modelValue" :value="a.addressId" class="addr-radio" />
-        <div class="addr-info">
-          <div class="addr-line1">
-            <b>{{ a.receiverName }}</b>
-            <span>{{ a.receiverPhone }}</span>
-            <el-tag v-if="a.isDefault" size="small" type="success" round>默认</el-tag>
-          </div>
-          <div class="addr-loc">{{ a.receiverAddress }}</div>
-          <div class="addr-ops">
-            <el-button v-if="!a.isDefault" text type="primary" size="small" @click.stop="setDefault(a)">设为默认</el-button>
-            <el-button text size="small" @click.stop="openEdit(a)">编辑</el-button>
-            <el-button text type="danger" size="small" @click.stop="remove(a)">删除</el-button>
+    <LoadingState :loading="loading" variant="list" :count="3" label="正在加载收货地址">
+      <div class="addr-list">
+        <div
+          v-for="a in addresses"
+          :key="a.addressId"
+          class="addr-card"
+          :class="{ selected: a.addressId === modelValue }"
+          @click="select(a.addressId)"
+        >
+          <el-radio :model-value="modelValue" :value="a.addressId" class="addr-radio" />
+          <div class="addr-info">
+            <div class="addr-line1">
+              <b>{{ a.receiverName }}</b>
+              <span>{{ a.receiverPhone }}</span>
+              <el-tag v-if="a.isDefault" size="small" type="success" round>默认</el-tag>
+            </div>
+            <div class="addr-loc">{{ a.receiverAddress }}</div>
+            <div class="addr-ops">
+              <el-button v-if="!a.isDefault" text type="primary" size="small" @click.stop="setDefault(a)">设为默认</el-button>
+              <el-button text size="small" @click.stop="openEdit(a)">编辑</el-button>
+              <el-button text type="danger" size="small" @click.stop="remove(a)">删除</el-button>
+            </div>
           </div>
         </div>
+        <div v-if="!loading && !addresses.length" class="addr-empty">暂无收货地址，请先新增</div>
       </div>
-      <div v-if="!loading && !addresses.length" class="addr-empty">暂无收货地址，请先新增</div>
-    </div>
+    </LoadingState>
+
     <el-button type="primary" text :icon="Plus" @click="openAdd">新增收货地址</el-button>
 
     <!-- 新增 / 编辑地址弹窗 -->
@@ -72,6 +75,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { LocationInformation, Plus } from '@element-plus/icons-vue'

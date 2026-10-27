@@ -22,3 +22,150 @@ describe('authentication replay boundary', () => {
     expect(localStorage.getItem('token')).toBeNull()
   })
 })
+
+const jwt = (expiresAt: number) => `header.${btoa(JSON.stringify({ exp: expiresAt }))}.signature`
+
+describe('expired session before requests', () => {
+  it('refreshes an expired access token before the first cart request reaches the server', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    const refresh = vi.spyOn(axios, 'post').mockResolvedValue({ data: { code: 0, data: { accessToken: 'renewed' } } })
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: { items: [] } }, config, headers: {} }
+    }
+    await expect(get('/cart')).resolves.toEqual({ items: [] })
+    expect(headers).toEqual(['Bearer renewed'])
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('token')).toBe('renewed')
+  })
+
+  it('shares one refresh across concurrent requests with an expired token', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    const refresh = vi.spyOn(axios, 'post').mockResolvedValue({ data: { code: 0, data: { accessToken: 'renewed' } } })
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: [] }, config, headers: {} }
+    }
+    await Promise.all([get('/cart'), get('/orders/my')])
+    expect(headers).toEqual(['Bearer renewed', 'Bearer renewed'])
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears an expired session without issuing an unauthorized cart request when no refresh token remains', async () => {
+    const { default: instance, get, setUnauthorizedHandler } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    localStorage.setItem('user', JSON.stringify({ role: 'CUSTOMER' }))
+    localStorage.removeItem('refreshToken')
+    const unauthorized = vi.fn()
+    setUnauthorizedHandler(unauthorized)
+    const adapter = vi.fn()
+    instance.defaults.adapter = adapter
+    await expect(get('/cart')).rejects.toBeDefined()
+    expect(adapter).not.toHaveBeenCalled()
+    expect(localStorage.getItem('token')).toBeNull()
+    expect(localStorage.getItem('user')).toBeNull()
+    expect(unauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  it('still loads public products anonymously after the session expires', async () => {
+    const { default: instance, get } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    localStorage.removeItem('refreshToken')
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: { records: [] } }, config, headers: {} }
+    }
+    await expect(get('/products')).resolves.toEqual({ records: [] })
+    expect(headers).toEqual([undefined])
+    expect(localStorage.getItem('token')).toBeNull()
+  })
+
+  it('does not refresh a valid token before normal requests', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get } = await import('./request')
+    const token = jwt(Math.floor(Date.now() / 1000) + 3600)
+    localStorage.setItem('token', token)
+    const refresh = vi.spyOn(axios, 'post')
+    instance.defaults.adapter = async config => ({ status: 200, statusText: 'OK', data: { code: 0, data: true }, config, headers: {} })
+    await expect(get('/cart')).resolves.toBe(true)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe('expired session edge cases', () => {
+  it('does not refresh the old session or attach its token when signing in again', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, post } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    const refresh = vi.spyOn(axios, 'post')
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: { accessToken: 'new-session' } }, config, headers: {} }
+    }
+    await expect(post('/auth/login', { username: 'buyer', password: 'test-only' })).resolves.toEqual({ accessToken: 'new-session' })
+    expect(refresh).not.toHaveBeenCalled()
+    expect(headers).toEqual([undefined])
+  })
+
+  it('stops the protected request if refreshing the expired session fails', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get, setUnauthorizedHandler } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    const refresh = vi.spyOn(axios, 'post').mockRejectedValue(new Error('refresh expired'))
+    const unauthorized = vi.fn()
+    setUnauthorizedHandler(unauthorized)
+    const adapter = vi.fn()
+    instance.defaults.adapter = adapter
+    await expect(get('/cart')).rejects.toBeDefined()
+    expect(adapter).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(unauthorized).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('token')).toBeNull()
+    expect(localStorage.getItem('refreshToken')).toBeNull()
+  })
+})
+
+describe('refresh availability boundaries', () => {
+  it('keeps using a still-valid access token rather than logging out during a refresh outage', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get, setUnauthorizedHandler } = await import('./request')
+    const token = jwt(Math.floor(Date.now() / 1000) + 20)
+    localStorage.setItem('token', token)
+    const refresh = vi.spyOn(axios, 'post').mockRejectedValue(new Error('503 temporarily unavailable'))
+    const unauthorized = vi.fn()
+    setUnauthorizedHandler(unauthorized)
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: { items: [] } }, config, headers: {} }
+    }
+    await expect(get('/cart')).resolves.toEqual({ items: [] })
+    expect(headers).toEqual([`Bearer ${token}`])
+    expect(localStorage.getItem('token')).toBe(token)
+    expect(unauthorized).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('uses a bounded refresh timeout and falls back to anonymous product browsing on timeout', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get } = await import('./request')
+    localStorage.setItem('token', jwt(Math.floor(Date.now() / 1000) - 60))
+    const refresh = vi.spyOn(axios, 'post').mockRejectedValue(new axios.AxiosError('timeout', 'ECONNABORTED'))
+    const headers: unknown[] = []
+    instance.defaults.adapter = async config => {
+      headers.push(config.headers.Authorization)
+      return { status: 200, statusText: 'OK', data: { code: 0, data: { records: [] } }, config, headers: {} }
+    }
+    await expect(get('/products')).resolves.toEqual({ records: [] })
+    expect(headers).toEqual([undefined])
+    expect(refresh).toHaveBeenCalledWith(expect.stringContaining('/auth/refresh'), { refreshToken: 'refresh' }, { timeout: 10000 })
+  })
+})

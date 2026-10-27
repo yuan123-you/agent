@@ -22,51 +22,55 @@
       </el-tabs>
 
       <!-- 卡券列表 -->
-      <div v-loading="loading" class="coupon-list">
-        <div
-          v-for="c in filteredCoupons"
-          :key="c.userCouponId"
-          class="coupon-card"
-          :class="c.status.toLowerCase()"
-        >
-          <div class="cc-left">
-            <div class="cc-val"><i>￥</i>{{ c.discountValue }}</div>
-            <div class="cc-rule">
-              {{ (c.minAmount || 0) > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }}
+      <LoadingState :loading="loading" variant="list" :count="3" label="正在加载我的优惠券">
+        <div class="coupon-list">
+          <div
+            v-for="c in filteredCoupons"
+            :key="c.userCouponId"
+            class="coupon-card"
+            :class="c.status.toLowerCase()"
+          >
+            <div class="cc-left">
+              <div class="cc-val"><i>￥</i>{{ c.discountValue }}</div>
+              <div class="cc-rule">
+                {{ (c.minAmount || 0) > 0 ? `满 ${c.minAmount} 可用` : '无门槛' }}
+              </div>
+            </div>
+            <div class="cc-right">
+              <div class="cc-name">{{ c.name }}</div>
+              <div class="cc-expire">有效期至 {{ (c.expireAt || '').slice(0, 16).replace('T', ' ') || '2026-12-31 23:59' }}</div>
+              <div class="cc-foot">
+                <el-tag size="small" :type="statusTagType(c.status)" effect="plain">
+                  {{ statusText(c.status) }}
+                </el-tag>
+                <el-button
+                  v-if="c.status === 'UNUSED'"
+                  size="small"
+                  type="danger"
+                  round
+                  @click="$router.push('/products')"
+                >
+                  去使用
+                </el-button>
+              </div>
             </div>
           </div>
-          <div class="cc-right">
-            <div class="cc-name">{{ c.name }}</div>
-            <div class="cc-expire">有效期至 {{ (c.expireAt || '').slice(0, 16).replace('T', ' ') || '2026-12-31 23:59' }}</div>
-            <div class="cc-foot">
-              <el-tag size="small" :type="statusTagType(c.status)" effect="plain">
-                {{ statusText(c.status) }}
-              </el-tag>
-              <el-button
-                v-if="c.status === 'UNUSED'"
-                size="small"
-                type="danger"
-                round
-                @click="$router.push('/products')"
-              >
-                去使用
-              </el-button>
-            </div>
-          </div>
-        </div>
 
-        <el-empty
-          v-if="!loading && filteredCoupons.length === 0"
-          :description="statusTab === 'UNUSED' ? '暂无可用的优惠券' : '暂无相关优惠券'"
-        >
-          <el-button type="primary" round @click="$router.push('/coupons')">前往领券中心</el-button>
-        </el-empty>
-      </div>
+          <el-empty
+            v-if="!loading && filteredCoupons.length === 0"
+            :description="statusTab === 'UNUSED' ? '暂无可用的优惠券' : '暂无相关优惠券'"
+          >
+            <el-button type="primary" round @click="$router.push('/coupons')">前往领券中心</el-button>
+          </el-empty>
+        </div>
+      </LoadingState>
+
     </div>
   </el-scrollbar>
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'

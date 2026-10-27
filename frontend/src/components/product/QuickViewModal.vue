@@ -7,7 +7,8 @@
     destroy-on-close
     append-to-body
   >
-    <div v-if="product" v-loading="loading" class="quickview-body">
+    <LoadingState v-if="loading" variant="detail" label="正在加载商品预览" />
+    <div v-else-if="product" class="quickview-body">
       <!-- 左侧大图 -->
       <div class="qv-left">
         <el-image :src="currentImage || product.imageUrl" fit="cover" class="qv-main-img">
@@ -30,8 +31,7 @@
 
         <div class="qv-price-box">
           <span class="qv-price"><i>￥</i>{{ product.price }}</span>
-          <span class="qv-old-price">￥{{ (product.price * 1.2).toFixed(2) }}</span>
-          <span class="qv-sales">已售 {{ product.sales || 0 }} 件</span>
+          <span v-if="product.sales != null" class="qv-sales">已售 {{ product.sales }} 件</span>
         </div>
 
         <!-- 数量步进器 -->
@@ -42,12 +42,12 @@
             <span class="step-val">{{ quantity }}</span>
             <button class="step-btn" :disabled="quantity >= stockLimit" @click="quantity++">+</button>
           </div>
-          <span class="qv-stock-hint">库存充裕 ({{ stockLimit }}件)</span>
+          <span class="qv-stock-hint">{{ product.stock == null ? '库存待确认' : `库存 ${product.stock} 件` }}</span>
         </div>
 
         <!-- 操作按钮 -->
         <div class="qv-action-row">
-          <button class="qv-add-btn" :loading="adding" @click="handleAddToCart">
+          <button class="qv-add-btn" :disabled="adding || stockLimit < 1" :loading="adding" @click="handleAddToCart">
             <el-icon><ShoppingCart /></el-icon>
             <span>加入购物车</span>
           </button>
@@ -58,9 +58,7 @@
 
         <!-- 服务保障微条 -->
         <div class="qv-guarantee">
-          <span>🛡️ 官方正品</span>
-          <span>⚡ 顺丰速发</span>
-          <span>🔄 7天无理由退货</span>
+          <span>配送与售后请查看商品详情及适用政策</span>
         </div>
       </div>
     </div>
@@ -68,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ShoppingCart } from '@element-plus/icons-vue'
@@ -90,7 +89,7 @@ const onResize = () => (windowWidth.value = window.innerWidth)
 onMounted(() => window.addEventListener('resize', onResize))
 
 const dialogWidth = computed(() => (windowWidth.value <= 768 ? '92%' : '780px'))
-const stockLimit = computed(() => Math.min(99, product.value?.stock || 50))
+const stockLimit = computed(() => Math.min(99, Math.max(0, product.value?.stock ?? 0)))
 
 function open(p: ProductVO) {
   product.value = p
@@ -100,7 +99,7 @@ function open(p: ProductVO) {
 }
 
 async function handleAddToCart() {
-  if (!product.value) return
+  if (!product.value || adding.value || quantity.value < 1 || quantity.value > stockLimit.value) return
   adding.value = true
   try {
     const success = await cart.addToCart(product.value.id, quantity.value, 0, true)

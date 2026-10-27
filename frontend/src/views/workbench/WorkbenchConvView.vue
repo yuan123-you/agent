@@ -8,6 +8,7 @@
     </header>
 
     <div ref="msgList" class="msg-list">
+      <LoadingState v-if="loading" variant="text" :count="5" label="正在加载会话消息" />
       <!-- AI 摘要 -->
       <el-alert v-if="summary" :title="'AI 会话摘要：' + summary" type="info" :closable="false" class="summary" />
       <div v-for="(m, i) in messages" :key="i" class="msg-row" :class="m.role === 'AGENT' ? 'right' : 'left'">
@@ -34,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -49,13 +51,18 @@ const messages = ref<ChatMessage[]>([])
 const summary = ref('')
 const input = ref('')
 const sending = ref(false)
+const loading = ref(true)
 const msgList = ref<HTMLElement>()
 
 let pollTimer: number | undefined
 
 onMounted(async () => {
-  const list = await apiWorkbenchMessages(conversationId)
-  messages.value = list
+  try {
+    const list = await apiWorkbenchMessages(conversationId)
+    messages.value = list
+  } finally {
+    loading.value = false
+  }
   // 摘要取自第一条 AI 消息之前的会话信息（简化：从消息中不可得时留空）
   scrollToBottom()
   pollTimer = window.setInterval(async () => {

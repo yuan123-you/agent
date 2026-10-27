@@ -1,0 +1,62 @@
+[
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "cards",
+    "width": 320
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "list",
+    "width": 320
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "table",
+    "width": 320
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "stats",
+    "width": 320
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "text",
+    "width": 320
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "cards",
+    "width": 1441
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "list",
+    "width": 1441
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "table",
+    "width": 1441
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "stats",
+    "width": 1441
+  },
+  {
+    "overflow": false,
+    "text": "",
+    "variant": "text",
+    "width": 1441
+  }
+]

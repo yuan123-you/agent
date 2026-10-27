@@ -15,43 +15,45 @@
           <el-button type="primary" @click="openCreate">新建商品</el-button>
         </div>
 
-        <el-table v-loading="loading && products.length === 0" :data="products" border stripe>
-          <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="name" label="商品名" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="brand" label="品牌" width="90" />
-          <el-table-column prop="category" label="类目" width="100">
-            <template #default="{ row }">{{ categoryName(row.category) }}</template>
-          </el-table-column>
-          <el-table-column label="价格" width="100">
-            <template #default="{ row }">￥{{ row.price }}</template>
-          </el-table-column>
-          <el-table-column prop="stock" label="库存" width="80" />
-          <el-table-column label="规格" width="70">
-            <template #default="{ row }">
-              <el-tag size="small" :type="skuCountCache[row.id] ? 'primary' : 'info'" effect="plain">
-                {{ skuCountCache[row.id] || 0 }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'ON_SALE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ON_SALE' ? '在售' : '已下架' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openSkus(row)">规格</el-button>
-              <el-button size="small" :type="row.status === 'ON_SALE' ? 'warning' : 'success'"
-                @click="toggle(row)">
-                {{ row.status === 'ON_SALE' ? '下架' : '上架' }}
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <LoadingState :loading="loading && products.length === 0" variant="table" :count="5">
+          <el-table :data="products" border stripe>
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="name" label="商品名" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="brand" label="品牌" width="90" />
+            <el-table-column prop="category" label="类目" width="100">
+              <template #default="{ row }">{{ categoryName(row.category) }}</template>
+            </el-table-column>
+            <el-table-column label="价格" width="100">
+              <template #default="{ row }">￥{{ row.price }}</template>
+            </el-table-column>
+            <el-table-column prop="stock" label="库存" width="80" />
+            <el-table-column label="规格" width="70">
+              <template #default="{ row }">
+                <el-tag size="small" :type="skuCountCache[row.id] ? 'primary' : 'info'" effect="plain">
+                  {{ skuCountCache[row.id] || 0 }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'ON_SALE' ? 'success' : 'info'" size="small">
+                  {{ row.status === 'ON_SALE' ? '在售' : '已下架' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" @click="openSkus(row)">规格</el-button>
+                <el-button size="small" :type="row.status === 'ON_SALE' ? 'warning' : 'success'"
+                  @click="toggle(row)">
+                  {{ row.status === 'ON_SALE' ? '下架' : '上架' }}
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </LoadingState>
 
-        <div v-if="loading" class="load-state">加载中...</div>
+        <LoadingState v-if="loading && products.length > 0" variant="table" :count="2" />
         <div v-else-if="finished && products.length > 0" class="load-state">— 没有更多了 —</div>
 
         <el-dialog v-model="dialog" title="新建商品" width="min(560px, 92vw)">
@@ -92,35 +94,37 @@
 
         <!-- SKU 规格管理弹窗 -->
         <el-dialog v-model="skuDialog" :title="`规格管理 - ${skuProduct?.name || ''}`" width="min(680px, 94vw)">
-          <el-table :data="skuList" border size="small">
-            <el-table-column label="规格" min-width="160">
-              <template #default="{ row }">{{ spText(row.spData) }}</template>
-            </el-table-column>
-            <el-table-column label="价格" width="90">
-              <template #default="{ row }">￥{{ row.price }}</template>
-            </el-table-column>
-            <el-table-column prop="stock" label="库存" width="70" />
-            <el-table-column prop="sale" label="销量" width="70" />
-            <el-table-column label="状态" width="80">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
-                  {{ row.status === 'ENABLE' ? '启用' : '停用' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="140">
-              <template #default="{ row }">
-                <el-button size="small" @click="toggleSkuStatus(row)">
-                  {{ row.status === 'ENABLE' ? '停用' : '启用' }}
-                </el-button>
-                <el-popconfirm title="删除该规格？" @confirm="removeSku(row)">
-                  <template #reference>
-                    <el-button size="small" type="danger">删除</el-button>
-                  </template>
-                </el-popconfirm>
-              </template>
-            </el-table-column>
-          </el-table>
+          <LoadingState :loading="skuLoading" variant="table" :count="4">
+            <el-table :data="skuList" border size="small">
+              <el-table-column label="规格" min-width="160">
+                <template #default="{ row }">{{ spText(row.spData) }}</template>
+              </el-table-column>
+              <el-table-column label="价格" width="90">
+                <template #default="{ row }">￥{{ row.price }}</template>
+              </el-table-column>
+              <el-table-column prop="stock" label="库存" width="70" />
+              <el-table-column prop="sale" label="销量" width="70" />
+              <el-table-column label="状态" width="80">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
+                    {{ row.status === 'ENABLE' ? '启用' : '停用' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="140">
+                <template #default="{ row }">
+                  <el-button size="small" @click="toggleSkuStatus(row)">
+                    {{ row.status === 'ENABLE' ? '停用' : '启用' }}
+                  </el-button>
+                  <el-popconfirm title="删除该规格？" @confirm="removeSku(row)">
+                    <template #reference>
+                      <el-button size="small" type="danger">删除</el-button>
+                    </template>
+                  </el-popconfirm>
+                </template>
+              </el-table-column>
+            </el-table>
+          </LoadingState>
 
           <el-divider content-position="left">新增规格</el-divider>
           <div class="sku-form">
@@ -138,42 +142,44 @@
           <span class="tab-hint">层级分类（对标 mall：最多两级），控制导航与列表筛选</span>
           <el-button type="primary" @click="openCategoryCreate()">新增一级分类</el-button>
         </div>
-        <el-table :data="categoryTree" border row-key="id" default-expand-all>
-          <el-table-column label="分类名称" min-width="160">
-            <template #default="{ row }">{{ categoryName(row.name) }}</template>
-          </el-table-column>
-          <el-table-column label="在售商品" width="90">
-            <template #default="{ row }">{{ row.productCount || 0 }}</template>
-          </el-table-column>
-          <el-table-column label="导航栏" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.navStatus === 1 ? 'success' : 'info'">
-                {{ row.navStatus === 1 ? '显示' : '隐藏' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.showStatus === 1 ? 'success' : 'info'">
-                {{ row.showStatus === 1 ? '显示' : '隐藏' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sort" label="排序" width="70" />
-          <el-table-column label="操作" width="220">
-            <template #default="{ row }">
-              <el-button v-if="row.level === 1" size="small" @click="openCategoryCreate(row.id)">加子分类</el-button>
-              <el-button size="small" @click="toggleCategoryNav(row)">
-                {{ row.navStatus === 1 ? '隐藏导航' : '显示导航' }}
-              </el-button>
-              <el-popconfirm title="删除该分类？" @confirm="removeCategory(row)">
-                <template #reference>
-                  <el-button size="small" type="danger">删除</el-button>
-                </template>
-              </el-popconfirm>
-            </template>
-          </el-table-column>
-        </el-table>
+        <LoadingState :loading="catalogLoading" variant="table" :count="4">
+          <el-table :data="categoryTree" border row-key="id" default-expand-all>
+            <el-table-column label="分类名称" min-width="160">
+              <template #default="{ row }">{{ categoryName(row.name) }}</template>
+            </el-table-column>
+            <el-table-column label="在售商品" width="90">
+              <template #default="{ row }">{{ row.productCount || 0 }}</template>
+            </el-table-column>
+            <el-table-column label="导航栏" width="80">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.navStatus === 1 ? 'success' : 'info'">
+                  {{ row.navStatus === 1 ? '显示' : '隐藏' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.showStatus === 1 ? 'success' : 'info'">
+                  {{ row.showStatus === 1 ? '显示' : '隐藏' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="sort" label="排序" width="70" />
+            <el-table-column label="操作" width="220">
+              <template #default="{ row }">
+                <el-button v-if="row.level === 1" size="small" @click="openCategoryCreate(row.id)">加子分类</el-button>
+                <el-button size="small" @click="toggleCategoryNav(row)">
+                  {{ row.navStatus === 1 ? '隐藏导航' : '显示导航' }}
+                </el-button>
+                <el-popconfirm title="删除该分类？" @confirm="removeCategory(row)">
+                  <template #reference>
+                    <el-button size="small" type="danger">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </LoadingState>
 
         <el-dialog v-model="categoryDialog" :title="categoryForm.parentId ? '新增子分类' : '新增一级分类'" width="420px">
           <el-form :model="categoryForm" label-width="80px">
@@ -200,31 +206,33 @@
           <span class="tab-hint">品牌库（logo、品牌故事在商品页展示）</span>
           <el-button type="primary" @click="brandDialog = true">新增品牌</el-button>
         </div>
-        <el-table :data="adminBrandList" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="name" label="品牌名称" min-width="140" />
-          <el-table-column prop="firstLetter" label="首字母" width="80" />
-          <el-table-column prop="productCount" label="商品数" width="80" />
-          <el-table-column label="状态" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.showStatus === 1 ? 'success' : 'info'">
-                {{ row.showStatus === 1 ? '显示' : '隐藏' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160">
-            <template #default="{ row }">
-              <el-button size="small" @click="toggleBrandStatus(row)">
-                {{ row.showStatus === 1 ? '隐藏' : '显示' }}
-              </el-button>
-              <el-popconfirm title="删除该品牌？" @confirm="removeBrand(row)">
-                <template #reference>
-                  <el-button size="small" type="danger">删除</el-button>
-                </template>
-              </el-popconfirm>
-            </template>
-          </el-table-column>
-        </el-table>
+        <LoadingState :loading="catalogLoading" variant="table" :count="4">
+          <el-table :data="adminBrandList" border>
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="name" label="品牌名称" min-width="140" />
+            <el-table-column prop="firstLetter" label="首字母" width="80" />
+            <el-table-column prop="productCount" label="商品数" width="80" />
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.showStatus === 1 ? 'success' : 'info'">
+                  {{ row.showStatus === 1 ? '显示' : '隐藏' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160">
+              <template #default="{ row }">
+                <el-button size="small" @click="toggleBrandStatus(row)">
+                  {{ row.showStatus === 1 ? '隐藏' : '显示' }}
+                </el-button>
+                <el-popconfirm title="删除该品牌？" @confirm="removeBrand(row)">
+                  <template #reference>
+                    <el-button size="small" type="danger">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </LoadingState>
 
         <el-dialog v-model="brandDialog" title="新增品牌" width="460px">
           <el-form :model="brandForm" label-width="80px">
@@ -256,72 +264,76 @@
         </div>
         <el-tabs v-model="promoTab">
           <el-tab-pane label="优惠券" name="coupons">
-            <el-table :data="couponList" border size="small">
-              <el-table-column prop="id" label="ID" width="60" />
-              <el-table-column prop="name" label="名称" min-width="140" />
-              <el-table-column label="面额/门槛" width="130">
-                <template #default="{ row }">￥{{ row.discountValue }} / 满{{ row.minAmount }}</template>
-              </el-table-column>
-              <el-table-column label="领取量" width="90">
-                <template #default="{ row }">{{ row.receivedCount }}/{{ row.totalCount }}</template>
-              </el-table-column>
-              <el-table-column label="有效期" width="180">
-                <template #default="{ row }">{{ fmtWindow(row.startTime, row.endTime) }}</template>
-              </el-table-column>
-              <el-table-column prop="validDays" label="用券天数" width="90" />
-              <el-table-column label="状态" width="80">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
-                    {{ row.status === 'ENABLE' ? '进行中' : '已下架' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button size="small" @click="toggleCoupon(row)">
-                    {{ row.status === 'ENABLE' ? '下架' : '上架' }}
-                  </el-button>
-                  <el-popconfirm title="删除该券？" @confirm="removeCoupon(row)">
-                    <template #reference>
-                      <el-button size="small" type="danger">删除</el-button>
-                    </template>
-                  </el-popconfirm>
-                </template>
-              </el-table-column>
-            </el-table>
+            <LoadingState :loading="promotionsLoading" variant="table" :count="4">
+              <el-table :data="couponList" border size="small">
+                <el-table-column prop="id" label="ID" width="60" />
+                <el-table-column prop="name" label="名称" min-width="140" />
+                <el-table-column label="面额/门槛" width="130">
+                  <template #default="{ row }">￥{{ row.discountValue }} / 满{{ row.minAmount }}</template>
+                </el-table-column>
+                <el-table-column label="领取量" width="90">
+                  <template #default="{ row }">{{ row.receivedCount }}/{{ row.totalCount }}</template>
+                </el-table-column>
+                <el-table-column label="有效期" width="180">
+                  <template #default="{ row }">{{ fmtWindow(row.startTime, row.endTime) }}</template>
+                </el-table-column>
+                <el-table-column prop="validDays" label="用券天数" width="90" />
+                <el-table-column label="状态" width="80">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
+                      {{ row.status === 'ENABLE' ? '进行中' : '已下架' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button size="small" @click="toggleCoupon(row)">
+                      {{ row.status === 'ENABLE' ? '下架' : '上架' }}
+                    </el-button>
+                    <el-popconfirm title="删除该券？" @confirm="removeCoupon(row)">
+                      <template #reference>
+                        <el-button size="small" type="danger">删除</el-button>
+                      </template>
+                    </el-popconfirm>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </LoadingState>
           </el-tab-pane>
           <el-tab-pane label="秒杀" name="seckills">
-            <el-table :data="seckillList" border size="small">
-              <el-table-column prop="id" label="ID" width="60" />
-              <el-table-column prop="productId" label="商品ID" width="80" />
-              <el-table-column label="秒杀价" width="90">
-                <template #default="{ row }">￥{{ row.seckillPrice }}</template>
-              </el-table-column>
-              <el-table-column prop="seckillStock" label="秒杀库存" width="90" />
-              <el-table-column prop="seckillLimit" label="限购" width="70" />
-              <el-table-column label="活动时间" width="300">
-                <template #default="{ row }">{{ fmtWindow(row.startTime, row.endTime) }}</template>
-              </el-table-column>
-              <el-table-column label="状态" width="80">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
-                    {{ row.status === 'ENABLE' ? '启用' : '停用' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button size="small" @click="toggleSeckill(row)">
-                    {{ row.status === 'ENABLE' ? '停用' : '启用' }}
-                  </el-button>
-                  <el-popconfirm title="删除该活动？" @confirm="removeSeckill(row)">
-                    <template #reference>
-                      <el-button size="small" type="danger">删除</el-button>
-                    </template>
-                  </el-popconfirm>
-                </template>
-              </el-table-column>
-            </el-table>
+            <LoadingState :loading="promotionsLoading" variant="table" :count="4">
+              <el-table :data="seckillList" border size="small">
+                <el-table-column prop="id" label="ID" width="60" />
+                <el-table-column prop="productId" label="商品ID" width="80" />
+                <el-table-column label="秒杀价" width="90">
+                  <template #default="{ row }">￥{{ row.seckillPrice }}</template>
+                </el-table-column>
+                <el-table-column prop="seckillStock" label="秒杀库存" width="90" />
+                <el-table-column prop="seckillLimit" label="限购" width="70" />
+                <el-table-column label="活动时间" width="300">
+                  <template #default="{ row }">{{ fmtWindow(row.startTime, row.endTime) }}</template>
+                </el-table-column>
+                <el-table-column label="状态" width="80">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.status === 'ENABLE' ? 'success' : 'info'">
+                      {{ row.status === 'ENABLE' ? '启用' : '停用' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button size="small" @click="toggleSeckill(row)">
+                      {{ row.status === 'ENABLE' ? '停用' : '启用' }}
+                    </el-button>
+                    <el-popconfirm title="删除该活动？" @confirm="removeSeckill(row)">
+                      <template #reference>
+                        <el-button size="small" type="danger">删除</el-button>
+                      </template>
+                    </el-popconfirm>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </LoadingState>
           </el-tab-pane>
         </el-tabs>
 
@@ -391,6 +403,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -522,6 +535,7 @@ const skuDialog = ref(false)
 const skuSaving = ref(false)
 const skuProduct = ref<ProductVO | null>(null)
 const skuList = ref<SkuVO[]>([])
+const skuLoading = ref(false)
 const skuForm = reactive({ spText: '', price: 0, stock: 0 })
 
 /** "颜色:黑色,容量:256G" -> sp_data JSON */
@@ -555,7 +569,12 @@ function openSkus(row: ProductVO) {
 }
 
 async function loadSkus(productId: number) {
-  skuList.value = await apiAdminSkus(productId)
+  skuLoading.value = true
+  try {
+    skuList.value = await apiAdminSkus(productId)
+  } finally {
+    skuLoading.value = false
+  }
 }
 
 async function createSku() {
@@ -604,13 +623,18 @@ const categoryDialog = ref(false)
 const categorySaving = ref(false)
 const categoryForm = reactive({ parentId: 0, name: '', sort: 0, navStatus: 1 })
 
+const catalogLoading = ref(false)
+
 async function loadCatalog() {
+  catalogLoading.value = true
   try {
     const [tree, brands] = await Promise.all([apiAdminCatalogCategories(), apiAdminBrands()])
     categoryTree.value = tree || []
     adminBrandList.value = brands || []
   } catch {
     // 拦截器已提示
+  } finally {
+    catalogLoading.value = false
   }
 }
 
@@ -715,13 +739,18 @@ const seckillForm = reactive<Record<string, any>>({
   productId: '', seckillPrice: 0, seckillStock: 100, seckillLimit: 1,
 })
 
+const promotionsLoading = ref(false)
+
 async function loadPromotions() {
+  promotionsLoading.value = true
   try {
     const [coupons, seckills] = await Promise.all([apiAdminCoupons(), apiAdminSeckills()])
     couponList.value = coupons || []
     seckillList.value = seckills || []
   } catch {
     // 拦截器已提示
+  } finally {
+    promotionsLoading.value = false
   }
 }
 

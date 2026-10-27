@@ -190,7 +190,12 @@ def _make_embeddings(
 
 @lru_cache
 def get_embeddings() -> Embeddings:
-    """Return an ordered, dimension-validating embedding fallback chain."""
+    """Pin indexed vectors to the configured model; degrade retrieval, not its space.
+
+    A different model requires new collections and a full reindex, even at the
+    same dimension. The generic FallbackEmbeddings utility remains available for
+    non-indexed callers, but the shared index factory must not switch models.
+    """
     if settings.embedding_provider.lower() == "ollama":
         base = settings.ollama_base_url
         candidates = [(settings.embedding_model, _make_embeddings(
@@ -209,5 +214,5 @@ def get_embeddings() -> Embeddings:
             model,
             provider=settings.embedding_provider,
             dimensions=settings.embedding_dim,
-        )) for model in settings.embedding_model_order]
+        )) for model in (settings.embedding_model,)]
     return FallbackEmbeddings(candidates, expected_dim=settings.embedding_dim)

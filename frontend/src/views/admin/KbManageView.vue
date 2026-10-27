@@ -13,68 +13,73 @@
       <el-button type="primary" @click="uploadDialog = true">上传文档</el-button>
     </div>
 
-    <el-table v-loading="loading && docs.length === 0" :data="docs" border stripe>
-      <el-table-column prop="docId" label="ID" width="70" />
-      <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
-      <el-table-column label="类型" width="100">
-        <template #default="{ row }">{{ typeText(row.docType) }}</template>
-      </el-table-column>
-      <el-table-column prop="fileFormat" label="格式" width="80" />
-      <el-table-column prop="chunkCount" label="分块数" width="90" />
-      <el-table-column label="向量/存储" width="150">
-        <template #default="{ row }">
-          <template v-if="row.status === 'ACTIVE'">
-            <el-tag v-if="(row.vectorCount ?? 0) > 0" size="small" type="success">
-              {{ row.vectorCount }} 向量
+    <LoadingState :loading="loading && docs.length === 0" variant="table" :count="5">
+      <el-table :data="docs" border stripe>
+        <el-table-column prop="docId" label="ID" width="70" />
+        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
+        <el-table-column label="类型" width="100">
+          <template #default="{ row }">{{ typeText(row.docType) }}</template>
+        </el-table-column>
+        <el-table-column prop="fileFormat" label="格式" width="80" />
+        <el-table-column prop="chunkCount" label="分块数" width="90" />
+        <el-table-column label="向量/存储" width="150">
+          <template #default="{ row }">
+            <template v-if="row.status === 'ACTIVE'">
+              <el-tag v-if="(row.vectorCount ?? 0) > 0" size="small" type="success">
+                {{ row.vectorCount }} 向量
+              </el-tag>
+              <el-tooltip v-else content="Embedding/Milvus 不可用时已降级为关键词检索">
+                <el-tag size="small" type="warning">关键词降级</el-tag>
+              </el-tooltip>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.status === 'PROCESSING' || row.status === 'PENDING'" size="small" type="warning">
+              <el-icon class="is-loading"><Loading /></el-icon> 处理中
             </el-tag>
-            <el-tooltip v-else content="Embedding/Milvus 不可用时已降级为关键词检索">
-              <el-tag size="small" type="warning">关键词降级</el-tag>
+            <el-tag v-else-if="row.status === 'ACTIVE'" size="small" type="success">已生效</el-tag>
+            <el-tag v-else-if="row.status === 'DISABLED'" size="small" type="info">已停用</el-tag>
+            <el-tooltip v-else :content="row.failReason || '摄取失败'">
+              <el-tag size="small" type="danger">失败</el-tag>
             </el-tooltip>
           </template>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="110">
-        <template #default="{ row }">
-          <el-tag v-if="row.status === 'PROCESSING' || row.status === 'PENDING'" size="small" type="warning">
-            <el-icon class="is-loading"><Loading /></el-icon> 处理中
-          </el-tag>
-          <el-tag v-else-if="row.status === 'ACTIVE'" size="small" type="success">已生效</el-tag>
-          <el-tag v-else-if="row.status === 'DISABLED'" size="small" type="info">已停用</el-tag>
-          <el-tooltip v-else :content="row.failReason || '摄取失败'">
-            <el-tag size="small" type="danger">失败</el-tag>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="上传时间" width="160" />
-      <el-table-column label="操作" width="290" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" type="primary" plain @click="openPreview(row)">查看</el-button>
-          <el-button v-if="row.status === 'ACTIVE'" size="small" type="warning" @click="toggle(row, 'DISABLED')">
-            停用
-          </el-button>
-          <el-button v-if="row.status === 'DISABLED' || row.status === 'FAILED'" size="small" type="success"
-            @click="reindex(row)">
-            重建索引
-          </el-button>
-          <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="上传时间" width="160" />
+        <el-table-column label="操作" width="290" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" type="primary" plain @click="openPreview(row)">查看</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" size="small" type="warning" @click="toggle(row, 'DISABLED')">
+              停用
+            </el-button>
+            <el-button v-if="row.status === 'DISABLED' || row.status === 'FAILED'" size="small" type="success"
+              @click="reindex(row)">
+              重建索引
+            </el-button>
+            <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </LoadingState>
 
-    <div v-if="loading" class="load-state">加载中...</div>
+
+    <LoadingState v-if="loading && docs.length > 0" variant="table" :count="2" />
     <div v-else-if="finished && docs.length > 0" class="load-state">— 没有更多了 —</div>
 
     <!-- 文档预览弹窗 -->
     <el-dialog v-model="previewDialog" :title="previewTitle" width="80%" top="5vh" @closed="clearPreview">
-      <div v-loading="previewLoading" class="preview-body">
-        <iframe
-          v-if="preview?.kind === 'pdf'"
-          :src="preview.url"
-          class="preview-pdf"
-          title="知识库 PDF 文档预览"
-        />
-        <pre v-else-if="preview?.kind === 'text'" class="preview-text">{{ preview.content }}</pre>
+      <div class="preview-body">
+        <LoadingState :loading="previewLoading" variant="spinner" full-page label="正在加载文档预览">
+          <iframe
+            v-if="preview?.kind === 'pdf'"
+            :src="preview.url"
+            class="preview-pdf"
+            title="知识库 PDF 文档预览"
+          />
+          <pre v-else-if="preview?.kind === 'text'" class="preview-text">{{ preview.content }}</pre>
+        </LoadingState>
       </div>
     </el-dialog>
 
@@ -110,6 +115,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingState from '@/components/common/LoadingState.vue'
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'

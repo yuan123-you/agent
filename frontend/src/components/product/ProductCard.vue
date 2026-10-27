@@ -1,7 +1,7 @@
 <template>
   <div class="product-card" @click="goDetail">
     <div class="pic-wrap">
-      <el-image :src="optimizedImageUrl" fit="cover" class="pic" lazy decoding="async">
+      <el-image :src="product.imageUrl" fit="cover" class="pic" lazy decoding="async">
         <template #placeholder>
           <div class="pic-fallback">{{ product.name.slice(0, 1) }}</div>
         </template>

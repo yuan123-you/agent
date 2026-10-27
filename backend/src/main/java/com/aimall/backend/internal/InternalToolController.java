@@ -196,6 +196,10 @@ public class InternalToolController {
             vo.put("sales", p.getSales());
             vo.put("sellingPoints", p.getSellingPoints());
             vo.put("specs", p.getSpecs());
+            vo.put("origin", p.getOrigin());
+            vo.put("shipFrom", p.getShipFrom());
+            vo.put("material", p.getMaterial());
+            vo.put("productionDate", p.getProductionDate());
             vo.put("description", p.getDescription());
             return vo;
         }).toList();
@@ -218,8 +222,12 @@ public class InternalToolController {
         vo.put("stock", p.getStock());
         vo.put("sellingPoints", p.getSellingPoints());
         vo.put("specs", p.getSpecs());
+        vo.put("origin", p.getOrigin());
+        vo.put("shipFrom", p.getShipFrom());
+        vo.put("material", p.getMaterial());
+        vo.put("productionDate", p.getProductionDate());
         String desc = p.getDescription() == null ? "" : p.getDescription();
-        vo.put("description", desc.length() > 800 ? desc.substring(0, 800) : desc);
+        vo.put("description", desc);
         vo.put("link", "mall://product/" + p.getId());
         return ApiResponse.ok(vo);
     }

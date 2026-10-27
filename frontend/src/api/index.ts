@@ -254,7 +254,7 @@ export function subscribeOrderStatus(onEvent: (o: { orderId: number; orderNo: st
 
 // ---------- 会话与消息 ----------
 export const apiCreateConversation = () =>
-  post<{ conversationId: number; convNo: string; status: string }>('/chat/conversations')
+  post<Pick<ConversationVO, 'conversationId' | 'convNo' | 'status'>>('/chat/conversations')
 export const apiConversations = (params: Record<string, unknown>) =>
   get<PageResult<ConversationVO>>('/chat/conversations', { params })
 export const apiConversationDetail = (id: number) => get<ConversationVO>(`/chat/conversations/${id}`)
