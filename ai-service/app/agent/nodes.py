@@ -30,6 +30,7 @@ from app.agent.state import AgentState
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
+from app.rag.citations import build_extractive_answer
 from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
 from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, requests_human, requires_kb
 from app.observability.telemetry import generation
@@ -316,6 +317,15 @@ async def agent_node(state: AgentState) -> dict:
             calls.append({"name": "kb_search", "id": f"kb_{uuid4().hex}", "args": {"query": latest_text}})
         return {"messages": [AIMessage(content="", tool_calls=calls)],
                 "tool_loop_count": state.get("tool_loop_count", 0) + 1, "active_entities": entities}
+    if intent == "AFTER_SALE_FAQ" and kb_searched and settings.kb_response_mode == "extractive":
+        result = next(m for m in reversed(state["messages"][latest_user + 1:])
+                      if getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "kb_search")
+        try:
+            payload = json.loads(result.content)
+        except (TypeError, ValueError):
+            payload = {}
+        text = build_extractive_answer(payload, ctx.get("rag_allowed_citations") or {})
+        return {"messages": [AIMessage(content=text)], "active_entities": entities}
     llm = get_chat_llm().bind_tools(tools)
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")

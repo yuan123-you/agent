@@ -81,3 +81,66 @@ async def test_mixed_shopping_and_policy_schedules_both_grounding_tools(monkeypa
     monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
     result=await nodes.agent_node({'intent':'PRODUCT_CONSULT','messages':[HumanMessage(content='推荐手机，支持七天退货吗')],'tool_loop_count':0})
     assert {x['name'] for x in result['messages'][0].tool_calls}=={'product_search','kb_search'}
+
+@pytest.mark.asyncio
+async def test_extractive_policy_mode_returns_only_verified_source_without_llm(monkeypatch):
+    from app.tools.tools import get_tool_ctx
+    monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
+    model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='unverified 14天')))
+    model.bind_tools=lambda *a,**k:model
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
+    get_tool_ctx().update({'rag_answerable':True,'rag_allowed_citations':{'S1':{'id':'S1','chunk_id':7,'title':'平台规则'}}})
+    payload={'answerable':True,'citations':[{'id':'S1','chunk_id':7,'title':'平台规则'}],
+        'hits':[{'chunk_id':7,'content':'签收之日起7自然日内，商品完好可申请无理由退货。'}]}
+    result=await nodes.agent_node({'intent':'AFTER_SALE_FAQ','tool_loop_count':1,'messages':[
+        HumanMessage(content=QUESTION),ToolMessage(name='kb_search',tool_call_id='kb',content=json.dumps(payload,ensure_ascii=False))]})
+    text=result['messages'][0].content
+    assert '签收之日起7自然日内，商品完好可申请无理由退货。' in text
+    assert '[S1]' in text and '原文' in text and 'unverified' not in text and '14天' not in text
+    model.ainvoke.assert_not_awaited()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('answerable,chunk,source',[(False,7,'S1'),(True,8,'S1'),(True,7,'S9')])
+async def test_extractive_policy_mode_does_not_trust_unapproved_tool_evidence(monkeypatch,answerable,chunk,source):
+    from app.tools.tools import get_tool_ctx
+    monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
+    model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='unverified')))
+    model.bind_tools=lambda *a,**k:model
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
+    get_tool_ctx().update({'rag_allowed_citations':{'S1':{'id':'S1','chunk_id':7,'title':'平台规则'}}})
+    payload={'answerable':answerable,'citations':[{'id':source,'chunk_id':chunk}], 'hits':[{'chunk_id':chunk,'content':'UNAPPROVED_EVIDENCE'}]}
+    result=await nodes.agent_node({'intent':'AFTER_SALE_FAQ','tool_loop_count':1,'messages':[
+        HumanMessage(content=QUESTION),ToolMessage(name='kb_search',tool_call_id='kb',content=json.dumps(payload))]})
+    assert 'UNAPPROVED' not in result['messages'][0].content
+    assert 'unverified' not in result['messages'][0].content
+    model.ainvoke.assert_not_awaited()
+
+@pytest.mark.asyncio
+async def test_extractive_policy_full_graph_emits_grounded_sse_without_any_model(monkeypatch):
+    from langgraph.checkpoint.memory import MemorySaver
+    from app.agent.graph import build_graph
+    from app.rag import retrieval
+    monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
+    def unavailable_model():raise AssertionError('CPU policy mode must not invoke an LLM')
+    monkeypatch.setattr(nodes,'get_chat_llm',unavailable_model)
+    monkeypatch.setattr(nodes,'get_intent_llm',unavailable_model)
+    hit=retrieval.RetrievalCandidate(7,1,None,'POLICY','签收之日起7自然日内可申请退货。','平台规则',vector_score=.95)
+    sources=retrieval.build_source_context([hit])
+    result=retrieval.RetrievalResult(True,'high_confidence',(hit,),sources.context,sources.citations,False,())
+    monkeypatch.setattr(retrieval,'get_retrieval_pipeline',lambda:SimpleNamespace(search=AsyncMock(return_value=result)))
+    monkeypatch.setattr(chat,'graph',build_graph(MemorySaver()))
+    monkeypatch.setattr(chat,'checkpointer',None)
+    monkeypatch.setattr(chat,'start_trace',lambda **k:False)
+    monkeypatch.setattr(chat,'end_trace',lambda **k:None)
+    monkeypatch.setattr(chat,'background_memory_extraction',AsyncMock())
+    class Request:
+        async def is_disconnected(self):return False
+    response=await chat.chat_stream(chat.ChatRequest(user_id=1,conversation_id=1,message=QUESTION),Request())
+    events=[]
+    async for raw in response.body_iterator:
+        if isinstance(raw,bytes):raw=raw.decode()
+        lines=raw.strip().splitlines();events.append((lines[0][7:],json.loads(lines[1][6:])))
+    done=next(d for e,d in events if e=='done')
+    assert done['citations'][0]['chunk_id']==7
+    assert '签收之日起7自然日内可申请退货。' in done['content'] and '[S1]' in done['content']
+    assert ''.join(d['content'] for e,d in events if e=='token')==done['content']

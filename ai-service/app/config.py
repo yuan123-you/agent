@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 """全局配置：全部来自环境变量 / .env，禁止硬编码密钥"""
+from typing import Literal
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -66,6 +68,9 @@ class Settings(BaseSettings):
     # RAG 文档分块（字符数；中文字符通常接近一个 token）
     rag_chunk_size: int = Field(default=600, ge=200)
     rag_chunk_overlap: int = Field(default=90, ge=0)
+
+    # Generate normally; CPU deployments can return explicitly labelled verified excerpts.
+    kb_response_mode: Literal["generate", "extractive"] = "generate"
 
     # T10 RAG 检索与回答置信度
     rag_vector_recall_k: int = Field(default=20, gt=0)

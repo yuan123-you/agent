@@ -49,3 +49,30 @@ def validate_citations(
         for source_id in referenced
     )
     return CitationValidation(content, citations, True, "valid")
+
+
+def build_extractive_answer(payload: object, allowed: Mapping[str, Mapping]) -> str:
+    """Render approved source text, not unverified generated claims, on CPU deployments."""
+    if not isinstance(payload, dict) or payload.get("answerable") is not True:
+        unavailable = isinstance(payload, dict) and payload.get("reason") == "retrieval_unavailable"
+        return _RETRIEVAL_UNAVAILABLE if unavailable else _EVIDENCE_INSUFFICIENT
+    hits = {hit.get("chunk_id"): hit for hit in payload.get("hits", []) if isinstance(hit, dict)}
+    blocks = []
+    seen = set()
+    for citation in payload.get("citations", []):
+        if not isinstance(citation, dict):
+            continue
+        source_id, chunk_id = citation.get("id"), citation.get("chunk_id")
+        if (not isinstance(source_id, str) or _CANONICAL_SOURCE_RE.fullmatch(source_id) is None
+                or isinstance(chunk_id, bool) or not isinstance(chunk_id, int)):
+            continue
+        approved = allowed.get(source_id)
+        content = hits.get(chunk_id, {}).get("content")
+        if (not approved or approved.get("chunk_id") != chunk_id or source_id in seen
+                or not isinstance(content, str) or not content.strip()):
+            continue
+        seen.add(source_id)
+        blocks.append("\n".join("> " + line for line in content.strip().splitlines()) + f"\n\n[{source_id}]")
+    if not blocks:
+        return _EVIDENCE_INSUFFICIENT
+    return "以下是检索到的相关知识库原文片段（请注意片段中的适用条件）：\n\n" + "\n\n".join(blocks)

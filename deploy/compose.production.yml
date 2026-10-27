@@ -121,6 +121,7 @@ services:
       RERANKER_ENABLED: 'false'
       PRODUCT_SYNC_ENABLED: 'true'
       PRODUCT_SYNC_INTERVAL_S: '3600'
+      KB_RESPONSE_MODE: extractive
       LANGFUSE_ENABLED: 'false'
       CHAT_TIMEOUT_S: '180'
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
