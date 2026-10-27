@@ -21,7 +21,7 @@ from app.config import settings
 from app.observability.telemetry import end_trace, get_trace_id, start_trace, tool_span
 from app.rag.citations import validate_citations
 from app.sse import sse
-from app.request_policy import budget_from_text
+from app.request_policy import budget_from_text, requires_kb
 from app.tools.tools import category_from_user_text, set_tool_ctx
 
 router = APIRouter()
@@ -242,6 +242,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         streamed_length = 0
         product_result: dict | None = None
         rag_started = False
+        policy_requires_kb = requires_kb(req.message)
         web_search_used = False
         product_links_needed = True
         # 可观测：开启本会话 trace（session=conversation_id）
@@ -280,7 +281,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                                 # Tool-enabled agents may still retrieve evidence or replace invalid
                                 # recommendations. Only terminal nodes can safely expose early text.
                                 safe_terminal = node in {"small_talk", "finalize_without_tools"}
-                                if (safe_terminal and not rag_started and not ctx.get("rag_used")
+                                if (safe_terminal and not policy_requires_kb and not rag_started and not ctx.get("rag_used")
                                         and (product_result is None or not product_links_needed)):
                                     if live_buffer is None:
                                         live_buffer = GuardedLinkBuffer(known_ids, settings.link_guard_enabled)
@@ -364,8 +365,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                             break
             final_text = _timeout_fallback(final_text, timed_out)
             citations: tuple[dict, ...] = ()
-            rag_used = bool(ctx.get("rag_used") or rag_started)
-            if rag_used and not web_search_used:
+            rag_used = bool(ctx.get("rag_used") or rag_started or policy_requires_kb)
+            citation_guard_required = rag_used and (policy_requires_kb or not web_search_used)
+            if citation_guard_required:
                 normalized_text = re.sub(r"[【（(](S[0-9]+)[】）)]", r"[\1]", final_text)
                 normalized_text = re.sub(r"\[s([0-9]+)\]", r"[S\1]", normalized_text)
                 validation = validate_citations(
@@ -402,7 +404,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 "timedOut": timed_out,
                 **_done_eval_metadata(final_state, eval_enabled),
             }
-            if rag_used and not web_search_used:
+            if citation_guard_required:
                 done["citations"] = list(citations)
             yield sse("done", done)
             try:

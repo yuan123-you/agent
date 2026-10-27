@@ -77,8 +77,8 @@ def _decode(raw):
     return lines[0].removeprefix("event: "), json.loads(lines[1].removeprefix("data: "))
 
 
-def _request():
-    return chat.ChatRequest(conversation_id=1, user_id=2, message="退货规则？")
+def _request(message="退货规则？"):
+    return chat.ChatRequest(conversation_id=1, user_id=2, message=message)
 
 
 def _setup(
@@ -176,7 +176,7 @@ async def test_retrieval_unavailable_keeps_distinct_stream_message(monkeypatch):
 @pytest.mark.asyncio
 async def test_non_rag_tokens_preserve_provider_chunks_after_rag_decision(monkeypatch):
     graph = _setup(monkeypatch, answer_parts=["普通", "回答"], rag=False)
-    response = await chat.chat_stream(_request(), _Request())
+    response = await chat.chat_stream(_request("普通咨询"), _Request())
     stream = response.body_iterator
 
     first = _decode(await anext(stream))
@@ -214,7 +214,7 @@ async def test_preamble_before_kb_search_never_leaks_or_duplicates(monkeypatch):
 @pytest.mark.parametrize("node", ["small_talk", "finalize_without_tools"])
 async def test_safe_terminal_model_nodes_stream_before_graph_finishes(monkeypatch, node):
     graph = _setup(monkeypatch, answer_parts=["你好", "，很高兴帮你"], rag=False, node=node)
-    response = await chat.chat_stream(_request(), _Request())
+    response = await chat.chat_stream(_request("普通咨询"), _Request())
     stream = response.body_iterator
     assert _decode(await anext(stream)) == ("token", {"content": "你好"})
     assert graph.completed is False
@@ -226,7 +226,7 @@ async def test_safe_terminal_model_nodes_stream_before_graph_finishes(monkeypatc
 @pytest.mark.asyncio
 async def test_safe_stream_never_leaks_an_unknown_link_split_across_chunks(monkeypatch):
     graph = _setup(monkeypatch, answer_parts=["你好 [错误](", "mall://product/999", ") 后续"], rag=False, node="small_talk")
-    response = await chat.chat_stream(_request(), _Request())
+    response = await chat.chat_stream(_request("普通咨询"), _Request())
     stream = response.body_iterator
     first = _decode(await anext(stream))
     assert first == ("token", {"content": "你好 "})

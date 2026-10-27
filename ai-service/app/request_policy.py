@@ -61,3 +61,18 @@ def budget_from_text(text: str) -> dict:
     if not match:
         match = re.fullmatch(r"\s*" + number + r"\s*", text)
     return {"min_price": None, "max_price": float(match.group(1))} if match else {}
+
+
+def requires_kb(text: str) -> bool:
+    """Explicit service-policy questions need evidence even if a model ignores tools."""
+    t = (text or "").strip()
+    if requests_human(t) or asks_assistant_identity(t):
+        return False
+    topic = re.search(r"退货|退换|退款|保修|售后|运费|三包|发票|开票|配送|送货|人工客服", t)
+    if not topic:
+        return False
+    if re.search(r"规则|政策|条件|标准|期限|规定|流程|要求", t):
+        return True
+    if re.search(r"(?:帮我|我要|请)(?:申请|发起|提交)(?:退款|退货|售后)", t):
+        return False
+    return bool(re.search(r"几天|多久|谁|怎么|如何|能否|是否|支持|几点|上班|[?？吗]", t))

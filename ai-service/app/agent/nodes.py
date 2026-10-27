@@ -31,7 +31,7 @@ from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
 from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
-from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, requests_human
+from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, requests_human, requires_kb
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
@@ -130,6 +130,11 @@ async def intent_router_node(state: AgentState) -> dict:
     )
     identity_query = asks_user_identity(user_text) or asks_mutual_identity(user_text) or asks_conversation_context(user_text)
     time_query = bool(TIME_QUERY_RE.fullmatch(user_text.strip()))
+    mixed_shopping_policy = bool(category_from_user_text(user_text)
+                                 and re.search(r"推荐|挑选|选购|想买|购买|找|看看", user_text))
+    if requires_kb(user_text) and not mixed_shopping_policy:
+        get_tool_ctx()["latest_user_text"] = user_text
+        return {"intent": "AFTER_SALE_FAQ"}
     if requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting or naming_command or time_query or shopping_request:
         intent = "SMALL_TALK" if (greeting or naming_command or identity_query or time_query) else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
@@ -159,6 +164,8 @@ async def intent_router_node(state: AgentState) -> dict:
         rule_intent = fallback_intent_by_rules(user_text)
         if requests_human(user_text) or asks_assistant_identity(user_text) or intent == "HUMAN_REQUEST":
             intent = rule_intent
+        elif requires_kb(user_text) and intent in {"SMALL_TALK", "ASSISTANT_META"}:
+            intent = "AFTER_SALE_FAQ"
         elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and (category_from_user_text(user_text) or budget_from_text(user_text)):
             intent = rule_intent
         confidence = data.get("confidence")
@@ -272,6 +279,10 @@ async def agent_node(state: AgentState) -> dict:
     latest_user = max((i for i, m in enumerate(state["messages"]) if isinstance(m, HumanMessage)), default=-1)
     searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") in {"product_search", "product_detail", "web_search"}
                    for m in state["messages"][latest_user + 1:])
+    kb_searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "kb_search"
+                      for m in state["messages"][latest_user + 1:])
+    must_kb = ((intent == "AFTER_SALE_FAQ" or requires_kb(latest_text))
+               and not kb_searched and not state.get("tool_loop_count"))
     budget_changed = bool(budget)
     preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
     is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜|对比|评测|区别|怎么样|百科", latest_text))
@@ -279,30 +290,32 @@ async def agent_node(state: AgentState) -> dict:
                        and is_external_query
                        and not searched
                        and not state.get("tool_loop_count"))
-    if must_web_search:
+    if must_web_search and not must_kb:
         response = AIMessage(content="", tool_calls=[{
             "name": "web_search", "id": f"search_{uuid4().hex}",
             "args": {"query": latest_text, "max_results": 5},
         }])
         return {"messages": [response], "tool_loop_count": state.get("tool_loop_count", 0) + 1,
                 "active_entities": entities}
-    must_search = (intent in {"PRODUCT_CONSULT", "ORDER_CREATE"}
+    mixed_shopping_policy = bool(must_kb and re.search(r"推荐|挑选|选购|想买|购买|找|看看", latest_text))
+    must_search = ((intent in {"PRODUCT_CONSULT", "ORDER_CREATE"} or mixed_shopping_policy)
                    and bool(requested_category)
                    and (not entities.get("last_products") or budget_changed or preferences_changed)
                    and not searched and not state.get("tool_loop_count"))
-    if must_search:
-        # Some compatible models silently ignore tool_choice. Schedule the read-only
-        # lookup in the graph itself rather than trusting a generated recommendation.
-        query = category_text or latest_text
-        if preferences_changed and latest_text != category_text:
-            query += " " + latest_text
-        response = AIMessage(content="", tool_calls=[{
-            "name": "product_search", "id": f"search_{uuid4().hex}",
-            "args": {"category": requested_category, "keyword": clean_search_keyword(query),
-                     **ctx["requested_budget"]},
-        }])
-        return {"messages": [response], "tool_loop_count": state.get("tool_loop_count", 0) + 1,
-                "active_entities": entities}
+    if must_search or must_kb:
+        # Schedule required read-only evidence, even when a provider ignores tools.
+        calls = []
+        if must_search:
+            query = category_text or latest_text
+            if preferences_changed and latest_text != category_text:
+                query += " " + latest_text
+            calls.append({"name": "product_search", "id": f"search_{uuid4().hex}",
+                          "args": {"category": requested_category, "keyword": clean_search_keyword(query),
+                                   **ctx["requested_budget"]}})
+        if must_kb:
+            calls.append({"name": "kb_search", "id": f"kb_{uuid4().hex}", "args": {"query": latest_text}})
+        return {"messages": [AIMessage(content="", tool_calls=calls)],
+                "tool_loop_count": state.get("tool_loop_count", 0) + 1, "active_entities": entities}
     llm = get_chat_llm().bind_tools(tools)
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")
