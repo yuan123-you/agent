@@ -42,9 +42,6 @@
     <section class="chat-panel" :aria-busy="initializing || chat.loadingConversationId != null">
       <template v-if="chat.current">
         <header class="chat-header">
-          <button class="translucent-circle-back" title="返回" @click="goBack">
-            <el-icon><ArrowLeft /></el-icon>
-          </button>
           <el-button class="conv-toggle" size="small" @click="showConvList = true">
             <el-icon><Menu /></el-icon>
           </el-button>
@@ -58,10 +55,6 @@
               <span class="switch-dot"></span>
             </div>
           </el-tooltip>
-          <el-tag v-if="chat.current.status !== 'ACTIVE'" :type="statusTag(chat.current.status)">
-            {{ statusText(chat.current.status) }}
-          </el-tag>
-          <div class="spacer" />
           <el-button v-if="chat.current.status === 'CLOSED'" size="small" @click="showRate = true">
             评价会话
           </el-button>
@@ -78,6 +71,10 @@
           <el-button v-else size="small" @click="onClose">
             结束会话
           </el-button>
+          <el-tag v-if="chat.current.status !== 'ACTIVE'" :type="statusTag(chat.current.status)">
+            {{ statusText(chat.current.status) }}
+          </el-tag>
+          <div class="spacer" />
         </header>
 
         <div v-if="chat.loadingConversationId != null" class="conversation-loading" role="status">
@@ -194,9 +191,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ChatDotRound, Link, Loading, Menu, Service } from '@element-plus/icons-vue'
+import { ChatDotRound, Link, Loading, Menu, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import AiMessage from '@/components/chat/AiMessage.vue'
@@ -205,7 +202,6 @@ import { remainingHumanWaitSeconds } from './humanHandoff'
 const auth = useAuthStore()
 const chat = useChatStore()
 const route = useRoute()
-const router = useRouter()
 const initializing = ref(!chat.current)
 const initializationError = ref(false)
 const creatingConversation = ref(false)
@@ -468,14 +464,6 @@ function formatConvTime(t?: string): string {
   const h = String(d.getHours()).padStart(2, '0')
   const min = String(d.getMinutes()).padStart(2, '0')
   return `${m}-${day} ${h}:${min}`
-}
-
-function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
 }
 
 function handleSelectConv(id: number) {

@@ -24,6 +24,13 @@ MEMORY_EXTRACT_SYSTEM_PROMPT = """你是一个长期记忆提取器。分析用�
 [{"category": "IDENTITY|PREFERENCE|FACT", "key": "键名", "value": "简明记忆值"}]"""
 
 
+def _is_valid_name(name: str) -> bool:
+    if not name:
+        return False
+    n = name.strip()
+    return not any(w in n for w in ["什么", "谁", "名字", "哪"])
+
+
 def parse_naming_command(text: str) -> dict[str, str]:
     """快速规则提取用户明确发出的称呼/人设指令，保证本轮对话毫秒级实时生效"""
     if not text:
@@ -37,7 +44,7 @@ def parse_naming_command(text: str) -> dict[str, str]:
         r"[，, ；;和且]+(?:我叫|叫我|我是|称呼我为)\s*([A-Za-z0-9_\u4e00-\u9fa5]{1,16})",
         t,
     )
-    if m1:
+    if m1 and _is_valid_name(m1.group(1)) and _is_valid_name(m1.group(2)):
         res["assistant_name"] = m1.group(1).strip()
         res["user_name"] = m1.group(2).strip()
         return res
@@ -47,7 +54,7 @@ def parse_naming_command(text: str) -> dict[str, str]:
         r"[，, ；;和且]+(?:你叫|叫你|称呼你为)\s*([A-Za-z0-9_\u4e00-\u9fa5]{1,16})",
         t,
     )
-    if m2:
+    if m2 and _is_valid_name(m2.group(1)) and _is_valid_name(m2.group(2)):
         res["user_name"] = m2.group(1).strip()
         res["assistant_name"] = m2.group(2).strip()
         return res

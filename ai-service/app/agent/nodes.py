@@ -19,7 +19,7 @@ from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
 from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
-from app.request_policy import asks_assistant_identity, budget_from_text, requests_human
+from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, requests_human
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
@@ -78,6 +78,8 @@ def fallback_intent_by_rules(user_text: str) -> str:
         return "HUMAN_REQUEST"
     if asks_assistant_identity(t):
         return "ASSISTANT_META"
+    if asks_user_identity(t) or asks_mutual_identity(t) or asks_conversation_context(t):
+        return "SMALL_TALK"
     if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
         return "AFTER_SALE_FAQ"
     if any(w in t for w in ["订单", "物流", "发货没", "发货没有", "快递", "到哪了", "待支付"]):
@@ -114,8 +116,9 @@ async def intent_router_node(state: AgentState) -> dict:
         and fallback_intent_by_rules(user_text) == "PRODUCT_CONSULT"
         and not re.search(r"退|换货|售后|保修|发货|配送|运费|发票|下单|订单|物流|取消|人工|七天|7天", user_text)
     )
-    if requests_human(user_text) or asks_assistant_identity(user_text) or greeting or naming_command or shopping_request:
-        intent = "SMALL_TALK" if (greeting or naming_command) else fallback_intent_by_rules(user_text)
+    identity_query = asks_user_identity(user_text) or asks_mutual_identity(user_text) or asks_conversation_context(user_text)
+    if requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting or naming_command or shopping_request:
+        intent = "SMALL_TALK" if (greeting or naming_command or identity_query) else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
             "intent", model="rules", input_data={"user_text": user_text},
@@ -275,9 +278,16 @@ async def agent_node(state: AgentState) -> dict:
 
     # 会话级实体记忆提示（跨轮次商品/订单上下文）
     if entities.get("last_products"):
-        prods = [f"{p['name']}(ID:{p['id']})" for p in entities["last_products"][:4] if p.get("name")]
+        prods = [
+            f"{i+1}. {p['name']} (ID: {p['id']}{f', 价格: ¥{p["price"]}' if p.get('price') is not None else ''})"
+            for i, p in enumerate(entities["last_products"][:5]) if p.get("name")
+        ]
         if prods:
-            system_text += f"\n\n## 会话实体记忆（前序轮次推荐过的商品）：\n{'、'.join(prods)}\n买家提及“这款”、“第一款”或“第二个”时，请优先关联上述对应商品。"
+            system_text += (
+                f"\n\n## 会话实体记忆（前序轮次推荐过的商品列表）：\n" + "\n".join(prods) + "\n"
+                f"- 代词指代规则：买家提及“第一款/第一个”对应序号 1，“第二款/第二个”对应序号 2，以此类推；提及“这款/这个”对应前序讨论或序号 1 的商品。\n"
+                f"- 详情与操作：买家询问上述商品的参数、详情、卖点、评价或要求下单时，请优先使用上述对应的商品 ID（调用 product_detail 或 order_create）。"
+            )
     if entities.get("budget"):
         system_text += f"\n买家明确预算（元，必须作为搜索过滤条件）：{entities['budget']}"
     if entities.get("last_category"):
@@ -396,7 +406,36 @@ async def small_talk_node(state: AgentState) -> dict:
         )
         return {"messages": [resp], "user_profile": profile}
 
-    # 2. 独立的身份与能力问题直接回复（零延迟）
+    # 2. 双方互问名字快速响应: "你叫什么名字，我叫什么名字" / "你是谁我是谁"
+    if asks_mutual_identity(user_text):
+        assistant_name = profile.get("assistant_name", "AI Mall")
+        user_name = profile.get("user_name") or profile.get("nickname")
+        if user_name:
+            content = f"我是「AI Mall」的专属伙伴「{assistant_name}」，你是「{user_name}」呀！很高兴为您服务~"
+        else:
+            content = f"我是「AI Mall」的专属伙伴「{assistant_name}」，您还没有告诉我您的称呼呢~ 请问怎么称呼您？"
+        resp = AIMessage(content=content)
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "type": "mutual_identity"},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "mutual-identity-fast-path"],
+        )
+        return {"messages": [resp]}
+
+    # 3. 询问用户自己名字/身份快速响应: "我叫什么名字" / "我是谁" / "你还记得我叫什么吗"
+    if asks_user_identity(user_text):
+        user_name = profile.get("user_name") or profile.get("nickname")
+        if user_name:
+            content = f"您好，您是「{user_name}」呀！请问有什么想了解的商品或需要帮忙的吗？"
+        else:
+            content = "您还没有告诉我您的称呼呢~ 请问怎么称呼您？"
+        resp = AIMessage(content=content)
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "type": "user_identity"},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "user-identity-fast-path"],
+        )
+        return {"messages": [resp]}
+
+    # 4. 独立的助手身份与能力问题直接回复（零延迟）
     if re.fullmatch(
         r"(?:你是谁|你叫什么|介绍你自己|介绍下你自己|你能做什么|你能帮我做什么|"
         r"你有什么功能|你是真人(?:还是机器人)?|你是机器人|你是人工)[？?！!。\s]*",
@@ -410,13 +449,22 @@ async def small_talk_node(state: AgentState) -> dict:
         )
         return {"messages": [resp]}
 
-    # 3. 上下文闲聊
+    # 5. 上下文闲聊
     llm = get_chat_llm()
     recent_msgs = get_trimmed_messages(state["messages"], max_messages=12)
     memory_prompt = format_memory_prompt(profile, state.get("long_term_memory"))
     prompt = SMALL_TALK_PROMPT
     if memory_prompt and memory_prompt != "（暂无特殊偏好或记忆）":
         prompt += f"\n\n## 买家长期记忆与人设偏好\n{memory_prompt}"
+
+    if asks_conversation_context(user_text):
+        prev_user_msgs = [
+            str(m.content) for m in state["messages"][:-1]
+            if isinstance(m, HumanMessage) or getattr(m, "type", "") == "human"
+        ]
+        if prev_user_msgs:
+            prompt += f"\n\n## 会话上下文记忆提示：\n买家上一轮提出的问题是：「{prev_user_msgs[-1]}」。请结合对话历史准确告知买家上一轮的问题并热情询问后续需要。"
+
     resp = await llm.ainvoke([SystemMessage(content=prompt)] + recent_msgs)
     await generation(
         "generate", model=settings.llm_chat_model,

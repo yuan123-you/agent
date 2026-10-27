@@ -121,18 +121,22 @@ def clean_search_keyword(keyword: str | None) -> str | None:
         return None
     kw = keyword.strip()
     # 纯代词与指代词过滤（防止模型误将代词传为检索关键词导致召回为空）
-    if kw in {"这款", "这个", "它", "它们", "它俩", "第一个", "第二个", "第三个", "刚才那个", "上面那个", "前者", "后者"}:
+    if kw in {"这款", "这个", "它", "它们", "它俩", "第一个", "第二个", "第三个", "刚才那个", "上面那个", "前者", "后者", "第一款", "第二款", "第三款"}:
         return None
     # 纯预算过滤（防止模型将纯预算数字误传为商品名称关键词）
     if re.match(r"^(?:只要)?\d+\s*(?:元|块)?\s*(?:左右|以内|以下|以上|上下|到\d+)?(?:的)?$", kw):
         return None
     # 移除常见的口语搜索前缀与量词修饰，保留核心商品词
     kw = re.sub(
-        r"^(?:请问|请帮我|帮我找|帮我|麻烦|我想买|我想看|我想找|想买|想找|想要|求推荐|推荐|买|看下|看看|找一下|找个|找|有没有什么|有没有|有没|给我推荐|给推荐)\s*(?:一款|一个|个|一部|部|一台|台|几款|几个|一些|点)?\s*",
+        r"^(?:请问|请帮我|帮我找|帮我|麻烦|我想买|我想看|我想找|想买|想找|想要|求推荐|推荐|买|看下|看看|找一下|找个|找|有没有什么|有没有|有没|给我推荐|给推荐|再推荐|重新推荐|换一个|换一款|换个|换)\s*(?:一款|一个|个|一部|部|一台|台|几款|几个|一些|点)?\s*",
         "", kw,
     )
-    kw = re.sub(r"(性价比高|性价比最高|性价比|便宜点|便宜|实用|好用|最新款|最新)的?", "", kw)
+    # 移除口语形容词和比较词
+    kw = re.sub(r"(?:性价比高|性价比最高|性价比|便宜一点|便宜点|便宜|稍便宜|更便宜|实用|好用|最新款|最新|其它|其他|别的|另外的?)(?:的)?", "", kw)
+    kw = re.sub(r"^(?:有|要|只要|需要)\s*", "", kw)
     kw = kw.strip()
+    if kw in {"一点", "一点的", "点", "点的", "的", "换", "个", "款", "一下"}:
+        return None
     return kw if kw else None
 
 
@@ -206,12 +210,24 @@ async def product_search(keyword: str | None = None, category: str | None = None
 
 
 @tool
-async def product_detail(product_id: int) -> dict:
+async def product_detail(product_id: int = 0) -> dict:
     """查询指定商品的详细信息（参数、介绍、价格、库存）。用于商品比较或深度介绍。
     product_id 必须来自 product_search 结果。"""
     ctx = get_tool_ctx()
+    entities = ctx.setdefault("active_entities", {})
+    target_id = product_id
+    if not target_id and entities.get("last_products"):
+        latest_text = ctx.get("latest_user_text", "")
+        if any(w in latest_text for w in ["第二", "第2", "第两"]) and len(entities["last_products"]) > 1:
+            target_id = entities["last_products"][1]["id"]
+        elif any(w in latest_text for w in ["第三", "第3"]) and len(entities["last_products"]) > 2:
+            target_id = entities["last_products"][2]["id"]
+        else:
+            target_id = entities["last_products"][0]["id"]
+    if not target_id:
+        return {"error": "未指定商品ID，请先搜索商品"}
     return await backend_client.product_detail(
-        user_id=int(ctx.get("user_id", 0)), product_id=product_id,
+        user_id=int(ctx.get("user_id", 0)), product_id=target_id,
     )
 
 
@@ -239,7 +255,13 @@ async def order_create(product_id: int = 0, quantity: int = 1,
     entities = ctx.setdefault("active_entities", {})
     target_product_id = product_id
     if not target_product_id and entities.get("last_products"):
-        target_product_id = entities["last_products"][0]["id"]
+        latest_text = ctx.get("latest_user_text", "")
+        if any(w in latest_text for w in ["第二", "第2", "第两"]) and len(entities["last_products"]) > 1:
+            target_product_id = entities["last_products"][1]["id"]
+        elif any(w in latest_text for w in ["第三", "第3"]) and len(entities["last_products"]) > 2:
+            target_product_id = entities["last_products"][2]["id"]
+        else:
+            target_product_id = entities["last_products"][0]["id"]
     if not target_product_id:
         return {"error": "未指定要下单的商品，请先挑选商品或告知商品名称"}
     result = await backend_client.order_prepare(

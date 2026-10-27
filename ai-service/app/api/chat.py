@@ -21,7 +21,8 @@ from app.config import settings
 from app.observability.telemetry import end_trace, get_trace_id, start_trace, tool_span
 from app.rag.citations import validate_citations
 from app.sse import sse
-from app.tools.tools import set_tool_ctx
+from app.request_policy import budget_from_text
+from app.tools.tools import category_from_user_text, set_tool_ctx
 
 router = APIRouter()
 logger = logging.getLogger("ai-service.chat")
@@ -75,6 +76,15 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
         for h in req.history[-10:]:
             msgs.append(HumanMessage(content=h.content) if h.role == "USER" else AIMessage(content=h.content))
         msgs.append(HumanMessage(content=req.message))
+        for h in reversed(req.history[-6:]):
+            if h.role == "USER" and not saved_entities.get("last_category"):
+                cat = category_from_user_text(h.content)
+                if cat:
+                    saved_entities["last_category"] = cat
+            if h.role == "USER" and not saved_entities.get("budget"):
+                b = budget_from_text(h.content)
+                if b:
+                    saved_entities["budget"] = b
 
     return AgentState(
         messages=msgs,

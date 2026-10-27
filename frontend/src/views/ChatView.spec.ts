@@ -200,3 +200,20 @@ describe('compact assistant composer', () => {
     expect(placeholder.length).toBeLessThan(32)
   })
 })
+
+describe('header actions layout', () => {
+  it('does not render the back button in the header', () => {
+    expect(host.querySelector('.chat-header .translucent-circle-back')).toBeNull()
+  })
+
+  it('places the end session button after the web search switch', async () => {
+    chat.current.status = 'ACTIVE'
+    await flush()
+    const header = host.querySelector('.chat-header')!
+    const searchSwitch = header.querySelector('.web-search-switch')!
+    expect(searchSwitch).not.toBeNull()
+    const closeBtn = [...header.querySelectorAll('button')].find(btn => btn.textContent?.includes('结束会话'))!
+    expect(closeBtn).toBeDefined()
+    expect(searchSwitch.compareDocumentPosition(closeBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
