@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 """全局配置：全部来自环境变量 / .env，禁止硬编码密钥"""
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -106,6 +110,15 @@ class Settings(BaseSettings):
 
     # 会话 Checkpointer 持久化配置（默认保存到本地 SQLite；设为 :memory: 或空则使用内存）
     checkpoint_sqlite_path: str = "data/checkpoints.db"
+
+    # 联网搜索
+    @property
+    def tavily_api_key(self) -> str:
+        return os.environ.get("TAVILY_API_KEY", "")
+
+    @property
+    def searxng_url(self) -> str:
+        return os.environ.get("SEARXNG_URL", "")
 
     # 链接后验校验
     link_guard_enabled: bool = True

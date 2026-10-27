@@ -242,6 +242,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         streamed_length = 0
         product_result: dict | None = None
         rag_started = False
+        web_search_used = False
         product_links_needed = True
         # 可观测：开启本会话 trace（session=conversation_id）
         traced = start_trace(conversation_id=req.conversation_id, user_id=req.user_id,
@@ -294,8 +295,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                                 usage = {"promptTokens": um.get("input_tokens", 0),
                                          "completionTokens": um.get("output_tokens", 0)}
                         elif kind == "on_tool_start":
-                            if ev.get("name") == "kb_search" and not rag_started:
+                            if ev.get("name") in {"kb_search", "web_search"}:
                                 parts.clear()
+                            if ev.get("name") == "kb_search" and not rag_started:
                                 rag_started = True
                             args = ev["data"].get("input")
                             # 可观测：工具开始
@@ -312,8 +314,13 @@ async def chat_stream(req: ChatRequest, request: Request):
                             if ev.get("name") == "kb_search" and not rag_started:
                                 parts.clear()
                                 rag_started = True
-                            if ev.get("name") in {"order_create", "order_query", "order_cancel_prepare", "after_sale_prepare", "escalate_to_human"}:
+                            if ev.get("name") in {
+                                "order_create", "order_query", "order_cancel_prepare",
+                                "after_sale_prepare", "escalate_to_human", "web_search",
+                            }:
                                 product_links_needed = False
+                            if ev.get("name") == "web_search":
+                                web_search_used = True
                             out = ev["data"].get("output")
                             raw_result = getattr(out, "content", out)
                             if isinstance(raw_result, str):
@@ -358,7 +365,7 @@ async def chat_stream(req: ChatRequest, request: Request):
             final_text = _timeout_fallback(final_text, timed_out)
             citations: tuple[dict, ...] = ()
             rag_used = bool(ctx.get("rag_used") or rag_started)
-            if rag_used:
+            if rag_used and not web_search_used:
                 normalized_text = re.sub(r"[【（(](S[0-9]+)[】）)]", r"[\1]", final_text)
                 normalized_text = re.sub(r"\[s([0-9]+)\]", r"[S\1]", normalized_text)
                 validation = validate_citations(
@@ -369,7 +376,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 )
                 final_text = validation.content
                 citations = validation.citations
-            if not rag_used and product_links_needed:
+            if not rag_used and not web_search_used and product_links_needed:
                 final_text = ensure_product_links(final_text, product_result)
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
@@ -395,7 +402,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 "timedOut": timed_out,
                 **_done_eval_metadata(final_state, eval_enabled),
             }
-            if rag_used:
+            if rag_used and not web_search_used:
                 done["citations"] = list(citations)
             yield sse("done", done)
             try:

@@ -200,3 +200,131 @@ async def test_web_search_tool_handles_searxng_results(monkeypatch):
     assert result["engine"] == "searxng"
     assert result["results"][0]["title"] == "SearXNG测试"
     assert "以下内容来自互联网搜索" in result["note"]
+
+
+def test_settings_loads_web_search_config(monkeypatch):
+    from app.config import settings
+    monkeypatch.setenv("TAVILY_API_KEY", "my-key")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.test")
+    assert settings.tavily_api_key == "my-key"
+    assert settings.searxng_url == "http://searxng.test"
+
+
+def test_fallback_intent_and_router_for_date_time_queries():
+    from app.agent.nodes import fallback_intent_by_rules
+    assert fallback_intent_by_rules("今天是星期几") == "SMALL_TALK"
+    assert fallback_intent_by_rules("今天几号") == "SMALL_TALK"
+    assert fallback_intent_by_rules("现在几点") == "SMALL_TALK"
+
+
+@pytest.mark.asyncio
+async def test_small_talk_node_answers_weekday_and_date():
+    from datetime import datetime
+    from langchain_core.messages import HumanMessage
+    from app.agent.nodes import small_talk_node, WEEKDAYS
+    from app.agent.state import AgentState
+
+    state = AgentState(
+        messages=[HumanMessage(content="今天是星期几")],
+        web_search_enabled=True,
+        intent="SMALL_TALK",
+        tool_loop_count=0,
+        escalated=False,
+        user_id="1",
+        conversation_id="1",
+        history=[],
+        summary=None,
+        user_profile={},
+        long_term_memory=[],
+        active_entities={},
+    )
+    res = await small_talk_node(state)
+    expected_weekday = WEEKDAYS[datetime.now().weekday()]
+    assert expected_weekday in res["messages"][0].content
+
+
+def test_route_by_intent_with_web_search_enabled():
+    from app.agent.nodes import route_by_intent
+    from app.agent.state import AgentState
+    from langchain_core.messages import HumanMessage
+
+    # Pure small talk still goes to small_talk
+    greeting_state = AgentState(
+        messages=[HumanMessage(content="你好呀")],
+        intent="SMALL_TALK",
+        tool_loop_count=0,
+        escalated=False,
+        user_id="1",
+        conversation_id="1",
+        history=[],
+        summary=None,
+        web_search_enabled=True,
+    )
+    assert route_by_intent(greeting_state) == "small_talk"
+
+    # Time queries go to small_talk (fast-path)
+    time_state = AgentState(
+        messages=[HumanMessage(content="今天是星期几")],
+        intent="SMALL_TALK",
+        tool_loop_count=0,
+        escalated=False,
+        user_id="1",
+        conversation_id="1",
+        history=[],
+        summary=None,
+        web_search_enabled=True,
+    )
+    assert route_by_intent(time_state) == "small_talk"
+
+    # General knowledge / web search queries route to agent so web_search can be called
+    general_state = AgentState(
+        messages=[HumanMessage(content="周杰伦最新出的歌是什么")],
+        intent="SMALL_TALK",
+        tool_loop_count=0,
+        escalated=False,
+        user_id="1",
+        conversation_id="1",
+        history=[],
+        summary=None,
+        web_search_enabled=True,
+    )
+    assert route_by_intent(general_state) == "agent"
+
+
+@pytest.mark.asyncio
+async def test_agent_node_does_not_force_product_search_for_external_query_when_web_search_enabled(monkeypatch):
+    from langchain_core.messages import HumanMessage
+    from app.agent import nodes
+
+    class MockLLM:
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        async def ainvoke(self, messages):
+            from langchain_core.messages import AIMessage
+            return AIMessage(content="联网搜索结果", tool_calls=[])
+
+    monkeypatch.setattr(nodes, "get_chat_llm", lambda: MockLLM())
+    res = await nodes.agent_node({
+        "intent": "PRODUCT_CONSULT",
+        "messages": [HumanMessage(content="最新的苹果手机是什么")],
+        "web_search_enabled": True,
+        "active_entities": {},
+    })
+    # Should not force tool_calls to product_search directly in must_search
+    tool_calls = getattr(res["messages"][0], "tool_calls", None) or []
+    assert not any(tc.get("name") == "product_search" for tc in tool_calls)
+
+
+def test_get_tools_for_all_intents_when_web_search_enabled():
+    from app.agent.nodes import get_tools_for_intent
+    for intent in ["ORDER_QUERY", "ORDER_CREATE", "AFTER_SALE_FAQ", "PRODUCT_CONSULT", None, "SMALL_TALK"]:
+        tools = get_tools_for_intent(intent, web_search_enabled=True)
+        tool_names = [t.name for t in tools]
+        assert "web_search" in tool_names, f"web_search missing for intent {intent}"
+
+
+def test_finalize_prompt_guides_web_search():
+    from app.agent.prompts import FINALIZE_SYSTEM_PROMPT
+    assert "web_search" in FINALIZE_SYSTEM_PROMPT
+    assert "【联网搜索】" in FINALIZE_SYSTEM_PROMPT

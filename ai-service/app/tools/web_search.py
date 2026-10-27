@@ -15,6 +15,8 @@ import urllib.request
 from langchain_core.tools import tool
 from opencc import OpenCC
 
+from app.config import settings
+
 logger = logging.getLogger("ai-service.websearch")
 _to_simplified = OpenCC("t2s").convert
 

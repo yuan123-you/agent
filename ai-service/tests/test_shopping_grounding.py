@@ -127,6 +127,24 @@ async def test_search_does_not_overwrite_order_confirmation(monkeypatch):
     assert '已生成确认卡片，请确认后下单。' in output
     assert '为您找到以下在售商品' not in output
 
+@pytest.mark.asyncio
+async def test_search_does_not_overwrite_web_search_answer(monkeypatch):
+    class Graph:
+        async def astream_events(self, *args, **kwargs):
+            yield {'event': 'on_tool_end', 'name': 'product_search', 'run_id': 's1', 'data': {'output': {'products': []}}}
+            yield {'event': 'on_tool_end', 'name': 'web_search', 'run_id': 's2', 'data': {'output': {'results': [{'title': '最新iPhone'}]}}}
+            yield {'event': 'on_chat_model_stream', 'metadata': {'langgraph_node': 'agent'},
+                'data': {'chunk': AIMessageChunk(content='【联网搜索】最新的苹果手机是 iPhone 16 系列。')}}
+            yield {'event': 'on_chain_end', 'name': 'LangGraph', 'data': {'output': {}}}
+    monkeypatch.setattr(chat, 'graph', Graph())
+    monkeypatch.setattr(chat, 'checkpointer', None)
+    monkeypatch.setattr(chat, 'start_trace', lambda **kwargs: False)
+    monkeypatch.setattr(chat, 'end_trace', lambda **kwargs: None)
+    response = await chat.chat_stream(chat.ChatRequest(conversation_id=14, user_id=1, message='最新的苹果手机是什么', web_search_enabled=True), Request())
+    output = ''.join([raw.decode() if isinstance(raw, bytes) else raw async for raw in response.body_iterator])
+    assert '【联网搜索】最新的苹果手机是 iPhone 16 系列。' in output
+    assert '暂未找到符合条件的在售商品' not in output
+
 @pytest.mark.parametrize('result,expected', [
     ({'error': 'backend unavailable'}, '商品检索暂时不可用'),
     ({'products': [{'name': '手机', 'link': 'https://evil.example/product/1'}]}, '商品链接暂时不可用'),
@@ -184,3 +202,26 @@ async def test_forced_lookup_is_not_repeated_after_real_tool_result(monkeypatch)
             AIMessage(content='', tool_calls=[{'name': 'product_search', 'args': {'category': 'PHONE'}, 'id': 's1'}]),
             ToolMessage(content='{"products":[]}', tool_call_id='s1', name='product_search')]})
     assert not result['messages'][-1].tool_calls
+
+
+@pytest.mark.asyncio
+async def test_kb_unanswerable_does_not_overwrite_web_search_answer(monkeypatch):
+    from app.tools.tools import set_tool_ctx
+    set_tool_ctx({"rag_used": True, "rag_answerable": False, "rag_reason": "evidence_insufficient"})
+    class Graph:
+        async def astream_events(self, *args, **kwargs):
+            yield {'event': 'on_tool_start', 'name': 'kb_search', 'run_id': 's1', 'data': {'input': '快递停运规定'}}
+            yield {'event': 'on_tool_end', 'name': 'kb_search', 'run_id': 's1', 'data': {'output': {'answerable': False}}}
+            yield {'event': 'on_tool_start', 'name': 'web_search', 'run_id': 's2', 'data': {'input': '快递停运规定'}}
+            yield {'event': 'on_tool_end', 'name': 'web_search', 'run_id': 's2', 'data': {'output': {'results': [{'title': '停运通知'}]}}}
+            yield {'event': 'on_chat_model_stream', 'metadata': {'langgraph_node': 'agent'},
+                'data': {'chunk': AIMessageChunk(content='【联网搜索】根据最新网络查询，快递预计于除夕前两天调整服务。')}}
+            yield {'event': 'on_chain_end', 'name': 'LangGraph', 'data': {'output': {}}}
+    monkeypatch.setattr(chat, 'graph', Graph())
+    monkeypatch.setattr(chat, 'checkpointer', None)
+    monkeypatch.setattr(chat, 'start_trace', lambda **kwargs: False)
+    monkeypatch.setattr(chat, 'end_trace', lambda **kwargs: None)
+    response = await chat.chat_stream(chat.ChatRequest(conversation_id=15, user_id=1, message='春节快递停运吗', web_search_enabled=True), Request())
+    output = ''.join([raw.decode() if isinstance(raw, bytes) else raw async for raw in response.body_iterator])
+    assert '【联网搜索】根据最新网络查询，快递预计于除夕前两天调整服务。' in output
+    assert '当前知识库证据不足' not in output

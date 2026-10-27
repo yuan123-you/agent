@@ -2,7 +2,19 @@
 import json
 import logging
 import re
+from datetime import datetime
 from uuid import uuid4
+
+WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+TIME_QUERY_RE = re.compile(
+    r"(?:今天(?:是)?(?:星期几|周几|礼拜几|几号|多少号|什么日子)|现在(?:是)?(?:几点|什么时间))[？?！!。\s]*"
+)
+
+
+def get_current_time_str() -> str:
+    now = datetime.now()
+    return f"{now.strftime('%Y年%m月%d日')} {WEEKDAYS[now.weekday()]} {now.strftime('%H:%M')}"
+
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -78,7 +90,7 @@ def fallback_intent_by_rules(user_text: str) -> str:
         return "HUMAN_REQUEST"
     if asks_assistant_identity(t):
         return "ASSISTANT_META"
-    if asks_user_identity(t) or asks_mutual_identity(t) or asks_conversation_context(t):
+    if asks_user_identity(t) or asks_mutual_identity(t) or asks_conversation_context(t) or TIME_QUERY_RE.fullmatch(t):
         return "SMALL_TALK"
     if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
         return "AFTER_SALE_FAQ"
@@ -109,7 +121,7 @@ async def intent_router_node(state: AgentState) -> dict:
     # inference. Mixed requests, short follow-ups and order actions need context.
     shopping_request = (
         re.fullmatch(
-            r"(?:请(?:帮我)?|帮我|给我|我想|想)?(?:推荐|找|挑选|选购|看看)[^，,。！？!?；;\n]{0,80}[。！？!?]?",
+            r"(?:请(?:帮我)?|帮我|给我|我想|想)?(?:推荐|找|挑选|选购|看看|最新|最火)[^，,。！？!?；;\n]{0,80}[。！？!?]?",
             user_text.strip(),
         )
         and category_from_user_text(user_text)
@@ -117,8 +129,9 @@ async def intent_router_node(state: AgentState) -> dict:
         and not re.search(r"退|换货|售后|保修|发货|配送|运费|发票|下单|订单|物流|取消|人工|七天|7天", user_text)
     )
     identity_query = asks_user_identity(user_text) or asks_mutual_identity(user_text) or asks_conversation_context(user_text)
-    if requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting or naming_command or shopping_request:
-        intent = "SMALL_TALK" if (greeting or naming_command or identity_query) else fallback_intent_by_rules(user_text)
+    time_query = bool(TIME_QUERY_RE.fullmatch(user_text.strip()))
+    if requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting or naming_command or time_query or shopping_request:
+        intent = "SMALL_TALK" if (greeting or naming_command or identity_query or time_query) else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
             "intent", model="rules", input_data={"user_text": user_text},
@@ -171,6 +184,21 @@ async def intent_router_node(state: AgentState) -> dict:
 def route_by_intent(state: AgentState) -> str:
     intent = state.get("intent")
     if intent in {"SMALL_TALK", "ASSISTANT_META"}:
+        if state.get("web_search_enabled") and intent == "SMALL_TALK":
+            last = state["messages"][-1] if state["messages"] else None
+            user_text = getattr(last, "content", "") if last else ""
+            t = user_text.strip().lower()
+            is_fast_small_talk = (
+                bool(parse_naming_command(t))
+                or asks_assistant_identity(t)
+                or asks_user_identity(t)
+                or asks_mutual_identity(t)
+                or asks_conversation_context(t)
+                or bool(re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见|拜拜)[！!。.?？\s]*", t, re.IGNORECASE))
+                or bool(TIME_QUERY_RE.fullmatch(t))
+            )
+            if not is_fast_small_talk:
+                return "agent"
         return "small_talk"
     if intent == "HUMAN_REQUEST":
         return "escalate_node"
@@ -189,9 +217,15 @@ def get_trimmed_messages(messages: list, max_messages: int = 14) -> list:
 def get_tools_for_intent(intent: str | None, web_search_enabled: bool = False) -> list:
     """根据意图精简绑定工具，降低模型干扰，提升工具调用准确率与速度"""
     if intent == "ORDER_QUERY":
-        return [order_query, order_cancel_prepare, after_sale_prepare, escalate_to_human]
+        tools = [order_query, order_cancel_prepare, after_sale_prepare, escalate_to_human]
+        if web_search_enabled:
+            tools.append(web_search)
+        return tools
     if intent == "ORDER_CREATE":
-        return [order_create, product_search, product_detail, escalate_to_human]
+        tools = [order_create, product_search, product_detail, escalate_to_human]
+        if web_search_enabled:
+            tools.append(web_search)
+        return tools
     if intent == "AFTER_SALE_FAQ":
         tools = [kb_search, escalate_to_human]
         if web_search_enabled:
@@ -240,10 +274,12 @@ async def agent_node(state: AgentState) -> dict:
                    for m in state["messages"][latest_user + 1:])
     budget_changed = bool(budget)
     preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
+    is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜", latest_text))
     must_search = (intent in {"PRODUCT_CONSULT", "ORDER_CREATE"}
                    and bool(requested_category)
                    and (not entities.get("last_products") or budget_changed or preferences_changed)
-                   and not searched and not state.get("tool_loop_count"))
+                   and not searched and not state.get("tool_loop_count")
+                   and not (state.get("web_search_enabled") and is_external_query))
     if must_search:
         # Some compatible models silently ignore tool_choice. Schedule the read-only
         # lookup in the graph itself rather than trusting a generated recommendation.
@@ -260,6 +296,7 @@ async def agent_node(state: AgentState) -> dict:
     llm = get_chat_llm().bind_tools(tools)
 
     system_text = SHOP_SYSTEM_PROMPT.format(summary=state.get("summary") or "无")
+    system_text += f"\n\n## 实时时间\n当前系统时间为：{get_current_time_str()}。"
     memory_prompt = format_memory_prompt(state.get("user_profile"), state.get("long_term_memory"))
     if memory_prompt and memory_prompt != "（暂无特殊偏好或记忆）":
         system_text += f"\n\n## 买家长期记忆与人设偏好\n{memory_prompt}"
@@ -272,6 +309,8 @@ async def agent_node(state: AgentState) -> dict:
         system_text += "\n\n## 焦点提示：买家正在发起下单购买\n请核实商品和数量后调用 order_create 生成确认卡片。"
     elif intent == "PRODUCT_CONSULT":
         system_text += "\n\n## 焦点提示：买家正在咨询或挑选商品\n请先调用 product_search 检索在售真实商品后推荐，禁止虚构商品。"
+    elif intent in {"SMALL_TALK", "ASSISTANT_META"} and state.get("web_search_enabled"):
+        system_text += "\n\n## 焦点提示：买家正在询问通用/外部资讯\n请优先调用 web_search 检索最新互联网信息后客观回答，开头标注【联网搜索】。"
 
     if state.get("web_search_enabled"):
         system_text += "\n\n## 当前模式：联网搜索已开启\n涉及资讯/新品/价格/平台外问题时，优先调用 web_search 搜索网络内容，再结合站内商品一起回答。"
@@ -453,7 +492,23 @@ async def small_talk_node(state: AgentState) -> dict:
     llm = get_chat_llm()
     recent_msgs = get_trimmed_messages(state["messages"], max_messages=12)
     memory_prompt = format_memory_prompt(profile, state.get("long_term_memory"))
-    prompt = SMALL_TALK_PROMPT
+    # 5. 日期/时间快速响应（零延迟，实时准确）
+    if TIME_QUERY_RE.fullmatch(user_text.strip()):
+        now = datetime.now()
+        date_str = now.strftime("%Y年%m月%d日")
+        weekday_str = WEEKDAYS[now.weekday()]
+        time_str = now.strftime("%H:%M")
+        if any(w in user_text for w in ["几点", "时间"]):
+            resp = AIMessage(content=f"现在是 {date_str} {weekday_str} {time_str}。请问有什么想了解的商品或需要帮忙的吗？")
+        else:
+            resp = AIMessage(content=f"今天是 {date_str}，{weekday_str}。请问有什么想了解的商品或需要帮忙的吗？")
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "query": user_text},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "time-fast-path"],
+        )
+        return {"messages": [resp]}
+
+    prompt = SMALL_TALK_PROMPT + f"\n\n## 实时时间\n当前系统时间为：{get_current_time_str()}。当买家询问今天日期、星期几或当前时间时，直接基于该时间准确回答。"
     if memory_prompt and memory_prompt != "（暂无特殊偏好或记忆）":
         prompt += f"\n\n## 买家长期记忆与人设偏好\n{memory_prompt}"
 
