@@ -1,0 +1,436 @@
+{
+  "deployedCodeCommit": "f47e7908f323c79ac00724424ed3ee44685ddfb6",
+  "branch": "dev",
+  "publicEntry": "https://aimall.iflare.cn/aimall/",
+  "finishedAt": "2026-10-28T01:30:10.524603+08:00",
+  "localVerification": {
+    "aiTests": 388,
+    "backendTests": 683,
+    "frontendTests": 332,
+    "supportingEvalCatalogTests": 145,
+    "deploymentSecretTests": 19,
+    "typescript": "passed",
+    "frontendBuild": "passed"
+  },
+  "productionChecks": {
+    "readOnly": {
+      "count": 30,
+      "passed": true,
+      "checks": [
+        "server commit equals pushed code commit",
+        "server worktree remains clean",
+        "all nine deployed services healthy",
+        "all six infrastructure/model containers unchanged",
+        "all applications with changed source were recreated",
+        "private nonempty database rollback backup retained at mode 600",
+        "deployed AI source matches commit: ai-service/app/agent/nodes.py",
+        "deployed AI source matches commit: ai-service/app/agent/prompts.py",
+        "deployed AI source matches commit: ai-service/app/api/chat.py",
+        "deployed AI source matches commit: ai-service/app/api/products.py",
+        "deployed AI source matches commit: ai-service/app/clients/backend_client.py",
+        "deployed AI source matches commit: ai-service/app/clients/llm.py",
+        "deployed AI source matches commit: ai-service/app/config.py",
+        "deployed AI source matches commit: ai-service/app/rag/citations.py",
+        "deployed AI source matches commit: ai-service/app/rag/ingest.py",
+        "deployed AI source matches commit: ai-service/app/rag/product_index.py",
+        "deployed AI source matches commit: ai-service/app/rag/retrieval.py",
+        "deployed AI source matches commit: ai-service/app/rag/vectorstore.py",
+        "deployed AI source matches commit: ai-service/app/request_policy.py",
+        "deployed AI source matches commit: ai-service/app/tools/tools.py",
+        "public HTML references the new container entry bundle",
+        "public asset exactly matches deployed container: index-NUte0tYH.js",
+        "public asset exactly matches deployed container: ProductDetailView-Bj-oZUw2.js",
+        "public asset exactly matches deployed container: LoadingState-BjpkkWkJ.css",
+        "public asset exactly matches deployed container: favicon.ico",
+        "public HTTPS product API returns real records",
+        "public HTTPS category API returns real catalog",
+        "public unauthenticated/internal boundary /api/v1/admin/dashboard",
+        "public unauthenticated/internal boundary /internal/users",
+        "public unauthenticated/internal boundary /actuator/health"
+      ]
+    },
+    "commerceMySQL": {
+      "count": 41,
+      "passed": true,
+      "checks": [
+        "private administrator authentication",
+        "registration cannot grant ADMIN role",
+        "anonymous admin access rejected",
+        "buyer admin access rejected",
+        "anonymous order stream rejected",
+        "blank optional specs stored as SQL NULL",
+        "invalid JSON specs returns HTTP 400 rather than database 500",
+        "invalid JSON product never reaches database",
+        "isolated product creation and stock",
+        "concurrent address creation has exactly one default",
+        "foreign address modification rejected",
+        "foreign order details rejected",
+        "review before receipt rejected",
+        "fractional order quantity rejected without truncation",
+        "cart quantity cannot exceed current stock",
+        "repeat simulated payment rejected",
+        "delivered order exposes review purchase evidence",
+        "delivery company persisted and exposed",
+        "repeat receipt confirmation rejected",
+        "concurrent review submission accepts exactly one request",
+        "real MySQL contains exactly one review after the race",
+        "persisted reviewed state: /orders/16",
+        "persisted reviewed state: /orders/my",
+        "invalid review pagination rejected",
+        "unbounded product pagination rejected",
+        "keyword price_asc matches real MySQL global order before pagination",
+        "keyword price_desc matches real MySQL global order before pagination",
+        "keyword sales_desc matches real MySQL global order before pagination",
+        "product card id contract: /favorites",
+        "product card id contract: /history",
+        "concurrent cancellation commits exactly once",
+        "real MySQL stock restored exactly once after cancellation race",
+        "duplicate coupon claim rejected",
+        "real MySQL coupon release clears order and timestamp",
+        "coupon cancellation also restores reserved stock",
+        "agent cannot read unclaimed buyer conversation",
+        "assigned agent can read its own conversation",
+        "other agent cannot read claimed conversation",
+        "other agent cannot read closed conversation",
+        "disabled account old access token rejected",
+        "disabled account refresh rejected"
+      ]
+    },
+    "extended": {
+      "count": 55,
+      "passed": true,
+      "checks": [
+        "administrator dashboard real API",
+        "administrator usage statistics real API",
+        "administrator quality statistics real API",
+        "public catalog/promotion /catalog/categories",
+        "public catalog/promotion /catalog/brands",
+        "public catalog/promotion /promotions/seckills",
+        "merchant/customer registration roles",
+        "merchant profile real ownership",
+        "buyer cannot use merchant APIs",
+        "merchant cannot use administrator APIs",
+        "merchant reviews real empty state",
+        "merchant creation visible in real public product API",
+        "public true product field origin",
+        "public true product field shipFrom",
+        "public true product field material",
+        "public true product field productionDate",
+        "foreign merchant product update rejected",
+        "merchant price update persisted",
+        "actual AI internal DTO preserves current facts and price",
+        "buyer favorite toggle",
+        "buyer favorite persisted state",
+        "buyer browsing history persisted",
+        "AI prepare does not create an order before approval",
+        "foreign prepared-order approval rejected",
+        "prepared order confirmation is idempotent in MySQL",
+        "prepared order simulated payment/shipping/receipt flow",
+        "after-sale prepare waits for explicit buyer approval",
+        "after-sale approval creates exactly one real application",
+        "real KB ingestion with Milvus vectors 4",
+        "real KB ingestion with Milvus vectors 5",
+        "real two-query KB hybrid retrieval is answerable",
+        "KB product/type scope retrieves intended documents",
+        "real multi-query citation never changes chunk identity",
+        "real citation context/map agree",
+        "real multi-query citation never changes chunk identity",
+        "real citation context/map agree",
+        "real multi-query citation never changes chunk identity",
+        "real citation context/map agree",
+        "real multi-query citation never changes chunk identity",
+        "real citation context/map agree",
+        "KB reindex completes new version with real vectors",
+        "KB disable persisted",
+        "disabled KB document is absent from real retrieval",
+        "live SSE token/done identity",
+        "public chat identity fast path",
+        "live SSE token/done shopping",
+        "real model shopping answer includes grounded product links",
+        "real model recommendations obey current budget/stock",
+        "live SSE token/done knowledge",
+        "production policy excerpt uses validated KB citations",
+        "live SSE token/done handoff",
+        "explicit handoff is persisted",
+        "agent receives real buyer human message",
+        "buyer receives real agent response",
+        "buyer token remains usable after full flow"
+      ]
+    }
+  },
+  "browser": {
+    "passed": true,
+    "checks": [
+      {
+        "page": "home-desktop",
+        "documentWidth": 1435,
+        "imageErrors": 0,
+        "width": 1441,
+        "passed": true
+      },
+      {
+        "page": "home-mobile",
+        "documentWidth": 385,
+        "width": 391,
+        "passed": true
+      },
+      {
+        "page": "search-results-mobile",
+        "url": "https://aimall.iflare.cn/aimall/products?keyword=%E6%89%8B%E6%9C%BA",
+        "documentWidth": 385,
+        "width": 385,
+        "passed": true
+      },
+      {
+        "page": "search-price-filter",
+        "cards": [
+          {
+            "name": "驰美磁吸手机支架",
+            "price": 49,
+            "x": 11.993243217468262,
+            "y": 177.2522430419922
+          },
+          {
+            "name": "悦裳手机包",
+            "price": 99,
+            "x": 11.993243217468262,
+            "y": 445.3941345214844
+          },
+          {
+            "name": "驰美磁吸手机支架 便携款",
+            "price": 49,
+            "x": 196.43017578125,
+            "y": 174.2522430419922
+          }
+        ],
+        "passed": true
+      },
+      {
+        "page": "product-detail-mobile",
+        "url": "https://aimall.iflare.cn/aimall/products/306",
+        "documentWidth": 385,
+        "missingMaterialExplicit": true,
+        "noInventedDiscount": true,
+        "noInventedWarranty": true,
+        "width": 385,
+        "passed": true
+      },
+      {
+        "page": "product-detail-320",
+        "documentWidth": 314,
+        "width": 314,
+        "passed": true
+      },
+      {
+        "page": "product-detail-desktop",
+        "documentWidth": 1435,
+        "width": 1435,
+        "passed": true
+      },
+      {
+        "page": "guest-cart-guard",
+        "passed": true,
+        "signal": "请先登录后再加入购物车"
+      },
+      {
+        "page": "login-empty-validation",
+        "passed": true,
+        "signal": "请输入用户名和密码"
+      },
+      {
+        "page": "merchant-registration-mobile",
+        "sellerFieldVisible": true,
+        "documentWidth": 391,
+        "width": 391,
+        "passed": true
+      },
+      {
+        "page": "detail-error-retry-affordance",
+        "passed": true,
+        "signal": "商品加载失败，请重试。"
+      },
+      {
+        "page": "detail-retry-recovery",
+        "passed": true
+      },
+      {
+        "page": "coupons-mobile",
+        "passed": true,
+        "documentWidth": 391,
+        "width": 391
+      },
+      {
+        "page": "seckill-mobile",
+        "passed": true,
+        "documentWidth": 385,
+        "width": 385
+      },
+      {
+        "page": "anonymous-admin-route",
+        "url": "https://aimall.iflare.cn/aimall/login?redirect=/admin/dashboard",
+        "passed": true
+      },
+      {
+        "page": "anonymous-merchant-route",
+        "url": "https://aimall.iflare.cn/aimall/login?redirect=/merchant/products",
+        "passed": true
+      },
+      {
+        "page": "anonymous-workbench-route",
+        "url": "https://aimall.iflare.cn/aimall/login?redirect=/workbench",
+        "passed": true
+      },
+      {
+        "page": "stable-login-back-to-detail",
+        "passed": true,
+        "url": "https://aimall.iflare.cn/aimall/products/306"
+      }
+    ],
+    "authenticatedRoleScope": "Authenticated workflows via real production APIs; browser checks cover public pages, forms and anonymous guards."
+  },
+  "streams": [
+    {
+      "scenario": "identity",
+      "mode": "deterministic",
+      "seconds": 0.14,
+      "toolCalls": [],
+      "citationCount": 0,
+      "timedOut": false
+    },
+    {
+      "scenario": "shopping",
+      "mode": "real-model",
+      "seconds": 82.58,
+      "toolCalls": [
+        "product_search"
+      ],
+      "citationCount": 0,
+      "timedOut": false
+    },
+    {
+      "scenario": "knowledge",
+      "mode": "verified-excerpts",
+      "seconds": 0.7,
+      "toolCalls": [
+        "kb_search"
+      ],
+      "citationCount": 4,
+      "timedOut": false
+    },
+    {
+      "scenario": "handoff",
+      "mode": "deterministic",
+      "seconds": 0.1,
+      "toolCalls": [],
+      "citationCount": 0,
+      "timedOut": false
+    }
+  ],
+  "artifactHashes": [
+    {
+      "path": "/assets/index-NUte0tYH.js",
+      "sha256": "d6af55cafca78f0ffe978260f4a97ea0476fae01ad825940672af0e1718cf97c"
+    },
+    {
+      "path": "/assets/ProductDetailView-Bj-oZUw2.js",
+      "sha256": "f729c7175a72b26f714a25ba9499dcd9b60135c4c782e173f5948e31dde853e5"
+    },
+    {
+      "path": "/assets/LoadingState-BjpkkWkJ.css",
+      "sha256": "0be8db16f210fe0fb8e4bfc389cf5154992da13b573ded4264b3bb075765d720"
+    },
+    {
+      "path": "/favicon.ico",
+      "sha256": "54a452f93399144c5b214a2418e5a586328ce3fdd25f64fc6a8d9348f4a1d4c9"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "ai-service/app/agent/nodes.py",
+      "sha256": "b2d9d91ac7f1f488167091714a0755624f1d699a8a7ac79326f2349bfa1e9b03"
+    },
+    {
+      "path": "ai-service/app/agent/prompts.py",
+      "sha256": "39bfba08f0f693f48daa37d903a0f5bc87ab8a7282bdcee10a347a91501c9e83"
+    },
+    {
+      "path": "ai-service/app/api/chat.py",
+      "sha256": "89a8dd2c0e3b37edc0a8a9bc884e60a5c7bf9e89386c64b6fb7ee41bc3a7453d"
+    },
+    {
+      "path": "ai-service/app/api/products.py",
+      "sha256": "c17c982c219f19536a98297631a59c0b511b8959dcfc63d14788667b3bf0107c"
+    },
+    {
+      "path": "ai-service/app/clients/backend_client.py",
+      "sha256": "cfdad88776302f7e72f05c685fe31c2c6e17ee99698e7db5d42ae7ab4912b3f1"
+    },
+    {
+      "path": "ai-service/app/clients/llm.py",
+      "sha256": "559cf742ebc6f0c09737526c79a78aee380ebfd5befcdea1b69ef1b145591bc9"
+    },
+    {
+      "path": "ai-service/app/config.py",
+      "sha256": "20ad302ba8844bdbab74168182600a5a8c332200170877a12c7517ece8178e6e"
+    },
+    {
+      "path": "ai-service/app/rag/citations.py",
+      "sha256": "5d7878a3f3a12ced79f0133614630b9f325ee4feb9094749b08f96f4d3e8fa6a"
+    },
+    {
+      "path": "ai-service/app/rag/ingest.py",
+      "sha256": "3786f8ddabd6e97ffc711d8f7e846f018737ca3e3805fc5478337120ef5c1d19"
+    },
+    {
+      "path": "ai-service/app/rag/product_index.py",
+      "sha256": "ac1a5df90c4087be3e183158ff2d199efcd6b7e73856c40443e92df0bf6b99a8"
+    },
+    {
+      "path": "ai-service/app/rag/retrieval.py",
+      "sha256": "c0274bd4d629ddd3383ede2e8ec5abedfce23a2e1708e61dbbd8e8a10873c52f"
+    },
+    {
+      "path": "ai-service/app/rag/vectorstore.py",
+      "sha256": "070b3d6891d6621935c5bd0f46117d2862efe3bed003d5cf1e2aa80fd10eb0ba"
+    },
+    {
+      "path": "ai-service/app/request_policy.py",
+      "sha256": "464728401d574cf9275d6c78394ba6214353a14f0a6af09325e4b260b471b265"
+    },
+    {
+      "path": "ai-service/app/tools/tools.py",
+      "sha256": "f5a0ac2d61e44d2257c6254bfbe2b76dd109dce9bcd257f69a8eb3f8fb5da5c6"
+    }
+  ],
+  "cleanup": {
+    "extendedChecks": 12,
+    "allSucceeded": true,
+    "accounts": "disabled",
+    "products": "off sale",
+    "coupons": "disabled",
+    "knowledgeDocs": "logically deleted",
+    "knowledgeVectors": "removed",
+    "auditOrdersAndReviews": "retained and tagged synthetic"
+  },
+  "integrity": {
+    "realDatabaseAndMilvusChecks": 11,
+    "passed": true,
+    "platformPolicyVersion": 2,
+    "platformPolicyVectors": 40,
+    "healthyServices": 9
+  },
+  "webSearchTool": {
+    "passed": true,
+    "engine": "searxng",
+    "results": 3,
+    "validLinks": true,
+    "seconds": 0.94,
+    "scope": "Real production-image tool/provider request, not a full web-answer quality benchmark"
+  },
+  "limitations": [
+    "Authenticated role workflows were exercised via real APIs, not browser credential injection.",
+    "CPU model shopping latency remains high; single samples are not load-test SLOs.",
+    "Demo payments/shipping only; no real payment, SMS, or external logistics integration was claimed.",
+    "Browser responsive emulation is not physical-device coverage."
+  ]
+}
