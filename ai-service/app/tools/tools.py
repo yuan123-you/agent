@@ -11,7 +11,7 @@ from app.rag import retrieval
 from app.request_policy import requests_human
 from app.clients.backend_client import backend_client
 from app.observability.telemetry import observe_retrieval
-from app.rag.product_index import _match, hybrid_product_search
+from app.rag.product_index import _match, hybrid_product_search, _is_phone_accessory
 from app.tools.web_search import web_search
 
 logger = logging.getLogger("ai-service.tools")
@@ -124,18 +124,23 @@ def clean_search_keyword(keyword: str | None) -> str | None:
     # 纯代词与指代词过滤（防止模型误将代词传为检索关键词导致召回为空）
     if kw in {"这款", "这个", "它", "它们", "它俩", "第一个", "第二个", "第三个", "刚才那个", "上面那个", "前者", "后者", "第一款", "第二款", "第三款"}:
         return None
+    # 移除句尾无要求/随便/都行等口语短语
+    kw = re.sub(r"(?:[，,、\s]+)?(?:没有要求|无要求|没什么要求|随便|都行|都可以|没要求)$", "", kw).strip()
     # 纯预算过滤（防止模型将纯预算数字误传为商品名称关键词）
     if re.match(r"^(?:只要)?\d+\s*(?:元|块)?\s*(?:左右|以内|以下|以上|上下|到\d+)?(?:的)?$", kw):
         return None
-    # 移除常见的口语搜索前缀与量词修饰，保留核心商品词
+    # 移除常见的口语搜索与下单前缀与量词修饰，保留核心商品词
     kw = re.sub(
-        r"^(?:请问|请帮我|帮我找|帮我|麻烦|我想买|我想看|我想找|想买|想找|想要|求推荐|推荐|买|看下|看看|找一下|找个|找|有没有什么|有没有|有没|给我推荐|给推荐|再推荐|重新推荐|换一个|换一款|换个|换)\s*(?:一款|一个|个|一部|部|一台|台|几款|几个|一些|点)?\s*",
+        r"^(?:请问|请帮我|帮我找|帮我下单|帮下单|我想下单|想下单|帮我买|帮买|购买|订购|帮我|麻烦|我想买|我想看|我想找|想买|想找|想要|求推荐|推荐|下单|买|看下|看看|找一下|找个|找|有没有什么|有没有|有没|给我推荐|给推荐|再推荐|重新推荐|换一个|换一款|换个|换)\s*(?:一款|一个|个|一部|部|一台|台|几款|几个|一些|点)?\s*",
         "", kw,
     )
     # 移除口语形容词和比较词
     kw = re.sub(r"(?:性价比高|性价比最高|性价比|便宜一点|便宜点|便宜|稍便宜|更便宜|实用|好用|最新款|最新|其它|其他|别的|另外的?)(?:的)?", "", kw)
     kw = re.sub(r"^(?:有|要|只要|需要)\s*", "", kw)
-    kw = kw.strip()
+    # 移除嵌入的纯预算修饰（如 3000元的、2000-3000元的）
+    kw = re.sub(r"\d+(?:\.\d+)?\s*(?:元|块)?\s*(?:左右|以内|以下|以上|上下)?(?:的)?", "", kw)
+    kw = re.sub(r"^\d+(?:\.\d+)?\s*(?:元|块)?\s*(?:左右|以内|以下|以上|上下)?(?:的)?", "", kw)
+    kw = re.sub(r"^[，,、\s]+|[，,、\s]+$", "", kw).strip()
     if kw in {"一点", "一点的", "点", "点的", "的", "换", "个", "款", "一下"}:
         return None
     return kw if kw else None
@@ -177,7 +182,8 @@ def _resolve_product_reference(product_id: int, products: list[dict], text: str)
 
 
 async def _refresh_product_results(result: dict, user_id: int, category: str | None,
-                                   min_price: float | None, max_price: float | None) -> dict:
+                                   min_price: float | None, max_price: float | None,
+                                   allow_accessories: bool = False) -> dict:
     """Use the catalog only to rank; publish current business facts, never stale prices."""
     products = result.get("products") or []
     if not products:
@@ -195,7 +201,7 @@ async def _refresh_product_results(result: dict, user_id: int, category: str | N
             unavailable = True
             continue
         if (int(detail.get("stock") or 0) > 0 and detail.get("price") is not None
-                and _match(detail, category, min_price, max_price)):
+                and _match(detail, category, min_price, max_price, allow_accessories=allow_accessories)):
             current.append({**product, **detail, "link": f"mall://product/{detail['productId']}"})
     refreshed = {**result, "products": current, "total": len(current)}
     if unavailable and not current:
@@ -227,16 +233,22 @@ async def product_search(keyword: str | None = None, category: str | None = None
         if kw_category and kw_category in set(CATEGORY_MAP.values()):
             norm_category = kw_category
             cleaned_keyword = None  # 核心词已作为类目过滤，清空关键词避免过度约束召回
+    elif norm_category and cleaned_keyword:
+        kw_category = normalize_category(cleaned_keyword)
+        if kw_category == norm_category:
+            cleaned_keyword = None  # 关键词与已知类目完全一致，清空避免过度约束召回
 
     # 若仍无品类，从会话实体记忆中继承上一轮的品类偏好
     if not norm_category and entities.get("last_category"):
         norm_category = entities["last_category"]
+    allow_accessories = _is_phone_accessory(cleaned_keyword or "")
     try:
         result = await _observe_product(
             keyword=cleaned_keyword, category=norm_category, min_price=min_price, max_price=max_price, top_k=top_k)
         if result is not None:
             result = await _refresh_product_results(
-                result, int(ctx.get("user_id", 0)), norm_category, min_price, max_price)
+                result, int(ctx.get("user_id", 0)), norm_category, min_price, max_price,
+                allow_accessories=allow_accessories)
             if norm_category:
                 entities["last_category"] = norm_category
             if isinstance(result, dict) and isinstance(result.get("products"), list):
@@ -251,6 +263,12 @@ async def product_search(keyword: str | None = None, category: str | None = None
         user_id=int(ctx.get("user_id", 0)), keyword=cleaned_keyword, category=norm_category,
         min_price=min_price, max_price=max_price, top_k=top_k,
     )
+    if isinstance(res, dict) and isinstance(res.get("products"), list):
+        filtered = [
+            p for p in res["products"]
+            if _match(p, norm_category, min_price, max_price, allow_accessories=allow_accessories)
+        ]
+        res = {**res, "products": filtered, "total": len(filtered)}
     if norm_category:
         entities["last_category"] = norm_category
     if isinstance(res, dict) and isinstance(res.get("products"), list):

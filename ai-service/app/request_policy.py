@@ -41,6 +41,47 @@ def asks_conversation_context(text: str) -> bool:
     ])
 
 
+def is_negative_sentiment(text: str) -> bool:
+    """识别用户对助手的负面反馈、批评、抱怨或辱骂，以便及时致歉安抚并提供人工客服。"""
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    # 独立粗口/侮辱性用语
+    if re.fullmatch(r"(?:sb|2b|傻[逼b]|煞笔|沙[雕比]|弱智|白痴|蠢货|废物|脑残|垃圾|笨蛋|傻瓜|真垃圾|大傻逼|狗屎)[！!。.?？\s]*", t, re.IGNORECASE):
+        return True
+    # 针对助手/AI的批评、贬损与能力质疑
+    if re.search(r"(?:你|这(?:个)?(?:ai|助手|机器人|客服)?)(?:太|真|好|挺|可真|简直)?(?:笨|蠢|差劲|烂|没用|弱智|傻|无能|垃圾)", t):
+        return True
+    if re.search(r"(?:太笨了|好笨|真笨|太蠢了|好蠢|真蠢|太差劲了|真差劲|太没用了|真没用|答非所问|听不懂人话|一点用都没有|什么破玩意)", t):
+        return True
+    if re.search(r"你(?:是不是|是)(?:傻|猪|弱智|机器人吧)", t):
+        return True
+    return False
+
+
+def is_out_of_scope(text: str) -> bool:
+    """识别明显非电商/超出平台服务范围的任务（如编写代码、创作文章、数学解题等）。"""
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    # 若包含电商导购关键词，优先归入电商服务而非越界
+    if re.search(r"推荐|挑选|选购|想买|购买|多少钱|价格|哪款|好用吗|有货|在售|链接|正品|牌子|品牌|什么.*(?:好|适合|推荐)|笔记本|电脑|手机|主机|键盘|显示器|耳机|图书|书籍", t):
+        return False
+    # 代码生成与算法实现任务
+    code_pattern = (
+        r"(?:帮我|给我|请)?(?:写|生成|实现|编写|运行).*(?:代码|程序|算法|函数|脚本|爬虫|冒泡排序|快速排序|二叉树|前端|后端|python|java|c\+\+|golang|javascript|vue|react|sql语句)"
+    )
+    if re.search(code_pattern, t, re.IGNORECASE):
+        return True
+    if re.search(r"(?:冒泡排序|快速排序|二叉树遍历|动态规划|斐波那契|递归算法)", t):
+        return True
+    # 非电商创作与通用解题任务
+    task_pattern = r"(?:帮我|给我|请)?(?:写|做|算|解).{0,10}?(?:数学题|物理题|化学题|微积分|几何题|方程|作文|小说|故事|诗歌?|歌词)"
+    if re.search(task_pattern, t):
+        return True
+    return False
+
+
 def budget_from_text(text: str) -> dict:
     """Extract explicit yuan budgets only; never treat model numbers as budget."""
     number = r'(\d+(?:\.\d+)?)'

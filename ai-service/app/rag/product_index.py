@@ -42,13 +42,28 @@ def tokenize(text: str) -> list[str]:
     return tokens
 
 
-def _match(p: dict, category: str | None, min_price: float | None, max_price: float | None) -> bool:
+PHONE_ACCESSORY_PATTERNS = re.compile(
+    r"卡包|钥匙扣|保护壳|手机壳|保护套|双面夹|支架|底座|挂绳|腕带|耳机|耳塞|耳罩|"
+    r"充电器|充电线|连接线|转换器|转接器|读卡器|充电宝|移动电源|充电盒|电池|扩展坞|"
+    r"触控笔|Pencil|清洁套件|妙控板|发射器|扬声器|音箱|手表|手环|Watch",
+    re.IGNORECASE,
+)
+
+
+def _is_phone_accessory(text: str) -> bool:
+    return bool(PHONE_ACCESSORY_PATTERNS.search(text or ""))
+
+
+def _match(p: dict, category: str | None, min_price: float | None, max_price: float | None,
+           allow_accessories: bool = True) -> bool:
     if category:
         cat = category.strip().upper()
         p_cat = (p.get("category") or "").strip().upper()
         if (cat == "LAPTOP" and p_cat == "COMPUTER") or (cat == "COMPUTER" and p_cat == "LAPTOP"):
             pass
         elif cat != p_cat:
+            return False
+        if cat == "PHONE" and not allow_accessories and _is_phone_accessory(p.get("name") or ""):
             return False
     price = float(p.get("price") or 0)
     if min_price is not None and price < min_price:
@@ -104,9 +119,11 @@ class ProductCorpus:
         self._ids = []
         self._bm25 = None
 
-    def structured(self, category, min_price, max_price, top_k: int) -> list[dict]:
+    def structured(self, category, min_price, max_price, top_k: int, allow_accessories: bool = True) -> list[dict]:
         """无关键词推荐优先使用销量质量信号，同销量再按价格升序。"""
         cands = [p for p in self.products.values() if _match(p, category, min_price, max_price)]
+        if category == "PHONE" and not allow_accessories:
+            cands = [p for p in cands if not _is_phone_accessory(p.get("name") or "")]
         cands.sort(key=lambda p: (-(int(p.get("sales") or 0)), float(p.get("price") or 0)))
         return cands[:top_k]
 
@@ -266,8 +283,9 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
     if not corpus.ready() and not corpus.products:
         return None
     kw = (keyword or "").strip()
+    allow_accessories = _is_phone_accessory(kw) if kw else False
     if not kw:
-        top = corpus.structured(category, min_price, max_price, top_k)
+        top = corpus.structured(category, min_price, max_price, top_k, allow_accessories=allow_accessories)
         return {"products": [_to_vo(product) for product in top], "total": len(top)}
 
     vector_available = True
@@ -294,6 +312,11 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
                      if pid in corpus.products
                      and _match(corpus.products[pid], category, min_price, max_price)),
                     key=_sort_key)
+    if category == "PHONE" and not allow_accessories:
+        merged = [item for item in merged if not _is_phone_accessory((corpus.products.get(item[0]) or {}).get("name") or "")]
+    if not merged:
+        return {"products": [], "total": 0} if vector_available else None
+
     candidate_ids = [pid for pid, _ in merged[:max(top_k, settings.reranker_candidates)]]
     candidates = []
     for pid in candidate_ids:
@@ -305,4 +328,6 @@ async def hybrid_product_search(keyword: str | None, category: str | None,
     ranked = await reranker.rerank(kw, candidates, top_n=top_k) if reranker else candidates[:top_k]
     top = [corpus.products[item["product_id"]] for item in ranked
            if item.get("product_id") in corpus.products]
+    if category == "PHONE" and not allow_accessories:
+        top = [p for p in top if not _is_phone_accessory(p.get("name") or "")]
     return {"products": [_to_vo(product) for product in top], "total": len(top)}

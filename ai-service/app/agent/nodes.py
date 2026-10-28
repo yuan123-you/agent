@@ -35,7 +35,7 @@ from app.config import settings
 from app.rag.citations import build_extractive_answer
 from app.agent.prompt_context import compact_prompt_messages, web_prompt_evidence
 from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
-from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, requests_human, requires_kb
+from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
@@ -97,6 +97,8 @@ def fallback_intent_by_rules(user_text: str) -> str:
         return "ASSISTANT_META"
     if asks_user_identity(t) or asks_mutual_identity(t) or asks_conversation_context(t) or TIME_QUERY_RE.fullmatch(t):
         return "SMALL_TALK"
+    if is_negative_sentiment(t) or is_out_of_scope(t):
+        return "SMALL_TALK"
     if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
         return "AFTER_SALE_FAQ"
     if any(w in t for w in ["订单", "物流", "发货没", "发货没有", "快递", "到哪了", "待支付"]):
@@ -135,13 +137,16 @@ async def intent_router_node(state: AgentState) -> dict:
     )
     identity_query = asks_user_identity(user_text) or asks_mutual_identity(user_text) or asks_conversation_context(user_text)
     time_query = bool(TIME_QUERY_RE.fullmatch(user_text.strip()))
+    negative_feedback = is_negative_sentiment(user_text)
+    out_of_scope = is_out_of_scope(user_text)
     mixed_shopping_policy = bool(category_from_user_text(user_text)
                                  and re.search(r"推荐|挑选|选购|想买|购买|找|看看", user_text))
-    if requires_kb(user_text) and not mixed_shopping_policy:
+    if requires_kb(user_text) and not mixed_shopping_policy and not negative_feedback and not out_of_scope:
         get_tool_ctx()["latest_user_text"] = user_text
         return {"intent": "AFTER_SALE_FAQ", "web_query": None}
-    if requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting or naming_command or time_query or shopping_request:
-        intent = "SMALL_TALK" if (greeting or naming_command or identity_query or time_query) else fallback_intent_by_rules(user_text)
+    if (requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting
+            or naming_command or time_query or shopping_request or negative_feedback or out_of_scope):
+        intent = "SMALL_TALK" if (greeting or naming_command or identity_query or time_query or negative_feedback or out_of_scope) else fallback_intent_by_rules(user_text)
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
             "intent", model="rules", input_data={"user_text": user_text},
@@ -182,8 +187,12 @@ async def intent_router_node(state: AgentState) -> dict:
         rule_intent = fallback_intent_by_rules(user_text)
         if requests_human(user_text) or asks_assistant_identity(user_text) or intent == "HUMAN_REQUEST":
             intent = rule_intent
+        elif is_negative_sentiment(user_text) or is_out_of_scope(user_text):
+            intent = "SMALL_TALK"
         elif requires_kb(user_text) and intent in {"SMALL_TALK", "ASSISTANT_META"}:
             intent = "AFTER_SALE_FAQ"
+        elif rule_intent == "ORDER_QUERY" and not category_from_user_text(user_text):
+            intent = "ORDER_QUERY"
         elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and (category_from_user_text(user_text) or budget_from_text(user_text)):
             intent = rule_intent
         query = data.get("web_query")
@@ -305,8 +314,14 @@ async def agent_node(state: AgentState) -> dict:
                    for m in state["messages"][latest_user + 1:])
     kb_searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "kb_search"
                       for m in state["messages"][latest_user + 1:])
+    order_searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "order_query"
+                         for m in state["messages"][latest_user + 1:])
     must_kb = ((intent == "AFTER_SALE_FAQ" or requires_kb(latest_text))
                and not kb_searched and not state.get("tool_loop_count"))
+    must_order_query = (intent == "ORDER_QUERY"
+                        and not order_searched
+                        and not state.get("tool_loop_count")
+                        and not re.search(r"取消|退款|退货|换货|售后", latest_text))
     budget_changed = bool(budget)
     preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
     is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜|对比|评测|区别|怎么样|百科", latest_text))
@@ -315,6 +330,22 @@ async def agent_node(state: AgentState) -> dict:
                        and (is_external_query or bool(semantic_web_query))
                        and not searched
                        and not state.get("tool_loop_count"))
+    if must_order_query:
+        order_status = "ALL"
+        if re.search(r"待支付|未付款|待付款|未支付", latest_text):
+            order_status = "UNPAID"
+        elif re.search(r"待发货|未发货", latest_text):
+            order_status = "PAID"
+        elif re.search(r"已发货|已寄出", latest_text):
+            order_status = "SHIPPED"
+        elif re.search(r"已完成|已收货", latest_text):
+            order_status = "COMPLETED"
+        response = AIMessage(content="", tool_calls=[{
+            "name": "order_query", "id": f"order_{uuid4().hex}",
+            "args": {"status": order_status},
+        }])
+        return {"messages": [response], "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+                "active_entities": entities}
     if must_web_search and not must_kb:
         response = AIMessage(content="", tool_calls=[{
             "name": "web_search", "id": f"search_{uuid4().hex}",
@@ -660,6 +691,34 @@ async def small_talk_node(state: AgentState) -> dict:
         await generation(
             "generate", model="rules", input_data={"node": "small_talk", "query": user_text},
             usage={"content": resp.content}, tags=["generate", "small_talk", "time-fast-path"],
+        )
+        return {"messages": [resp]}
+
+    # 6. 负面反馈/批评/抱怨快速响应（诚恳致歉、安抚情绪、主动提供人工客服选项，绝不推销商品）
+    if is_negative_sentiment(user_text):
+        content = (
+            "非常抱歉给您带来不好的体验！我是「AI Mall」智能购物助手，还在不断学习和改进中。"
+            "如果您在选购商品、查询订单物流或售后退换中有任何疑问，可以随时告诉我；"
+            "若您需要，请直接回复「转人工」，我立即为您转接人工客服协助处理。"
+        )
+        resp = AIMessage(content=content)
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "type": "negative_sentiment"},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "negative-sentiment-fast-path"],
+        )
+        return {"messages": [resp]}
+
+    # 7. 越界任务/非电商指令快速响应（礼貌说明助手职责，婉拒写代码等服务，引导回到购物）
+    if is_out_of_scope(user_text):
+        content = (
+            "抱歉呢，我是「AI Mall」专属的智能购物助手，专注于为您提供商品选购推荐、订单物流查询以及售后政策解答，"
+            "暂时无法提供编写代码、创作文章等非电商技术服务。"
+            "如果您需要挑选数码设备、电脑硬件、外设配件或相关书籍等商品，我很乐意为您提供推荐！"
+        )
+        resp = AIMessage(content=content)
+        await generation(
+            "generate", model="rules", input_data={"node": "small_talk", "type": "out_of_scope"},
+            usage={"content": resp.content}, tags=["generate", "small_talk", "out-of-scope-fast-path"],
         )
         return {"messages": [resp]}
 
