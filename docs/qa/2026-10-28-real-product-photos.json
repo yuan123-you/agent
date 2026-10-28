@@ -1,0 +1,1925 @@
+{
+  "date": "2026-10-28",
+  "timezone": "Asia/Shanghai",
+  "code_commit": "804a07c241e265d64e97e8d6ae5f8d2460b8f3cc",
+  "catalog": {
+    "retired_demonstration_products": 512,
+    "real_products": 137,
+    "verified_raster_images": 137,
+    "currency": "CNY",
+    "categories": {
+      "PHONE": 91,
+      "LAPTOP": 40,
+      "BAGS": 6
+    },
+    "stock_is_demo_data": true,
+    "historical_product_ids_reused": false
+  },
+  "tests": {
+    "catalog_python_passed": 165,
+    "frontend_passed": 335,
+    "deploy_and_secret_checks_passed": 19,
+    "typescript": "passed",
+    "production_build": "passed"
+  },
+  "public_api_and_photo_e2e": {
+    "products_expected": 137,
+    "products_in_storefront": 137,
+    "checks": 418,
+    "passed": 418,
+    "failed": [],
+    "results": [
+      {
+        "check": "all known demonstration goods retired",
+        "passed": true
+      },
+      {
+        "check": "every manifest SKU appears exactly once",
+        "passed": true
+      },
+      {
+        "check": "no SVG category placeholders in storefront",
+        "passed": true
+      },
+      {
+        "check": "HLL52ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HLL52ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HLL52ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HLST2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HLST2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HLST2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HPE72ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HPE72ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HPE72ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HPE82ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HPE82ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HPE82ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQ2V2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQ2V2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQ2V2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQ2W2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQ2W2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQ2W2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQ432ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQ432ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQ432ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQ652ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQ652ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQ652ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQEX2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQEX2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQEX2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQEY2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQEY2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQEY2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQEZ2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQEZ2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQEZ2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HQGG2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HQGG2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HQGG2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HR2W2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HR2W2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HR2W2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRDQ2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRDQ2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRDQ2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRH12CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRH12CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRH12CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRH42CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRH42CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRH42CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRHH2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRHH2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRHH2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRJ22ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRJ22ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRJ22ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRJM2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRJM2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRJM2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRVM2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRVM2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRVM2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRY82ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRY82ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRY82ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HRYY2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HRYY2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HRYY2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS2B2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS2B2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS2B2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS4J2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS4J2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS4J2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS4K2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS4K2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS4K2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS4Q2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS4Q2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS4Q2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS4S2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS4S2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS4S2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS5R2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS5R2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS5R2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS5U2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS5U2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS5U2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS732ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS732ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS732ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS7G2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS7G2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS7G2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS7J2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS7J2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS7J2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS7W2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS7W2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS7W2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS812CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS812CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS812CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS822CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS822CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS822CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS8B2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS8B2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS8B2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS9U2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS9U2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS9U2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HS9X2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HS9X2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HS9X2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSAR2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSAR2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSAR2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSB12ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSB12ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSB12ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSC22ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSC22ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSC22ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSE32ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSE32ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSE32ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSEU2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSEU2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSEU2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSEY2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSEY2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSEY2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSFC2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSFC2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSFC2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSL62ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSL62ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSL62ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSLK2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSLK2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSLK2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSLW2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSLW2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSLW2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSLX2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSLX2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSLX2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSMF2CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSMF2CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSMF2CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSMN2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSMN2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSMN2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "HSMS2ZM/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "HSMS2ZM/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "HSMS2ZM/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MA6C4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MA6C4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MA6C4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDEP4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDEP4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDEP4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDF14FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDF14FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDF14FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDFV4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDFV4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDFV4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDGD4PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDGD4PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDGD4PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDGH4PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDGH4PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDGH4PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MDW94FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MDW94FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MDW94FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "ME2L4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "ME2L4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "ME2L4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGKP4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGKP4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGKP4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGPH4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGPH4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGPH4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGYN4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGYN4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGYN4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGYV4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGYV4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGYV4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGYX4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGYX4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGYX4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MGYY4CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MGYY4CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MGYY4CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MJ9Y4PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MJ9Y4PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MJ9Y4PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MJNM4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MJNM4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MJNM4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MJNW4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MJNW4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MJNW4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MJVK4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MJVK4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MJVK4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MJW24FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MJW24FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MJW24FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK0G4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK0G4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK0G4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK8C4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK8C4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK8C4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK8W4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK8W4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK8W4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK944FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK944FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK944FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK974FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK974FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK974FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK984FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK984FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK984FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK9J4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK9J4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK9J4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MK9K4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MK9K4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MK9K4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKAE4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKAE4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKAE4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKAQ4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKAQ4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKAQ4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKD14FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKD14FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKD14FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKDU4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKDU4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKDU4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKF74FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKF74FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKF74FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKF84FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKF84FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKF84FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKF94FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKF94FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKF94FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKG04FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKG04FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKG04FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKG24FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKG24FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKG24FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKR64FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKR64FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKR64FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKR74FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKR74FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKR74FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKR94FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKR94FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKR94FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKRG4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKRG4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKRG4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKRT4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKRT4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKRT4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKTG4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKTG4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKTG4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKU64FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKU64FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKU64FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MKV64FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MKV64FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MKV64FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "ML3X4FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "ML3X4FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "ML3X4FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MLH84PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MLH84PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MLH84PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MQDP3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MQDP3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MQDP3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MQLJ3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MQLJ3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MQLJ3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MQTR3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MQTR3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MQTR3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MQTT3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MQTT3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MQTT3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MUQX3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MUQX3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MUQX3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MUW03CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MUW03CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MUW03CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MUW43CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MUW43CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MUW43CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MUWA3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MUWA3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MUWA3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW2K3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW2K3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW2K3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW2L3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW2L3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW2L3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW463CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW463CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW463CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW493FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW493FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW493FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW5L3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW5L3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW5L3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW5M3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW5M3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW5M3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW653CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW653CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW653CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MW993FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MW993FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MW993FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWK73FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWK73FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWK73FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWML3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWML3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWML3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWR03CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWR03CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWR03CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWR43CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWR43CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWR43CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWR53CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWR53CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWR53CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWTY3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWTY3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWTY3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MWVW3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MWVW3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MWVW3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MX2D3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MX2D3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MX2D3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MX743CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MX743CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MX743CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MX753CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MX753CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MX753CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXCJ3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXCJ3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXCJ3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXCK3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXCK3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXCK3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXCL3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXCL3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXCL3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXK53CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXK53CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXK53CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXK63CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXK63CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXK63CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXK73CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXK73CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXK73CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXK83CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXK83CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXK83CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MXK93CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MXK93CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MXK93CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MYMD2PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MYMD2PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MYMD2PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MYMG2PA/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MYMG2PA/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MYMG2PA/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MYQT3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MYQT3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MYQT3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MYQW3CH/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MYQW3CH/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MYQW3CH/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "MYQY3FE/A: name, source, price, category and picture match the same SKU",
+        "passed": true
+      },
+      {
+        "check": "MYQY3FE/A: photo bytes match source-derived SHA256",
+        "passed": true
+      },
+      {
+        "check": "MYQY3FE/A: decodable real raster, not SVG or HTML",
+        "passed": true
+      },
+      {
+        "check": "category filter BAGS",
+        "passed": true
+      },
+      {
+        "check": "category filter LAPTOP",
+        "passed": true
+      },
+      {
+        "check": "category filter PHONE",
+        "passed": true
+      },
+      {
+        "check": "search finds the same real product ID",
+        "passed": true
+      }
+    ]
+  },
+  "browser_checks": [
+    {
+      "check": "mobile brand search returns real products",
+      "passed": true
+    },
+    {
+      "check": "mobile brand search photos loaded from deployment subpath",
+      "passed": true
+    },
+    {
+      "check": "mobile search has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "BAGS category contains six real bag products",
+      "passed": true
+    },
+    {
+      "check": "BAGS photos loaded and not category placeholders",
+      "passed": true
+    },
+    {
+      "check": "BAGS mobile layout has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "bag detail keeps the selected product identity",
+      "passed": true
+    },
+    {
+      "check": "bag detail has original source and demo-stock disclosure",
+      "passed": true
+    },
+    {
+      "check": "bag detail raster photo loaded",
+      "passed": true
+    },
+    {
+      "check": "bag detail mobile layout has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "computer category shows actual keyboard products",
+      "passed": true
+    },
+    {
+      "check": "computer category visible raster photos loaded",
+      "passed": true
+    },
+    {
+      "check": "computer category mobile layout has no overflow",
+      "passed": true
+    },
+    {
+      "check": "computer category pagination reaches all 40 products",
+      "passed": true
+    },
+    {
+      "check": "computer category pagination has no image errors",
+      "passed": true
+    },
+    {
+      "check": "mobile home displays the real catalog",
+      "passed": true
+    },
+    {
+      "check": "mobile home photographs loaded from content-addressed URLs",
+      "passed": true
+    },
+    {
+      "check": "mobile home has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "check": "desktop home displays real product names",
+      "passed": true
+    },
+    {
+      "check": "desktop home raster photographs loaded",
+      "passed": true
+    },
+    {
+      "check": "desktop home has no horizontal overflow",
+      "passed": true
+    }
+  ],
+  "commerce_checks": [
+    {
+      "check": "registration and authenticated customer read",
+      "passed": true
+    },
+    {
+      "check": "cart preserves the same real product and photo",
+      "passed": true
+    },
+    {
+      "check": "new order uses verified CNY reference price",
+      "passed": true
+    },
+    {
+      "check": "order snapshot preserves the same name and real photo",
+      "passed": true
+    },
+    {
+      "check": "order photo resolves as raster on public deployment",
+      "passed": true
+    },
+    {
+      "check": "new order decrements only the selected real product stock",
+      "passed": true
+    },
+    {
+      "check": "cancellation restores real product stock",
+      "passed": true
+    },
+    {
+      "check": "cancelled snapshot still keeps the verified photo",
+      "passed": true
+    },
+    {
+      "check": "test cart cleaned",
+      "passed": true
+    }
+  ],
+  "historical_record_preservation": {
+    "checks": 11,
+    "passed": 11,
+    "results": [
+      {
+        "scope": "order_info",
+        "original_count": 18,
+        "current_original_count": 18,
+        "unchanged": true
+      },
+      {
+        "scope": "order_item",
+        "original_count": 18,
+        "current_original_count": 18,
+        "unchanged": true
+      },
+      {
+        "scope": "cart_item",
+        "original_count": 0,
+        "current_original_count": 0,
+        "unchanged": true
+      },
+      {
+        "scope": "favorite",
+        "original_count": 9,
+        "current_original_count": 9,
+        "unchanged": true
+      },
+      {
+        "scope": "browse_history",
+        "original_count": 13,
+        "current_original_count": 13,
+        "unchanged": true
+      },
+      {
+        "scope": "product_review",
+        "original_count": 16,
+        "current_original_count": 16,
+        "unchanged": true
+      },
+      {
+        "scope": "mall_sku",
+        "original_count": 0,
+        "current_original_count": 0,
+        "unchanged": true
+      },
+      {
+        "scope": "kb_doc",
+        "original_count": 5,
+        "current_original_count": 5,
+        "unchanged": true
+      },
+      {
+        "scope": "existing_merchant_and_qa_goods",
+        "original_count": 9,
+        "current_original_count": 9,
+        "unchanged": true
+      },
+      {
+        "scope": "historical_product_identities",
+        "original_count": 512,
+        "current_original_count": 512,
+        "unchanged": true
+      },
+      {
+        "scope": "isolated_test_account_disabled",
+        "unchanged": true
+      }
+    ]
+  },
+  "services": {
+    "all_services_healthy": true,
+    "non_frontend_containers_unchanged": true,
+    "services": {
+      "ai-service": "healthy",
+      "backend": "healthy",
+      "embeddings": "healthy",
+      "frontend": "healthy",
+      "milvus": "healthy",
+      "minio": "healthy",
+      "mysql": "healthy",
+      "ollama": "healthy",
+      "redis": "healthy"
+    }
+  },
+  "ai_index": {
+    "status": {
+      "collection_exists": true,
+      "corpus_ready": true,
+      "product_count": 137
+    },
+    "vector_products": 137,
+    "retired_demo_vectors": 0,
+    "all_current_ids": true
+  }
+}

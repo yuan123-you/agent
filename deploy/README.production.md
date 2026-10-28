@@ -81,3 +81,12 @@ sudo chmod 600 /srv/aimall/data-backups/ai-mall.sql
 
 ## 2026-10-08 域名-only 调整
 主页所有项目均只使用各自域名，AI Mall 不再提供 IP 备用入口。部署脚本安装显式 404 拒绝规则，防止回滚更新时重新启用备用服务；CORS 仅允许 AI Mall 域名，私密登录文件仅保留域名。移除链接不等于绝对隐藏源站 IP；源站全面限制到 Cloudflare 来源需单独评估现有所有站点，未擅自变更全服务器防火墙。
+
+
+### 2026-10-28 商品真实图片发布
+
+- 本次业务代码为 `804a07c241e265d64e97e8d6ae5f8d2460b8f3cc`；前端镜像保留版本标签 `aimall-photos-frontend:804a07c`，并更新标准 Compose 使用的 `aimall-prod-frontend:latest` 标签。
+- 后端及 AI、数据库、Redis、MinIO、Milvus 和两个模型服务不重建；已应用的 Flyway 文件保持不变。
+- 当前实际目录为 `backend/src/main/resources/official-catalog/`：137 件有中国官网来源、对应真实图片及人民币参考价的商品。512 条原演示商品仅下架、保留 ID 与历史记录，不将旧订单图片伪配为另一商品。
+- 上线前保存私有数据库备份和旧前端镜像 ID，图片上传后逐个重读核对 SHA-256，目录切换先 dry-run 再显式执行事务。不要直接调用旧 2512 行外币目录的覆盖式导入来覆盖本次目录。
+- 详细范围、验收命令、CPU 索引同步观察和非破坏性回滚说明见 `docs/qa/2026-10-28-real-product-photos.md`。

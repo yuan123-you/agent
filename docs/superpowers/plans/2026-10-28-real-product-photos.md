@@ -9,4 +9,4 @@
 - [x] Collect: read CNY official product pages; fail closed on missing price/photo/source, store exact-source facts and content hashes; download/decode photographs and upload content-addressed files.
 - [x] Implement append-and-retire cutover: exact known seed allowlist, transaction, dry run, full image/provenance validation, taxonomy linkage, preserve merchant/order/review/cart data, no old ID reuse.
 - [x] Verify locally: red/green targeted tests, catalog tests, relevant frontend/build checks; back up production DB and protected-record digests before dry run/apply.
-- [ ] Deploy: publish only task-owned changes, upload verified images, transactionally apply, check every photograph via public API/hash/decode and review desktop/mobile home/search/detail visually. Record measured results and rollback instructions.
+- [x] Deploy: publish only task-owned changes, upload verified images, transactionally apply, check every photograph via public API/hash/decode and review desktop/mobile home/search/detail visually. Record measured results and rollback instructions.
