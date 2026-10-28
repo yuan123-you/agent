@@ -34,6 +34,12 @@ export interface PageResult<T> {
 }
 
 export interface ProductVO {
+  sourceName?: string
+  sourceUrl?: string
+  originalImageUrl?: string
+  imageSha256?: string
+  collectedAt?: string
+  simulatedCommerceFields?: boolean
   id: number
   name: string
   category: string

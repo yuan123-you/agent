@@ -169,3 +169,31 @@ describe('refresh availability boundaries', () => {
     expect(refresh).toHaveBeenCalledWith(expect.stringContaining('/auth/refresh'), { refreshToken: 'refresh' }, { timeout: 10000 })
   })
 })
+
+
+describe('catalog photograph deployment paths', () => {
+  afterEach(() => vi.unstubAllEnvs())
+  it('resolves product, cart, SKU and order photographs under the deployed base without changing source URLs', async () => {
+    vi.stubEnv('BASE_URL', '/aimall/')
+    localStorage.clear()
+    const { default: instance, get } = await import('./request')
+    const image = '/api/v1/product-images/catalog/abc.webp'
+    instance.defaults.adapter = async config => ({ status: 200, statusText: 'OK', config, headers: {},
+      data: { code: 0, data: { records: [{ imageUrl: image, originalImageUrl: 'https://cdn.example/photo.jpg',
+        items: [{ productImage: image, pic: image }], description: image }] } } })
+    const data = await get<{ records: { imageUrl: string; originalImageUrl: string; description: string; items: { productImage: string; pic: string }[] }[] }>('/products')
+    expect(data.records[0].imageUrl).toBe('/aimall' + image)
+    expect(data.records[0].items[0]).toEqual({ productImage: '/aimall' + image, pic: '/aimall' + image })
+    expect(data.records[0].originalImageUrl).toBe('https://cdn.example/photo.jpg')
+    expect(data.records[0].description).toBe(image)
+  })
+  it('leaves root deployments, external URLs and already prefixed images unchanged', async () => {
+    vi.stubEnv('BASE_URL', '/')
+    localStorage.clear()
+    const { default: instance, get } = await import('./request')
+    const rows = [{ imageUrl: '/api/v1/product-images/id.jpg' }, { imageUrl: 'https://cdn.example/p.jpg' },
+      { imageUrl: '/aimall/api/v1/product-images/p.png' }, { imageUrl: null }]
+    instance.defaults.adapter = async config => ({ status: 200, statusText: 'OK', config, headers: {}, data: { code: 0, data: rows } })
+    await expect(get('/products')).resolves.toEqual(rows)
+  })
+})

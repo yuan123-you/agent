@@ -1,0 +1,96 @@
+{
+  "source": "www.apple.com.cn",
+  "currency": "CNY",
+  "products": 137,
+  "verified_images": 137,
+  "categories": {
+    "LAPTOP": 40,
+    "PHONE": 91,
+    "BAGS": 6
+  },
+  "brands": {
+    "Belkin": 4,
+    "Twelve South": 6,
+    "Elevation Lab": 1,
+    "Satechi": 2,
+    "Kensington": 3,
+    "Logitech": 12,
+    "Tech21": 7,
+    "Bellroy": 1,
+    "Incase": 1,
+    "Nimble": 1,
+    "MOFT": 4,
+    "Aer": 1,
+    "Blackmagic": 1,
+    "mophie": 3,
+    "Rains": 1,
+    "Herschel": 3,
+    "Native Union": 1,
+    "Apple": 46,
+    "Beats": 15,
+    "品牌未提供": 24
+  },
+  "rejected": [
+    {
+      "url": "https://www.apple.com.cn/shop/product/hs452zm/a",
+      "error": "official product is not available to purchase"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/hs422zm/a",
+      "error": "official product is not available to purchase"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mfe94ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mfep4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mfhp4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mhwk4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mj2d4ch/a",
+      "error": "official product is not available to purchase"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mhwl4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mje14pa/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mje34pa/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mje64pa/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mkfn4ch/a",
+      "error": "official product is not available to purchase"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mkft4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mkfw4ch/a",
+      "error": "missing official product model: PDPContent"
+    },
+    {
+      "url": "https://www.apple.com.cn/shop/product/mkr44fe/a",
+      "error": "official product is not available to purchase"
+    }
+  ],
+  "commerce_note": "Official reference prices; inventory is demo data, sales start at zero. No source stock, sales, shipping or warranty promises are asserted."
+}

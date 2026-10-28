@@ -7,6 +7,17 @@ import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
+/** Backend image routes are origin-relative; respect Vite's deployment subpath. */
+function resolveProductImages(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(resolveProductImages)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+    ['imageUrl', 'productImage', 'pic'].includes(key) && typeof item === 'string' && item.startsWith('/api/v1/product-images/')
+      ? `${import.meta.env.BASE_URL.replace(/\/$/, '')}${item}`
+      : resolveProductImages(item),
+  ]))
+}
+
 const instance = axios.create({ baseURL: API_BASE, timeout: 30000 })
 
 let unauthorizedHandler: () => void = () => {}
@@ -81,7 +92,7 @@ instance.interceptors.response.use(
     const body = resp.data
     if (body && typeof body === 'object' && 'code' in body) {
       if (body.code === 0) {
-        return body.data
+        return resolveProductImages(body.data)
       }
       ElMessage.error(body.message || '请求失败')
       return Promise.reject(body)

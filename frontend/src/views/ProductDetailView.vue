@@ -58,6 +58,14 @@
           </div>
           <p v-if="product.sellingPoints" class="subtitle-desc">{{ product.sellingPoints }}</p>
 
+          <div v-if="product.sourceName" class="product-provenance">
+            <p>商品资料与图片来源：{{ product.sourceName }}
+              <a v-if="product.sourceUrl?.startsWith('https://')" :href="product.sourceUrl" target="_blank" rel="noopener noreferrer">查看来源商品</a>
+            </p>
+            <p>价格为采集时的官网参考价；本站为独立演示平台，非品牌官方商城。</p>
+            <p v-if="product.simulatedCommerceFields">库存为演示数据，不代表来源商家的实时库存。</p>
+          </div>
+
           <!-- 领券行 -->
           <div class="coupon-cell-row">
             <span class="cell-label">领　券</span>
@@ -896,6 +904,9 @@ html.dark .main-title {
   color: #f4f4f5;
 }
 
+.product-provenance { margin: 12px 0; padding: 10px 12px; background: #f7f8fa; color: #606266; font-size: 12px; line-height: 1.7; border-radius: 6px; }
+.product-provenance p { margin: 0; }
+.product-provenance a { color: #2b6cb0; margin-left: 6px; }
 .subtitle-desc {
   font-size: 12px;
   color: #71717a;

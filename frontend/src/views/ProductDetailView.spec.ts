@@ -625,3 +625,18 @@ describe('价格销量与服务承诺来自真实数据', () => {
     }
   })
 })
+
+
+describe('可溯源商品照片资料', () => {
+  it('identifies the source, reference price and simulated inventory without claiming to be an official store', async () => {
+    api.apiProductDetail.mockResolvedValueOnce({ ...product(41), sourceName: 'www.apple.com.cn',
+      sourceUrl: 'https://www.apple.com.cn/shop/product/example/a', collectedAt: '2026-10-28T03:00:00Z',
+      simulatedCommerceFields: true })
+    await mountPage()
+    const provenance = host.querySelector('.product-provenance')
+    expect(provenance?.textContent).toContain('官网参考价')
+    expect(provenance?.textContent).toContain('库存为演示数据')
+    expect(provenance?.textContent).toContain('非品牌官方商城')
+    expect(provenance?.querySelector('a')?.getAttribute('href')).toBe('https://www.apple.com.cn/shop/product/example/a')
+  })
+})
