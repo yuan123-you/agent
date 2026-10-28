@@ -53,7 +53,7 @@
         <div class="info-card mall-card">
           <!-- 标题与品牌标签 -->
           <div class="title-row">
-            <span class="brand-badge">{{ product.brand || '品牌未提供' }}</span>
+            <span v-if="product.brand?.trim()" class="brand-badge">{{ product.brand }}</span>
             <h1 class="main-title">{{ product.name }}</h1>
           </div>
           <p v-if="product.sellingPoints" class="subtitle-desc">{{ product.sellingPoints }}</p>
@@ -77,10 +77,10 @@
 
           <!-- 物流与售后：缺失信息不得替商家作出承诺 -->
           <div class="service-row">
-            <div class="svc-item">
+            <div v-if="product.shipFrom?.trim()" class="svc-item">
               <span class="svc-label">配　送</span>
               <div class="svc-val">
-                <span>📦 {{ product.shipFrom ? `${product.shipFrom} 发货` : '发货地待商家确认' }}</span>
+                <span>📦 {{ product.shipFrom }} 发货</span>
                 <span class="free-ship-tag">运费、承运方和送达时间以下单信息为准</span>
               </div>
             </div>
@@ -107,7 +107,7 @@
         </p>
 
         <!-- ============ 模块 1：买家评价 (单独卡片，不使用 Tab 栏，大厂标配置顶) ============ -->
-        <section class="section-card mall-card">
+        <section v-if="reviews.length || reviewLoading || reviewError" class="section-card mall-card">
           <div class="sc-header">
             <div class="sc-title-group">
               <h3 class="sc-title">商品评价</h3>
@@ -115,7 +115,7 @@
             </div>
           </div>
 
-          <div class="review-tag-chips">
+          <div v-if="reviews.length" class="review-tag-chips">
             <span class="r-chip active">全部 ({{ reviews.length }})</span>
           </div>
 
@@ -125,13 +125,12 @@
               {{ reviewError }}
               <el-button link type="primary" @click="loadReviews">重试</el-button>
             </p>
-            <p v-else-if="!reviews.length">暂无评价</p>
             <div v-for="r in reviews" :key="r.reviewId" class="review-item-row">
               <div class="ri-user">
                 <el-avatar :size="28" class="ri-avatar">{{ r.nickname.slice(0, 1) }}</el-avatar>
                 <div class="ri-user-info">
                   <span class="ri-name">{{ r.nickname }}</span>
-                  <span class="ri-spec">{{ r.specInfo || '未提供规格' }}</span>
+                  <span v-if="r.specInfo?.trim()" class="ri-spec">{{ r.specInfo }}</span>
                 </div>
                 <span class="ri-date">{{ shortTime(r.createdAt) }}</span>
               </div>
@@ -152,27 +151,19 @@
         </section>
 
         <!-- ============ 模块 2：规格参数 (单独卡片，:column="isMobile ? 1 : 2") ============ -->
-        <section class="section-card mall-card">
+        <section v-if="specRows.length" class="section-card mall-card">
           <div class="sc-header">
             <h3 class="sc-title">规格参数</h3>
           </div>
           <div class="specs-table-box">
             <el-descriptions :column="isMobile ? 1 : 2" border class="specs-desc-table">
-              <el-descriptions-item label="品牌">{{ product.brand || '商家未提供' }}</el-descriptions-item>
-              <el-descriptions-item label="商品类目">{{ categoryName(product.category) }}</el-descriptions-item>
-              <el-descriptions-item label="产地">{{ product.origin || '商家未提供' }}</el-descriptions-item>
-              <el-descriptions-item label="发货总仓">{{ product.shipFrom || '商家未提供' }}</el-descriptions-item>
-              <el-descriptions-item label="材质工艺">{{ product.material || '商家未提供' }}</el-descriptions-item>
-              <el-descriptions-item label="生产批次">{{ product.productionDate || '商家未提供' }}</el-descriptions-item>
-              <el-descriptions-item label="执行标准">商家未提供</el-descriptions-item>
-              <el-descriptions-item label="三包保障">请查看适用售后政策</el-descriptions-item>
-              <el-descriptions-item v-for="s in specs" :key="s.k" :label="s.k">{{ s.v }}</el-descriptions-item>
+              <el-descriptions-item v-for="s in specRows" :key="s.k" :label="s.k">{{ s.v }}</el-descriptions-item>
             </el-descriptions>
           </div>
         </section>
 
         <!-- ============ 模块 3：商品介绍 (单独卡片，图文详情) ============ -->
-        <section class="section-card mall-card">
+        <section v-if="descHtml" class="section-card mall-card">
           <div class="sc-header">
             <h3 class="sc-title">商品详情</h3>
           </div>
@@ -488,7 +479,7 @@ const seckill = ref<{
 } | null>(null)
 
 const descHtml = computed(() => {
-  const desc = product.value?.description?.trim() || '暂无商品介绍，详细信息请咨询商家。'
+  const desc = product.value?.description?.trim() || ''
   return DOMPurify.sanitize(marked.parse(desc) as string)
 })
 
@@ -509,12 +500,26 @@ const specs = computed(() => {
     .split(/[,;/]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((item, idx) => {
+    .map((item) => {
       const separator = item.search(/[:：]/)
       const k = separator < 0 ? item : item.slice(0, separator).trim()
       const v = separator < 0 ? item : item.slice(separator + 1).trim()
-      return { k: k || `参数${idx + 1}`, v: v || item }
+      return { k, v }
     })
+})
+
+const specRows = computed(() => {
+  const current = product.value
+  if (!current) return []
+  return [
+    { k: '品牌', v: current.brand },
+    { k: '商品类目', v: current.category ? categoryName(current.category) : '' },
+    { k: '产地', v: current.origin },
+    { k: '发货总仓', v: current.shipFrom },
+    { k: '材质工艺', v: current.material },
+    { k: '生产批次', v: current.productionDate },
+    ...specs.value,
+  ].filter(row => row.k.trim() && row.v?.trim())
 })
 
 async function handleConfirmAddToCart(): Promise<boolean> {
@@ -1572,3 +1577,4 @@ html.dark .mobile-action-bar {
   }
 }
 </style>
+

@@ -416,6 +416,9 @@ button,
 
   .el-dialog {
     width: min(520px, calc(100% - 24px)) !important;
+  }
+
+  .el-dialog:not(.is-align-center) {
     margin: 16px auto !important;
   }
 

@@ -24,6 +24,8 @@ const router = createRouter({
         { path: 'after-sales/:id', component: () => import('@/views/AfterSaleDetailView.vue'), meta: { customer: true } },
         { path: 'orders', component: () => import('@/views/MyOrdersView.vue'), meta: { customer: true } },
         { path: 'orders/:id', component: () => import('@/views/OrderDetailView.vue'), meta: { customer: true } },
+        { path: 'order/confirm', component: () => import('@/views/OrderConfirmView.vue'), meta: { customer: true } },
+        { path: 'checkout', redirect: '/order/confirm' },
         { path: 'addresses', component: () => import('@/views/AddressesView.vue'), meta: { customer: true } },
         { path: 'cart', component: () => import('@/views/CartView.vue'), meta: { customer: true } },
         { path: 'favorites', component: () => import('@/views/FavoritesView.vue') },
@@ -109,3 +111,4 @@ router.beforeEach((to) => {
 })
 
 export default router
+

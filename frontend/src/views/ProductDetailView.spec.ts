@@ -97,12 +97,61 @@ describe('商品规格参数展示', () => {
 
   function customSpecRows() {
     return Array.from(host.querySelectorAll('.specs-desc-table .el-descriptions__label'))
-      .slice(8)
+      .slice(2)
       .map(label => ({
         k: label.textContent?.trim(),
         v: label.nextElementSibling?.textContent?.trim(),
       }))
   }
+
+  it('只展示有值的基础参数，不展示未提供的占位行', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), origin: '  ', shipFrom: null, material: '', productionDate: undefined,
+    })
+    await mountPage()
+    const table = host.querySelector('.specs-desc-table')!
+    expect(Array.from(table.querySelectorAll('.el-descriptions__label')).map(label => label.textContent?.trim()))
+      .toEqual(['品牌', '商品类目'])
+    expect(table.textContent).toContain('真实品牌')
+    expect(table.textContent).toContain('手机数码')
+    expect(table.textContent).not.toContain('商家未提供')
+    expect(table.textContent).not.toContain('请查看适用售后政策')
+  })
+
+  it('保留有数据的基础参数', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), origin: '中国', shipFrom: '上海仓', material: '铝合金', productionDate: '2026-10',
+    })
+    await mountPage()
+    expect(customSpecRows()).toEqual([
+      { k: '产地', v: '中国' }, { k: '发货总仓', v: '上海仓' },
+      { k: '材质工艺', v: '铝合金' }, { k: '生产批次', v: '2026-10' },
+    ])
+  })
+
+  it('全部参数和介绍都为空时隐藏对应整块内容及缺失信息占位', async () => {
+    api.apiProductDetail.mockResolvedValue({
+      ...product(41), brand: ' ', category: '', description: '  ', specs: '{}',
+    })
+    await mountPage()
+    expect(host.querySelector('.specs-table-box')).toBeNull()
+    expect(host.querySelector('.product-intro-body')).toBeNull()
+    expect(host.querySelector('.brand-badge')).toBeNull()
+    expect(host.textContent).not.toContain('规格参数')
+    expect(host.textContent).not.toContain('商品详情')
+    expect(host.textContent).not.toContain('发货地待商家确认')
+  })
+
+  it.each([
+    JSON.stringify({ 型号: 'A1', 空字符串: '', 空白值: '  ', ' ': '无名称', 未提供: null, 运费: 0, 无线充电: false }),
+    '型号:A1;空值:;空白值:  ;:无名称;运费:0;无线充电:false',
+  ])('过滤扩展参数的空名称与空值，保留零和 false：%s', async specs => {
+    api.apiProductDetail.mockResolvedValue({ ...product(41), specs })
+    await mountPage()
+    expect(customSpecRows()).toEqual([
+      { k: '型号', v: 'A1' }, { k: '运费', v: '0' }, { k: '无线充电', v: 'false' },
+    ])
+  })
 
   it('将接口中的 JSON 规格渲染为干净的名称和值，不泄露引号或花括号', async () => {
     api.apiProductDetail.mockResolvedValue({
@@ -163,13 +212,15 @@ describe('真实买家评价', () => {
     expectNoReviews()
   })
 
-  it('真实空列表显示暂无评价，不展示固定好评率或好评标签', async () => {
+  it('真实空列表隐藏整个评价区，不展示空状态或固定好评率', async () => {
     await mountPage()
     expectNoReviews()
-    expect(host.querySelector('.reviews-list')?.textContent).toContain('暂无评价')
+    expect(host.querySelector('.reviews-list')).toBeNull()
+    expect(host.textContent).not.toContain('商品评价')
+    expect(host.textContent).not.toContain('暂无评价')
     expect(host.querySelector('.review-error')).toBeNull()
     expect(host.textContent).not.toContain('99.4%')
-    expect(host.querySelector('.review-tag-chips')?.textContent).not.toContain('音质好评')
+    expect(host.querySelector('.review-tag-chips')).toBeNull()
   })
 
   it('只展示接口返回的评价、评分与商家回复', async () => {
@@ -179,6 +230,24 @@ describe('真实买家评价', () => {
     expect(host.querySelector('.ri-content')?.textContent).toBe('商品41的真实评价')
     expect(host.querySelector('.ri-merchant-reply')?.textContent).toContain('商品41的真实回复')
     expect(host.querySelectorAll('.ri-rate .el-rate__item .is-active')).toHaveLength(3)
+  })
+
+  it('评价没有规格信息时不展示未提供规格占位', async () => {
+    api.apiReviews.mockResolvedValue({ ...page(41), records: [{ ...review(41), specInfo: '  ' }] })
+    await mountPage()
+    expect(host.querySelector('.ri-content')?.textContent).toBe('商品41的真实评价')
+    expect(host.querySelector('.ri-spec')).toBeNull()
+    expect(host.textContent).not.toContain('未提供规格')
+  })
+
+  it('失败重试返回空列表时隐藏评价区', async () => {
+    api.apiReviews.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page())
+    await mountPage()
+    retry('.review-error')
+    await flush()
+    expect(host.querySelector('.review-error')).toBeNull()
+    expect(host.querySelector('.reviews-list')).toBeNull()
+    expect(host.textContent).not.toContain('商品评价')
   })
 
   it('失败后可重试成功，并清除错误', async () => {
@@ -199,7 +268,9 @@ describe('真实买家评价', () => {
     expect(host.querySelector('.reviews-list')?.textContent).not.toContain('暂无评价')
     pending.resolve(page())
     await flush()
-    expect(host.querySelector('.reviews-list')?.textContent).toContain('暂无评价')
+    expect(host.querySelector('.reviews-list')).toBeNull()
+    expect(host.textContent).not.toContain('商品评价')
+    expect(host.textContent).not.toContain('暂无评价')
   })
 })
 
@@ -344,7 +415,9 @@ describe('同一详情组件复用与晚到响应', () => {
     await flush()
     expect(host.querySelector('.main-title')?.textContent).toBe('真实商品41')
     expectNoReviews()
-    expect(host.querySelector('.reviews-list')?.textContent).toContain('暂无评价')
+    expect(host.querySelector('.reviews-list')).toBeNull()
+    expect(host.textContent).not.toContain('商品评价')
+    expect(host.textContent).not.toContain('暂无评价')
   })
 })
 
@@ -601,7 +674,7 @@ describe('商品事实不能被占位文案伪造', () => {
       '北京顺义智能总仓', '全国智能分仓', '航空级金属', '破损全额包赔', '官方标配']) {
       expect(text).not.toContain(claim)
     }
-    expect(host.querySelector('.md-content')?.textContent).toContain('暂无商品介绍')
+    expect(host.querySelector('.product-intro-body')).toBeNull()
   })
 
   it('只展示接口确实提供的产地、发货地、材质和生产日期', async () => {
@@ -640,3 +713,4 @@ describe('可溯源商品照片资料', () => {
     expect(provenance?.querySelector('a')?.getAttribute('href')).toBe('https://www.apple.com.cn/shop/product/example/a')
   })
 })
+

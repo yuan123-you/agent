@@ -70,10 +70,10 @@
     </el-main>
 
     <!-- 全局悬浮工具坞 -->
-    <FloatingDock />
+    <FloatingDock v-if="!isOrderConfirm" />
 
     <!-- 全局购物车抽屉 -->
-    <CartDrawer />
+    <CartDrawer v-if="!isOrderConfirm" />
 
     <!-- 移动端底部导航 -->
     <MobileTabbar v-if="!isProductDetail" />
@@ -135,7 +135,8 @@ function applySearchWord(w: string) {
 }
 
 const isHome = computed(() => route.path === '/')
-const isProductDetail = computed(() => /^\/products\/\d+/.test(route.path))
+const isOrderConfirm = computed(() => route.path === '/order/confirm' || route.path === '/checkout')
+const isProductDetail = computed(() => /^\/products\/\d+/.test(route.path) || isOrderConfirm.value)
 
 onMounted(() => {
   if (localStorage.getItem('token')) {
@@ -436,5 +437,11 @@ html.dark .sd-hot-item {
   .main {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
+
+  .main.no-tabbar-pad {
+    padding-bottom: 0;
+  }
 }
 </style>
+
+

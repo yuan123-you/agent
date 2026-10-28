@@ -103,7 +103,7 @@
           <button class="view-cart-btn" @click="goFullCart">
             查看购物车
           </button>
-          <button class="checkout-btn" @click="goFullCart">
+          <button class="checkout-btn" @click="goCheckout">
             <span>立即结算</span>
             <el-icon><ArrowRight /></el-icon>
           </button>
@@ -147,6 +147,11 @@ function goShopping() {
 function goFullCart() {
   cart.closeDrawer()
   router.push('/cart')
+}
+
+function goCheckout() {
+  cart.closeDrawer()
+  router.push('/order/confirm')
 }
 </script>
 
@@ -492,3 +497,4 @@ html.dark .view-cart-btn {
   background: #1d4ed8;
 }
 </style>
+
