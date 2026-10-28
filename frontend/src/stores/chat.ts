@@ -23,6 +23,7 @@ const listLoads = new WeakMap<object, Promise<void>>()
 const conversationLoads = new WeakMap<object, { id: number; promise: Promise<void> }>()
 
 interface ChatState {
+  sessionVersion: number
   loadingConversations: boolean
   loadingConversationId: number | null
   conversations: ConversationVO[]
@@ -36,6 +37,7 @@ interface ChatState {
 
 export const useChatStore = defineStore('chat', {
   state: (): ChatState => ({
+    sessionVersion: 0,
     loadingConversations: false,
     loadingConversationId: null,
     conversations: [],
@@ -46,17 +48,38 @@ export const useChatStore = defineStore('chat', {
     webSearchEnabled: false,
   }),
   actions: {
+    /** Detach old-account work before abort callbacks can touch the new session. */
+    resetSession() {
+      const pending = Object.values(this.pendingByConv)
+      listLoads.delete(this)
+      conversationLoads.delete(this)
+      this.$patch(state => {
+        state.sessionVersion++
+        state.current = null
+        state.messages = []
+        state.conversations = []
+        state.pendingByConv = {}
+        state.streaming = false
+        state.loadingConversations = false
+        state.loadingConversationId = null
+        state.webSearchEnabled = false
+      })
+      for (const task of pending) task.stream?.stop()
+    },
     async loadConversations() {
       const existing = listLoads.get(this)
       if (existing) return existing
+      const session = this.sessionVersion
       this.loadingConversations = true
       const request = (async () => {
         try {
           const page = await apiConversations({ page: 1, size: 50 })
-          this.conversations = page.records
+          if (this.sessionVersion === session) this.conversations = page.records
         } finally {
-          this.loadingConversations = false
-          listLoads.delete(this)
+          if (this.sessionVersion === session) {
+            this.loadingConversations = false
+            listLoads.delete(this)
+          }
         }
       })()
       listLoads.set(this, request)
@@ -64,7 +87,9 @@ export const useChatStore = defineStore('chat', {
     },
 
     async createConversation() {
+      const session = this.sessionVersion
       const data = await apiCreateConversation()
+      if (this.sessionVersion !== session) return
       // The create response is enough to display an empty conversation immediately.
       // Invalidate earlier history loads so they cannot replace the new selection.
       conversationLoads.delete(this)
@@ -348,19 +373,19 @@ export const useChatStore = defineStore('chat', {
 
     async cancelHumanHandoff(): Promise<void> {
       if (!this.current || this.current.status !== 'PENDING_HUMAN') return
-      const conversationId = this.current.conversationId
-      await apiCancelHuman(conversationId)
-      this.current = await apiConversationDetail(conversationId)
-      await this.loadConversations()
+      const conversation = this.current
+      await apiCancelHuman(conversation.conversationId)
+      if (this.current !== conversation) return
+      await this.refreshCurrent()
+      if (this.current?.conversationId === conversation.conversationId) await this.loadConversations()
     },
     /** 人工客服服务中：买家消息直达客服（不经过 AI） */
     async sendHumanMessage(content: string): Promise<void> {
       if (!this.current || !content.trim()) return
-      const conversationId = this.current.conversationId
+      const conversation = this.current
       this.messages.push({ role: 'USER', content })
-      await apiHumanMessage(conversationId, content)
-      // 同步会话最新状态与消息
-      this.current = await apiConversationDetail(conversationId)
+      await apiHumanMessage(conversation.conversationId, content)
+      if (this.current === conversation) await this.refreshCurrent()
     },
 
 
@@ -452,15 +477,18 @@ export const useChatStore = defineStore('chat', {
 
     async closeCurrent() {
       if (!this.current) return
-      await apiCloseConversation(this.current.conversationId)
-      this.current = await apiConversationDetail(this.current.conversationId)
-      await this.loadConversations()
+      const conversation = this.current
+      await apiCloseConversation(conversation.conversationId)
+      if (this.current !== conversation) return
+      await this.refreshCurrent()
+      if (this.current?.conversationId === conversation.conversationId) await this.loadConversations()
     },
 
     async rateCurrent(score: number) {
       if (!this.current) return
-      await apiSatisfaction(this.current.conversationId, score)
-      this.current = await apiConversationDetail(this.current.conversationId)
+      const conversation = this.current
+      await apiSatisfaction(conversation.conversationId, score)
+      if (this.current === conversation) await this.refreshCurrent()
     },
   },
 })

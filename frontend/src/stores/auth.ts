@@ -1,5 +1,6 @@
 /** 认证状态（Pinia） */
 import { defineStore } from 'pinia'
+import { useChatStore } from './chat'
 import { clearHotContentCache } from '@/api/hotContentCache'
 import { apiLogin, apiLogout, apiMe, apiRegister, apiRegisterCustomer, apiRegisterMerchant } from '@/api'
 import type { CustomerRegistration, LoginResp, MerchantRegistration, UserInfo } from '@/types/api'
@@ -56,6 +57,7 @@ export const useAuthStore = defineStore('auth', {
   },
   actions: {
     setAuth(data: LoginResp) {
+      if (data.user && data.user.userId !== this.user?.userId) useChatStore().resetSession()
       clearHotContentCache()
       if (data.accessToken) this.token = data.accessToken
       if (data.refreshToken) this.refreshToken = data.refreshToken
@@ -65,6 +67,7 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('user', JSON.stringify(this.user))
     },
     logoutLocal() {
+      useChatStore().resetSession()
       clearHotContentCache()
       this.token = ''
       this.refreshToken = ''
