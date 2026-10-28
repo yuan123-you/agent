@@ -1,0 +1,22 @@
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
+import {createApp,defineComponent,h,nextTick,reactive,type App} from 'vue'
+import AfterSaleDetailView from './AfterSaleDetailView.vue'
+const mocks=vi.hoisted(()=>({detail:vi.fn(),action:vi.fn(),evidence:vi.fn(),push:vi.fn()}))
+let route:any
+vi.mock('vue-router',()=>({useRoute:()=>route,useRouter:()=>({push:mocks.push})}))
+vi.mock('@/api',()=>({apiAfterSaleDetail:mocks.detail,apiAfterSaleAction:mocks.action,apiAfterSaleEvidence:mocks.evidence}))
+const value=(id=1)=>({id,afterSaleNo:`AS${id}`,orderId:1,orderItemId:2,orderNo:'ORDER1',productName:'测试商品',serviceType:'REFUND_ONLY',reason:'商品不合适',quantity:1,requestedRefundAmount:40,approvedRefundAmount:40,status:'WAITING_REFUND',currentHandler:'PLATFORM',refundMode:'SIMULATED',actions:['REFUND'],history:[],evidence:[],createdAt:'2026-10-28T10:00:00'})
+const flush=async()=>{for(let i=0;i<14;i++)await nextTick()}
+let app:App,host:HTMLDivElement
+async function mount(){host=document.createElement('div');document.body.append(host);app=createApp(AfterSaleDetailView);const basic=defineComponent({setup(_,ctx){return()=>h('div',ctx.slots.default?.())}});app.component('ElScrollbar',basic);app.component('ElImage',basic);app.component('ElButton',defineComponent({props:['disabled','loading','nativeType'],setup(p,ctx){return()=>h('button',{disabled:!!p.disabled||!!p.loading,type:p.nativeType||'button'},ctx.slots.default?.())}}));app.component('ElDialog',defineComponent({props:['modelValue'],setup(p,ctx){return()=>p.modelValue?h('section',{class:'test-dialog'},ctx.slots.default?.()):null}}));app.mount(host);await flush()}
+function button(text:string){return [...host.querySelectorAll<HTMLButtonElement>('button')].find(el=>el.textContent?.trim()===text)}
+function submit(){host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))}
+beforeEach(()=>{vi.clearAllMocks();route=reactive({path:'/admin/after-sales/1',params:{id:'1'},meta:{afterSaleManage:true}});mocks.detail.mockImplementation(async id=>value(id));mocks.action.mockResolvedValue({...value(),status:'REFUNDED',actions:[]})})
+afterEach(()=>{app?.unmount();host?.remove()})
+describe('after-sale detail workflow',()=>{
+ it('only exposes commands returned by the authorized server response',async()=>{mocks.detail.mockResolvedValue({...value(),actions:[]});await mount();expect(button('执行模拟退款')).toBeUndefined();expect(host.textContent).toContain('不产生真实资金划转')})
+ it('submits once while pending and labels the result as simulated',async()=>{let resolve!:(v:any)=>void;mocks.action.mockReturnValue(new Promise(r=>resolve=r));await mount();button('执行模拟退款')!.click();await flush();submit();submit();await flush();expect(mocks.action).toHaveBeenCalledTimes(1);resolve({...value(),status:'REFUNDED',actions:[],refundReference:'SIM-1'});await flush();expect(host.querySelector('.as-status-panel')?.textContent).toContain('退款完成（模拟）');expect(host.querySelector('.test-dialog')).toBeNull()})
+ it('preserves the dialog and entered reason after a failed operation',async()=>{mocks.detail.mockResolvedValue({...value(),status:'PENDING_PLATFORM',actions:['REJECT']});mocks.action.mockRejectedValue(new Error('network'));await mount();button('拒绝申请')!.click();await flush();const input=host.querySelector('textarea')!;input.value='请补充商品凭证';input.dispatchEvent(new Event('input'));submit();await flush();expect(host.querySelector('textarea')?.value).toBe('请补充商品凭证');expect(host.querySelector('.test-dialog')).not.toBeNull();expect(host.querySelector('.as-status-panel')?.textContent).toContain('待平台处理')})
+ it('does not replace a newly navigated case with an older operation response',async()=>{let resolve!:(v:any)=>void;mocks.action.mockReturnValue(new Promise(r=>resolve=r));await mount();button('执行模拟退款')!.click();await flush();submit();await flush();route.params.id='2';route.path='/admin/after-sales/2';await flush();resolve({...value(1),status:'REFUNDED',actions:[]});await flush();expect(host.querySelector('.as-kicker')?.textContent).toContain('AS2');expect(host.querySelector('.test-dialog')).toBeNull();expect(button('执行模拟退款')?.disabled).toBe(false)})
+ it('provides a retry state rather than fabricated case information after a load failure',async()=>{mocks.detail.mockRejectedValue(new Error('offline'));await mount();expect(host.textContent).toContain('售后信息暂不可用');expect(button('重新加载')).toBeDefined();expect(host.querySelector('.as-action-bar')).toBeNull()})
+})

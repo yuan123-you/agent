@@ -24,7 +24,7 @@
         <div><span>问题分类</span>{{ issueCategoryText }}</div>
         <div><span>申请原因</span>{{ action.reason }}</div>
       </div>
-      <div class="amount"><small>申请金额</small><b>¥{{ money(action.amount) }}</b></div>
+      <div v-if="action.serviceType !== 'EXCHANGE' && action.serviceType !== 'ISSUE_REPORT'" class="amount"><small>申请金额</small><b>¥{{ money(action.amount) }}</b></div><p v-else class="hint">本申请不涉及退款</p>
     </template>
 
     <footer class="action-footer">
@@ -38,6 +38,7 @@
         <el-button type="primary" :loading="action.status === 'CONFIRMING'" :disabled="isDeciding"
                    @click="action.type === 'ORDER_CREATE' ? openReview() : requestConfirm()">核对并确认</el-button>
       </div>
+      <el-button v-else-if="action.status === 'CONFIRMED' && action.afterSaleId" type="primary" plain @click="emit('view-after-sale',action.afterSaleId)">查看售后</el-button>
       <el-button v-else-if="action.status === 'CONFIRMED' && action.orderId" type="primary" plain
                  @click="emit('view-order', action.orderId)">查看订单</el-button>
     </footer>
@@ -81,6 +82,7 @@ const emit = defineEmits<{
   confirm: [actionId: string, approval?: OrderApprovalForm]
   cancel: [actionId: string]
   'view-order': [orderId?: number]
+  'view-after-sale': [afterSaleId: number]
 }>()
 
 const META: Record<string, { label: string; icon: unknown }> = {

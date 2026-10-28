@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str | None = None
     llm_chat_timeout_s: float = Field(default=60, gt=0)
     llm_intent_timeout_s: float = Field(default=20, gt=0)
+    # Only classification JSON is bounded; customer-facing answers remain uncapped.
+    llm_intent_max_tokens: int = Field(default=64, ge=32, le=256)
+    # Opt in only for an Ollama-compatible LLM endpoint; no model download/provider migration.
+    llm_warmup_enabled: bool = False
+    llm_warmup_timeout_s: float = Field(default=45, gt=0)
+    llm_keep_alive_s: int = Field(default=1800, ge=-1)
+    web_search_timeout_s: float = Field(default=4, gt=0)
+    web_search_total_timeout_s: float = Field(default=5, gt=0)
+    web_search_hedge_delay_s: float = Field(default=0.5, ge=0)
 
     # Embedding（可独立配置：对话与向量模型可为不同供应商，如 DeepSeek 对话 + 千问 embedding）
     embedding_api_base: str = ""   # 空 = 复用 llm_api_base

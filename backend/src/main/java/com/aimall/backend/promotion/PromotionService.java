@@ -198,6 +198,29 @@ public class PromotionService {
         }
     }
 
+    /** Pending orders reserve buyer quota. Only unpaid cancellation releases it; paid/refunded purchases
+     * retain quota conservatively. Call inside the order transaction, before campaign stock changes.
+     * requestedQuantity includes earlier lines for this campaign in the same checkout.
+     */
+    public void validateBuyerSeckill(Long userId, MallSeckill campaign, long requestedQuantity) {
+        if (seckillMapper.lockBuyer(userId) == null) throw new BizException(2003, "买家账号不存在");
+        checkBuyerQuota(userId, campaign, requestedQuantity, true);
+    }
+
+    /** Proposal validation only: no locks, reservations, or writes. Creation rechecks under the buyer lock. */
+    public void validateBuyerSeckillQuote(Long userId, MallSeckill campaign, int quantity) {
+        checkBuyerQuota(userId, campaign, quantity, false);
+    }
+
+    private void checkBuyerQuota(Long userId, MallSeckill campaign, long quantity, boolean locking) {
+        long purchased = seckillMapper.entitlementQuantities(userId, campaign.getId(), locking)
+                .stream().mapToLong(Integer::longValue).sum();
+        int limit = campaign.getSeckillLimit() == null ? 1 : campaign.getSeckillLimit();
+        if (quantity <= 0 || purchased + quantity > limit) {
+            throw new BizException(2207, "秒杀商品每人累计限购" + limit + "件（待支付占用名额，已支付及退款订单不退名额）");
+        }
+    }
+
     /** 秒杀乐观锁扣减库存（失败抛错回滚订单事务） */
     public void deductSeckillStock(MallSeckill seckill, int quantity) {
         for (int attempt = 0; attempt < 5; attempt++) {

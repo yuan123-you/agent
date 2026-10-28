@@ -157,6 +157,9 @@ export interface SeckillVO {
 }
 
 export interface OrderItemVO {
+  /** Authoritative admin fulfillment projection; quantity remains the purchased snapshot. */
+  dispatchableQuantity?: number
+  skuSp?: string
   orderItemId?: number
   reviewed?: boolean
   canReview?: boolean
@@ -169,6 +172,10 @@ export interface OrderItemVO {
 }
 
 export interface OrderVO {
+  discountAmount?: number
+  refundedAmount?: number
+  afterSaleItems?: import('./aftersale').AfterSaleEligibility[]
+  afterSales?: import('./aftersale').AfterSaleVO[]
   orderId: number
   orderNo: string
   status: string
@@ -246,6 +253,13 @@ export interface ChatMessage {
   id?: number
   startedAt?: number
   error?: string
+  errorCode?: number
+  requestId?: string
+  requestContent?: string
+  requestWebSearch?: boolean
+  retryMessageId?: number
+  recoveryAfterId?: number
+  recoveryScope?: string
   role: 'USER' | 'AI' | 'AGENT' | 'SYSTEM'
   content: string
   toolCalls?: ToolCard[]

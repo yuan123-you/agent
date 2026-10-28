@@ -57,13 +57,16 @@ class AgentOrderPriceIntegrityTest {
         product.setStock(10);
         product.setPrice(price == null ? null : new BigDecimal(price));
         when(products.selectById(10L)).thenReturn(product);
+        if (price != null && new BigDecimal(price).signum() >= 0) {
+            when(orderService.quoteForAgent(7L,10L,2)).thenReturn(new BigDecimal(price).multiply(BigDecimal.valueOf(2)));
+        }
         Conversation conversation = new Conversation();
         conversation.setId(20L);
         conversation.setUserId(7L);
         when(conversations.selectById(20L)).thenReturn(conversation);
     }
 
-    private void pendingAction() throws Exception {
+    private AgentAction pendingAction() throws Exception {
         AgentAction action = new AgentAction();
         action.setActionId("act-price");
         action.setUserId(7L);
@@ -74,6 +77,7 @@ class AgentOrderPriceIntegrityTest {
         action.setAmount(new BigDecimal("25.00"));
         action.setExpiresAt(clock.instant().plusSeconds(600));
         when(actions.selectForUpdate("act-price")).thenReturn(action);
+        return action;
     }
 
     @ParameterizedTest @NullSource @ValueSource(strings = {"-0.01", "-12.50"})
@@ -116,14 +120,15 @@ class AgentOrderPriceIntegrityTest {
         verify(actions).insert(action.capture());
         assertEquals(expected, action.getValue().getAmount());
         assertEquals("PENDING", action.getValue().getStatus());
-        verifyNoInteractions(orders, orderService, redis);
+        verifyNoInteractions(orders, redis);
+        verify(orderService, never()).create(anyLong(),any(),anyString(),anyLong());
     }
 
     @SuppressWarnings("unchecked")
     @ParameterizedTest @ValueSource(strings = {"0.00", "12.50"})
     void confirmationPreservesValidOrderAndIdempotencyWorkflow(String price) throws Exception {
         catalog(price);
-        pendingAction();
+        pendingAction().setAmount(new BigDecimal(price).multiply(BigDecimal.valueOf(2)));
         ValueOperations<String, String> values = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(values);
         OrderInfo order = new OrderInfo();
@@ -141,7 +146,7 @@ class AgentOrderPriceIntegrityTest {
         assertEquals(10L, request.getValue().getProductId());
         assertEquals(2, request.getValue().getQuantity());
         verify(actions).markConfirmed("act-price", 30L, order.getTotalAmount());
-        verify(values).get("ai:order:20:10");
-        verify(values).set("ai:order:20:10", "30", AgentOrderActionService.ACTION_TTL);
+        verify(values).get("ai:order:action:act-price");
+        verify(values).set("ai:order:action:act-price", "30", AgentOrderActionService.ACTION_TTL);
     }
 }

@@ -187,8 +187,8 @@ describe('stream rendering lifecycle', () => {
   it('does not leave a message pending after a transport ends without done', async () => {
     const { chat, completion, sending } = start()
     completion.resolve(); await sending
-    expect(chat.messages[1].status).toBe('FAILED')
-    expect(chat.messages[1].content).toContain('中断')
+    expect(chat.messages[1].status).toBe('INTERRUPTED')
+    expect(chat.messages[1].content).toBe('')
   })
 
   it.each(['error', 'stop'])('ends running tool indicators on %s', async (reason) => {

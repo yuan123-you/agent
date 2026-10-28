@@ -1,13 +1,13 @@
 {"query": "AI Mall 的账号可以借给别人使用吗？", "expected_doc_key": "platform-account-service", "must_hit": ["账号仅限本人使用", "不得转让"], "doc_type": "POLICY", "difficulty": "direct", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "订单已经发货了，我还能直接取消吗？", "expected_doc_key": "order-change-cancel", "must_hit": ["订单已经发货后不能直接取消", "拒收"], "doc_type": "FAQ", "difficulty": "paraphrase", "note": "AI Mall 正式服务知识库召回用例"}
-{"query": "退款会退到别人的账户吗？", "expected_doc_key": "payment-refund", "must_hit": ["按原支付路径退回", "退款详情"], "doc_type": "FAQ", "difficulty": "conditional", "note": "AI Mall 正式服务知识库召回用例"}
+{"query": "退款会退到别人的账户吗？", "expected_doc_key": "payment-refund", "must_hit": ["模拟退款", "SIM-"], "doc_type": "FAQ", "difficulty": "conditional", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "订单全额退款后，已经开的发票怎么处理？", "expected_doc_key": "invoice-service", "must_hit": ["红冲或作废", "整单退款"], "doc_type": "FAQ", "difficulty": "multi_hop", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "商品刚买就降价，平台一定会补差价吗？", "expected_doc_key": "membership-promotions", "must_hit": ["默认不补差价", "价格保护"], "doc_type": "FAQ", "difficulty": "temporal", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "物流显示已经签收，但我没有拿到包裹怎么办？", "expected_doc_key": "standard-delivery", "must_hit": ["显示签收但本人未收到", "核对家人"], "doc_type": "POLICY", "difficulty": "hard_negative", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "生鲜冷链商品收到时已经变质，该怎么取证？", "expected_doc_key": "special-delivery", "must_hit": ["立即检查温度状态", "连续开箱视频"], "doc_type": "POLICY", "difficulty": "direct", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "偏远地区的配送时间能按相邻城市来判断吗？", "expected_doc_key": "crossborder-remote-delivery", "must_hit": ["不按相邻地区推定", "地址校验结果"], "doc_type": "POLICY", "difficulty": "paraphrase", "note": "AI Mall 正式服务知识库召回用例"}
-{"query": "七天无理由是从签收后的第二天开始算吗？", "expected_doc_key": "seven-day-return", "must_hit": ["签收当日", "自然日"], "doc_type": "POLICY", "difficulty": "conditional", "note": "AI Mall 正式服务知识库召回用例"}
-{"query": "商品签收十天后出现非人为故障，可以免费换货吗？", "expected_doc_key": "quality-exchange", "must_hit": ["十五个自然日内", "免费换货"], "doc_type": "POLICY", "difficulty": "multi_hop", "note": "AI Mall 正式服务知识库召回用例"}
+{"query": "七天无理由是从签收后的第二天开始算吗？", "expected_doc_key": "seven-day-return", "must_hit": ["不配置统一七天", "人工核实"], "doc_type": "POLICY", "difficulty": "conditional", "note": "AI Mall 正式服务知识库召回用例"}
+{"query": "商品签收十天后出现非人为故障，可以免费换货吗？", "expected_doc_key": "quality-exchange", "must_hit": ["人工审核", "原 SKU"], "doc_type": "POLICY", "difficulty": "multi_hop", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "商品超过十五天才坏，还能申请售后吗？", "expected_doc_key": "warranty-repair", "must_hit": ["仍在质保期内", "申请维修"], "doc_type": "INTRO", "difficulty": "temporal", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "商家拒绝售后时，申请平台介入需要提供哪些材料？", "expected_doc_key": "complaint-mediation", "must_hit": ["完整聊天记录", "物流凭证"], "doc_type": "POLICY", "difficulty": "hard_negative", "note": "AI Mall 正式服务知识库召回用例"}
 {"query": "所谓平台客服向我要短信验证码，我应该给吗？", "expected_doc_key": "account-security-privacy", "must_hit": ["不会索取完整密码", "短信验证码"], "doc_type": "POLICY", "difficulty": "direct", "note": "AI Mall 正式服务知识库召回用例"}

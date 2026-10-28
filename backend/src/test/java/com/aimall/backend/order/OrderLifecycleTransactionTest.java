@@ -128,6 +128,7 @@ class OrderLifecycleTransactionTest {
         service = context.getBean(OrderService.class);
         notifier = context.getBean(OrderSseNotifier.class);
         createEntityTable("order_info", OrderInfo.class);
+        createEntityTable("after_sale", com.aimall.backend.entity.AfterSale.class);
         createEntityTable("order_item", OrderItem.class);
         createEntityTable("product", Product.class);
         createEntityTable("mall_sku", MallSku.class);
@@ -402,5 +403,34 @@ class OrderLifecycleTransactionTest {
         assertEquals("DELIVERED", jdbc.queryForObject("select status from order_info where id=30", String.class));
         assertNotNull(jdbc.queryForObject("select delivered_at from order_info where id=30", java.sql.Timestamp.class));
         verify(notifier, times(2)).publish(any(OrderInfo.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<OrderItem> dispatchItems() throws Exception {
+        return service.dispatchItemsOf(30L);
+    }
+    private int dispatchQuantity(OrderItem item) throws Exception {
+        return item.getDispatchableQuantity();
+    }
+    private void reduction(int quantity) {
+        jdbc.update("update order_info set status='PAID' where id=30");
+        Long itemId=jdbc.queryForObject("select id from order_item where order_id=30",Long.class);
+        jdbc.update("insert into after_sale(order_id,order_item_id,service_type,status,quantity,cancelled_fulfillment_quantity) values(30,?,'REFUND_ONLY','REFUNDED',?,?)",itemId,quantity,quantity);
+    }
+    @Test void partialPreShipmentRefundChangesDispatchProjectionNotPurchaseSnapshot() throws Exception {
+        reduction(1);var projected=dispatchItems();assertEquals(2,projected.get(0).getQuantity());assertEquals(1,dispatchQuantity(projected.get(0)));
+        var admin=new AdminOrderController(service,mock(com.aimall.backend.mapper.UserMapper.class));
+        var view=admin.list("PAID",1,20).getData().getRecords().get(0);
+        assertEquals(1,dispatchQuantity(((List<OrderItem>)view.get("items")).get(0)));
+        service.ship(30L,"REAL-TRACK",null);
+        assertEquals(2,jdbc.queryForObject("select quantity from order_item where order_id=30",Integer.class));
+    }
+    @Test void allReleasedFulfillmentUnitsCannotBeShippedEvenIfLegacyStatusStillPaid() {
+        reduction(2);assertEquals(2004,assertThrows(BizException.class,()->service.ship(30L,"REAL-TRACK",null)).getCode());
+        assertEquals("PAID",jdbc.queryForObject("select status from order_info where id=30",String.class));verifyNoInteractions(notifier);
+    }
+    @Test void refundMoneyAndCompletedReturnsAloneNeverReduceFulfillment() throws Exception {
+        reduction(0);jdbc.update("update after_sale set service_type='RETURN_REFUND',quantity=1,approved_refund_amount=10,cancelled_fulfillment_quantity=0");
+        assertEquals(2,dispatchQuantity(dispatchItems().get(0)));
     }
 }

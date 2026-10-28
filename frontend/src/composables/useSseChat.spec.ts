@@ -83,3 +83,25 @@ describe('streamChat transport lifecycle', () => {
     expect(callbacks.onDone).toHaveBeenCalledOnce()
   })
 })
+
+it('preserves server failure identity and distinguishes interrupted transport from model failure', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(responseFrom('event: error\ndata: {"code":5002,"message":"timeout","messageId":42}\n\n')))
+  const callbacks = { onToken: vi.fn(), onToolCall: vi.fn(), onToolResult: vi.fn(), onAction: vi.fn(), onError: vi.fn(), onDone: vi.fn() }
+  await streamChat({ conversationId: 1, content: 'hello', requestId: 'run-1', resumeOnly: true }, callbacks).promise
+  expect(callbacks.onError).toHaveBeenCalledWith(expect.objectContaining({ code: 5002, messageId: 42 }))
+  vi.unstubAllGlobals()
+})
+
+it('bounds a stalled connection and clears its idle timer after failure', async () => {
+  vi.useFakeTimers()
+  vi.stubGlobal('fetch', vi.fn((_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+  })))
+  const h = { onToken: vi.fn(), onToolCall: vi.fn(), onToolResult: vi.fn(), onAction: vi.fn(), onError: vi.fn(), onDone: vi.fn() }
+  const stream = streamChat({ conversationId: 1, content: 'hello' }, h)
+  const rejected = expect(stream.promise).rejects.toMatchObject({ name: 'AbortError' })
+  await vi.advanceTimersByTimeAsync(45000)
+  await rejected
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers(); vi.unstubAllGlobals()
+})

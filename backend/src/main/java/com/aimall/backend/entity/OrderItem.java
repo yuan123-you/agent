@@ -37,5 +37,9 @@ public class OrderItem {
 
     private Integer quantity;
 
+    /** Admin fulfillment projection only. Never persisted and never used for refund allocation. */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Integer dispatchableQuantity;
+
     private BigDecimal subtotal;
 }

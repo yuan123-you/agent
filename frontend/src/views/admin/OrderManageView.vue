@@ -9,7 +9,7 @@
         <el-option label="已支付" value="PAID" />
         <el-option label="已发货" value="SHIPPED" />
         <el-option label="已送达" value="DELIVERED" />
-        <el-option label="已取消" value="CANCELLED" />
+        <el-option label="已取消" value="CANCELLED" /><el-option label="已退款" value="REFUNDED" />
       </el-select>
     </div>
 
@@ -19,7 +19,7 @@
         <el-table-column prop="userNickname" label="买家" width="100" />
         <el-table-column label="商品" min-width="200">
           <template #default="{ row }">
-            <span v-for="(i, idx) in row.items" :key="idx">{{ i.productName }}×{{ i.quantity }} </span>
+            <span v-for="(i, idx) in row.items" :key="idx">{{ i.productName }}（购买{{ i.quantity }}，待发{{ i.dispatchableQuantity ?? 0 }}） </span>
           </template>
         </el-table-column>
         <el-table-column label="金额" width="100">
@@ -37,9 +37,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" width="160" />
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'PAID'" size="small" type="primary" @click="ship(row)">发货</el-button>
+            <el-button size="small" @click="$router.push({path:'/admin/after-sales',query:{orderId:row.orderId}})">售后记录</el-button>
+            <el-button v-if="row.status === 'PAID'" :disabled="!hasDispatchableItems(row)" size="small" type="primary" @click="ship(row)">发货</el-button>
             <el-button v-if="row.status === 'SHIPPED'" size="small" @click="deliver(row)">标记送达</el-button>
           </template>
         </el-table-column>
@@ -53,10 +54,10 @@
     <el-dialog v-model="shipDialog" title="订单发货" width="min(380px, 92vw)">
       <el-form label-width="80px">
         <el-form-item label="物流公司">
-          <el-input v-model="deliveryCompany" placeholder="如：顺丰速运（可留空）" />
+          <el-input v-model="deliveryCompany" maxlength="80" placeholder="物流公司（可留空）" />
         </el-form-item>
-        <el-form-item label="物流单号">
-          <el-input v-model="logisticsNo" placeholder="留空自动生成" />
+        <el-form-item label="物流单号" required>
+          <el-input v-model="logisticsNo" maxlength="100" placeholder="请输入真实物流单号（必填）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -118,7 +119,12 @@ function loadMore() {
   load()
 }
 
+function hasDispatchableItems(row: OrderVO): boolean {
+  return row.items.some(item => (item.dispatchableQuantity ?? 0) > 0)
+}
+
 function ship(row: OrderVO) {
+  if (!hasDispatchableItems(row)) return
   currentOrder.value = row
   logisticsNo.value = ''
   deliveryCompany.value = ''
@@ -127,7 +133,17 @@ function ship(row: OrderVO) {
 
 async function confirmShip() {
   if (!currentOrder.value) return
-  await apiAdminShip(currentOrder.value.orderId, logisticsNo.value.trim(), deliveryCompany.value.trim() || undefined)
+  const tracking = logisticsNo.value.trim()
+  const carrier = deliveryCompany.value.trim()
+  if (!tracking || tracking.length > 100) {
+    ElMessage.error('请填写100字以内的真实物流单号')
+    return
+  }
+  if (carrier.length > 80) {
+    ElMessage.error('物流公司不能超过80字')
+    return
+  }
+  await apiAdminShip(currentOrder.value.orderId, tracking, carrier || undefined)
   ElMessage.success('发货成功')
   shipDialog.value = false
   reload()
@@ -142,7 +158,7 @@ async function deliver(row: OrderVO) {
 function statusText(status: string): string {
   return {
     PENDING_PAYMENT: '待支付', PAID: '已支付', SHIPPED: '已发货',
-    DELIVERED: '已送达', CANCELLED: '已取消',
+    DELIVERED: '已送达', CANCELLED: '已取消', REFUNDED: '已退款',
   }[status] || status
 }
 

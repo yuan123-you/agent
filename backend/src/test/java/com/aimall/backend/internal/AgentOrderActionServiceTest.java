@@ -44,6 +44,14 @@ class AgentOrderActionServiceTest {
     @BeforeEach void setUp() {
         service = new AgentOrderActionService(addressService, actionMapper, productMapper, conversationMapper,
                 orderInfoMapper, orderItemMapper, afterSaleMapper, orderService, redisTemplate, new ObjectMapper(), clock);
+        lenient().when(orderService.quoteForAgent(anyLong(),anyLong(),anyInt())).thenAnswer(invocation -> {
+            Product product=productMapper.selectById((Long)invocation.getArgument(1));
+            return product==null?null:product.getPrice().multiply(BigDecimal.valueOf((Integer)invocation.getArgument(2)));
+        });
+        var workflow = new com.aimall.backend.aftersale.AfterSaleService(orderInfoMapper,orderItemMapper,productMapper,
+                mock(com.aimall.backend.mapper.MallSkuMapper.class),afterSaleMapper,mock(com.aimall.backend.mapper.MerchantMapper.class),
+                mock(com.aimall.backend.promotion.PromotionService.class),new ObjectMapper(),clock);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"afterSaleService",workflow);
     }
 
     @Test void prepareDoesNotCreateOrder() {
@@ -54,7 +62,7 @@ class AgentOrderActionServiceTest {
         var result = service.prepare(request(1L, 20L, 10L, 2));
         assertEquals("act-test", result.actionId());
         assertEquals(new BigDecimal("198.00"), result.amount());
-        verifyNoInteractions(orderService);
+        verify(orderService, never()).create(anyLong(), any(), anyString(), anyLong());
     }
 
     @Test void prepareUsesDefaultAddressWhenDeliveryFieldsAreOmitted() {
@@ -73,7 +81,7 @@ class AgentOrderActionServiceTest {
         assertEquals("李四", result.receiverName());
         assertEquals("13900139000", result.receiverPhone());
         assertEquals("浙江省杭州市西湖区文三路90号", result.receiverAddress());
-        verifyNoInteractions(orderService);
+        verify(orderService, never()).create(anyLong(), any(), anyString(), anyLong());
     }
 
     @Test void preparePropagatesMissingDefaultAddressWithoutCreatingAction() {
@@ -102,7 +110,7 @@ class AgentOrderActionServiceTest {
         verifyNoInteractions(orderService);
     }
 
-    @Test void confirmRevalidatesCurrentPriceAndCreatesExactlyOneOrder() throws Exception {
+    @Test void confirmPreservesReviewedPriceAndCreatesExactlyOneOrder() throws Exception {
         AgentAction action = pendingAction(1L, "2026-08-23T08:10:00Z");
         action.setPayload(new ObjectMapper().writeValueAsString(request(1L, 20L, 10L, 2)));
         when(actionMapper.selectForUpdate("act-ok")).thenReturn(action);
@@ -181,7 +189,7 @@ class AgentOrderActionServiceTest {
     private Conversation conversation(Long userId) { Conversation c = new Conversation(); c.setId(20L); c.setUserId(userId); return c; }
     private AgentAction pendingAction(Long userId, String expiresAt) {
         AgentAction a = new AgentAction(); a.setActionId("act"); a.setUserId(userId); a.setType("ORDER_CREATE");
-        a.setStatus("PENDING"); a.setConversationId(20L); a.setExpiresAt(Instant.parse(expiresAt)); return a;
+        a.setStatus("PENDING"); a.setAmount(new BigDecimal("240.00")); a.setConversationId(20L); a.setExpiresAt(Instant.parse(expiresAt)); return a;
     }
 
     @Test void prepareCancelOnlyPersistsPendingAction() {
@@ -221,7 +229,8 @@ class AgentOrderActionServiceTest {
         when(orderInfoMapper.selectById(30L)).thenReturn(order(30L, 1L, "DELIVERED"));
         when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
         OrderItem item = new OrderItem(); item.setId(41L); item.setOrderId(30L); item.setProductId(10L);
-        item.setQuantity(1); item.setPrice(new BigDecimal("120.00")); item.setProductName("测试商品");
+        item.setQuantity(1); item.setPrice(new BigDecimal("120.00")); item.setSubtotal(new BigDecimal("120.00")); item.setProductName("测试商品");
+        when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of(item));
         when(orderItemMapper.selectById(41L)).thenReturn(item);
         Product product = product("120.00", 5); product.setMerchantId(9L);
         when(productMapper.selectById(10L)).thenReturn(product);
@@ -267,4 +276,17 @@ class AgentOrderActionServiceTest {
         verify(actionMapper, never()).markBusinessConfirmed(anyString());
     }
 
+
+    @Test void preparedCardUsesTheEffectivePromotionQuoteRatherThanCatalogListPrice() {
+        when(productMapper.selectById(10L)).thenReturn(product("100.00",8));when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));
+        when(orderService.quoteForAgent(1L,10L,2)).thenReturn(new BigDecimal("140.00"));
+        var result=service.prepare(request(1L,20L,10L,2));assertEquals(new BigDecimal("140.00"),result.amount());assertEquals(new BigDecimal("70.00"),result.unitPrice());
+        var saved=org.mockito.ArgumentCaptor.forClass(AgentAction.class);verify(actionMapper).insert(saved.capture());assertEquals(new BigDecimal("140.00"),saved.getValue().getAmount());
+    }
+    @Test void finalOrderAmountMustStillMatchTheAmountReviewedByTheBuyer()throws Exception {
+        AgentAction action=pendingAction(1L,"2026-08-23T08:10:00Z");action.setPayload(new ObjectMapper().writeValueAsString(request(1L,20L,10L,2)));action.setAmount(new BigDecimal("198.00"));
+        when(actionMapper.selectForUpdate("act-price-race")).thenReturn(action);when(productMapper.selectById(10L)).thenReturn(product("99.00",5));when(conversationMapper.selectById(20L)).thenReturn(conversation(1L));when(orderService.quoteForAgent(1L,10L,2)).thenReturn(new BigDecimal("198.00"));
+        OrderInfo changed=new OrderInfo();changed.setId(88L);changed.setUserId(1L);changed.setTotalAmount(new BigDecimal("240.00"));when(orderService.create(eq(1L),any(),eq("AI"),eq(20L))).thenReturn(changed);
+        BizException error=assertThrows(BizException.class,()->service.confirm(1L,"act-price-race"));assertEquals(2015,error.getCode());verify(actionMapper,never()).markConfirmed(anyString(),anyLong(),any());
+    }
 }

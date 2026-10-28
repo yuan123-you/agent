@@ -56,7 +56,7 @@ class CartConcurrencyTransactionTest {
     static class RaceGate {
         volatile CyclicBarrier afterRead, beforeInsert;
         volatile CountDownLatch snapshot, release;
-        volatile boolean failDelete, missDelete;
+        volatile boolean failDelete, missDelete, missUpdate;
     }
     @Configuration
     @EnableTransactionManagement(proxyTargetClass = true)
@@ -104,6 +104,7 @@ class CartConcurrencyTransactionTest {
                             if (gate.failDelete) throw new IllegalStateException("injected cart persistence failure");
                             if (gate.missDelete) return 0;
                         }
+                        if (method.getName().equals("update") && gate.missUpdate) return 0;
                         Object result;
                         try { result = method.invoke(cart, args); }
                         catch (InvocationTargetException e) { throw e.getCause(); }
@@ -241,8 +242,26 @@ class CartConcurrencyTransactionTest {
     private CartController.CheckoutBody explicit(int quantity) {
         var b = checkoutBody(); var item = new CartController.CheckoutItemBody(); item.setProductId(1L); item.setQuantity(quantity); b.setItems(List.of(item)); return b;
     }
-    @Test void explicitPartialQuantityPreservesExistingWholeMatchingRowCleanupPolicy() {
-        row(5); controller.checkout(7L,explicit(2)); assertEquals(0,count("cart_item")); assertEquals(2,jdbc.queryForObject("select quantity from order_item",Integer.class));
+    @Test void explicitPartialQuantityRetainsUnpurchasedUnits() {
+        row(5); controller.checkout(7L,explicit(2)); assertEquals(3,qty()); assertEquals(2,jdbc.queryForObject("select quantity from order_item",Integer.class));
+    }
+    @Test void explicitDuplicateLinesSubtractTheirCombinedPurchasedQuantity() {
+        row(5); var body=explicit(1); body.setItems(List.of(body.getItems().get(0),body.getItems().get(0)));
+        controller.checkout(7L,body); assertEquals(3,qty());
+        assertEquals(2,jdbc.queryForObject("select sum(quantity) from order_item",Integer.class));
+    }
+    @Test void partialCleanupPersistenceFailureRollsBackOrderAndStock() {
+        row(5); jdbc.execute("alter table cart_item add constraint reject_partial_cleanup check(quantity>=5)");
+        assertThrows(RuntimeException.class,()->controller.checkout(7L,explicit(1)));
+        assertEquals(5,qty()); assertEquals(0,count("order_info"));
+        assertEquals(1000,jdbc.queryForObject("select stock from product",Integer.class));
+    }
+    @Test void partialCleanupCasMissRollsBackOrderAndStock() {
+        row(5);gate.missUpdate=true;assertEquals(2004,assertThrows(BizException.class,()->controller.checkout(7L,explicit(1))).getCode());
+        assertEquals(5,qty());assertEquals(0,count("order_info"));assertEquals(1000,jdbc.queryForObject("select stock from product",Integer.class));
+    }
+    @Test void explicitPurchaseAboveCartQuantityOnlyClearsExistingUnits() {
+        row(2);controller.checkout(7L,explicit(3));assertEquals(0,count("cart_item"));assertEquals(3,jdbc.queryForObject("select quantity from order_item",Integer.class));
     }
     @Test void explicitRepeatWithoutKeyIsNotNewlyForbidden() {
         controller.checkout(7L,explicit(2)); controller.checkout(7L,explicit(2)); assertEquals(2,count("order_info"));

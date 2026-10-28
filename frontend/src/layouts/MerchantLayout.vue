@@ -9,6 +9,7 @@
       </div>
       <el-menu :default-active="activeMenu" router class="menu">
         <el-menu-item index="/merchant/products">商品管理</el-menu-item>
+        <el-menu-item index="/merchant/after-sales">退款 / 售后</el-menu-item>
         <el-menu-item index="/merchant/reviews">评论回复</el-menu-item>
       </el-menu>
       <div class="aside-footer">
@@ -37,6 +38,7 @@
       </div>
       <el-menu :default-active="activeMenu" router class="drawer-menu" @select="drawer = false">
         <el-menu-item index="/merchant/products">商品管理</el-menu-item>
+        <el-menu-item index="/merchant/after-sales">退款 / 售后</el-menu-item>
         <el-menu-item index="/merchant/reviews">评论回复</el-menu-item>
       </el-menu>
       <div class="drawer-footer">

@@ -23,6 +23,21 @@ class ProductionTests(unittest.TestCase):
         self.assertIn('MYSQL_USERNAME: aimall', source)
         self.assertIn('restart: unless-stopped', source)
         self.assertIn('wget -q -O /dev/null http://127.0.0.1/', source)
+    def test_production_persists_private_after_sale_evidence(self):
+        source = (ROOT/'deploy/compose.production.yml').read_text(encoding='utf-8')
+        services, volumes = source.split('\nvolumes:\n', 1)
+        backend = re.search(r'(?ms)^  backend:\n(.*?)(?=^  [\w-]+:|\Z)', services)
+        self.assertIsNotNone(backend, 'Production backend service must exist')
+        mount = re.search(
+            r"(?<![\w./-])([\w.-]+):/app/data/after-sale-evidence(?=[,\]\s'\"]|$)",
+            backend.group(1))
+        self.assertIsNotNone(mount, 'Backend evidence directory needs a persistent named-volume mount')
+        name = re.escape(mount.group(1))
+        self.assertRegex(volumes, rf'(?m)^  {name}:', 'Evidence volume must be declared')
+        self.assertEqual(re.findall(rf"(?<![\w./-]){name}:(/[^,\]\s'\"]+)", services),
+                         ['/app/data/after-sale-evidence'], 'Evidence volume must not be shared with public services')
+        nginx = (ROOT/'deploy/frontend.production.conf').read_text(encoding='utf-8')
+        self.assertNotIn('after-sale-evidence', nginx, 'Private evidence must not be served by static Nginx')
     def test_nginx_hides_internal_routes(self):
         source = (ROOT/'deploy/aimall.nginx.conf').read_text(encoding='utf-8') + (ROOT/'deploy/aimall-proxy.conf').read_text(encoding='utf-8')
         for value in ['aimall.novo.ccwu.cc', 'location ^~ /internal/', 'location ^~ /actuator/', 'limit_req', 'X-Content-Type-Options', 'proxy_buffering off']:

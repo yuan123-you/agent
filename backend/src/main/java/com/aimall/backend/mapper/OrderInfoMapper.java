@@ -14,6 +14,20 @@ import java.util.Map;
 
 @Mapper
 public interface OrderInfoMapper extends BaseMapper<OrderInfo> {
+    @Select("SELECT id FROM order_info WHERE id = #{id} FOR UPDATE")
+    Long lockOrder(@Param("id") Long id);
+
+    @Select("SELECT * FROM order_info WHERE id = #{id} FOR UPDATE")
+    OrderInfo selectForUpdate(@Param("id") Long id);
+
+    @Select("SELECT COUNT(*) FROM after_sale WHERE order_id = #{id} AND service_type <> 'ISSUE_REPORT' " +
+            "AND status NOT IN ('CANCELLED','REJECTED','REFUNDED','EXCHANGED','RESOLVED')")
+    long countBlockingAfterSales(@Param("id") Long id);
+
+    @Select("SELECT id FROM after_sale WHERE order_id = #{id} AND service_type <> 'ISSUE_REPORT' " +
+            "AND status NOT IN ('CANCELLED','REJECTED','REFUNDED','EXCHANGED','RESOLVED') FOR UPDATE")
+    List<Long> blockingAfterSalesForUpdate(@Param("id") Long id);
+
 
     @Update({"<script>",
             "UPDATE order_info SET status=#{update.status}, updated_at=CURRENT_TIMESTAMP(3)",

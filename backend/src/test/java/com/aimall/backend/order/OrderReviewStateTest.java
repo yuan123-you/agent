@@ -29,6 +29,8 @@ class OrderReviewStateTest {
         context.registerBean(OrderService.class, () -> orders);
         context.registerBean(OrderSseNotifier.class, () -> mock(OrderSseNotifier.class));
         context.registerBean(ProductReviewMapper.class, () -> db.context.getBean(ProductReviewMapper.class));
+        context.registerBean(com.aimall.backend.aftersale.AfterSaleService.class,()->mock(com.aimall.backend.aftersale.AfterSaleService.class));
+        context.registerBean(com.aimall.backend.aftersale.AfterSaleEvidenceStorage.class,()->mock(com.aimall.backend.aftersale.AfterSaleEvidenceStorage.class));
         context.register(OrderController.class);
         context.refresh();
         controller = context.getBean(OrderController.class);

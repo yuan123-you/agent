@@ -1,5 +1,6 @@
 /** 认证状态（Pinia） */
 import { defineStore } from 'pinia'
+import { clearHotContentCache } from '@/api/hotContentCache'
 import { apiLogin, apiLogout, apiMe, apiRegister, apiRegisterCustomer, apiRegisterMerchant } from '@/api'
 import type { CustomerRegistration, LoginResp, MerchantRegistration, UserInfo } from '@/types/api'
 
@@ -16,12 +17,36 @@ interface AuthState {
   user: UserInfo | null
 }
 
+/** A malformed UI cache must not crash startup or retain an unusable credential pair. */
+function storedAuthState(): AuthState {
+  try {
+    const token = localStorage.getItem('token') || ''
+    const refreshToken = localStorage.getItem('refreshToken') || ''
+    const value: unknown = JSON.parse(localStorage.getItem('user') || 'null')
+    if (token && value && typeof value === 'object' && !Array.isArray(value)) {
+      const user = value as Record<string, unknown>
+      const role = user.role
+      if (Number.isSafeInteger(user.userId) && Number(user.userId) > 0 && typeof user.username === 'string'
+        && (typeof user.nickname === 'string' || user.nickname == null)
+        && (role === 'ADMIN' || role === 'AGENT' || role === 'CUSTOMER' || role === 'MERCHANT')) {
+        return { token, refreshToken, user: {
+          userId: Number(user.userId), username: user.username,
+          nickname: typeof user.nickname === 'string' ? user.nickname : user.username, role,
+          ...(typeof user.phone === 'string' ? { phone: user.phone } : {}),
+          ...(typeof user.email === 'string' ? { email: user.email } : {}),
+        } }
+      }
+    } else if (!token && !refreshToken && value === null) {
+      return { token: '', refreshToken: '', user: null }
+    }
+  } catch { /* Recover corrupt or inaccessible local storage as a signed-out state. */ }
+  clearHotContentCache()
+  try { for (const key of ['token', 'refreshToken', 'user']) localStorage.removeItem(key) } catch { /* Storage can be unavailable. */ }
+  return { token: '', refreshToken: '', user: null }
+}
+
 export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    token: localStorage.getItem('token') || '',
-    refreshToken: localStorage.getItem('refreshToken') || '',
-    user: JSON.parse(localStorage.getItem('user') || 'null'),
-  }),
+  state: storedAuthState,
   getters: {
     isLoggedIn: (s) => !!s.token,
     role: (s) => s.user?.role || '',
@@ -31,6 +56,7 @@ export const useAuthStore = defineStore('auth', {
   },
   actions: {
     setAuth(data: LoginResp) {
+      clearHotContentCache()
       if (data.accessToken) this.token = data.accessToken
       if (data.refreshToken) this.refreshToken = data.refreshToken
       if (data.user) this.user = data.user
@@ -39,6 +65,7 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('user', JSON.stringify(this.user))
     },
     logoutLocal() {
+      clearHotContentCache()
       this.token = ''
       this.refreshToken = ''
       this.user = null
@@ -61,12 +88,13 @@ export const useAuthStore = defineStore('auth', {
       return apiRegisterMerchant(payload)
     },
     async logout() {
+      const session = localStorage.getItem('refreshToken') || localStorage.getItem('token')
       try {
         await apiLogout()
       } catch {
         // 忽略登出接口异常
       } finally {
-        this.logoutLocal()
+        if (session === (localStorage.getItem('refreshToken') || localStorage.getItem('token'))) this.logoutLocal()
       }
     },
     async fetchMe() {

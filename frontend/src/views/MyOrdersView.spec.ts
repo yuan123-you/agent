@@ -27,7 +27,8 @@ async function mount() {
   app.component('ElButton', defineComponent({ props: ['disabled', 'loading'], setup(p, { slots, attrs }) { return () => h('button', { ...attrs, disabled: !!p.disabled || !!p.loading }, slots.default?.()) } }))
   app.component('ElDialog', defineComponent({ props: ['modelValue'], setup(p, { slots }) { return () => p.modelValue ? h('section', { class: 'test-dialog' }, [slots.default?.(), slots.footer?.()]) : null } }))
   app.component('ElInput', defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], setup(p, { emit }) { return () => h('textarea', { value: p.modelValue, onInput: (e: Event) => emit('update:modelValue', (e.target as HTMLTextAreaElement).value) }) } }))
-  app.component('ElTabs', defineComponent({ emits: ['update:modelValue', 'tab-change'], setup(_, { emit, slots }) { return () => h('div', [h('button', { class: 'test-change-tab', onClick: () => { emit('update:modelValue', 'PAID'); emit('tab-change') } }, '切换'), slots.default?.()]) } }))
+  app.component('ElTabs', defineComponent({ emits: ['update:modelValue', 'tab-change'], setup(_, { emit, slots }) { return () => h('div', [h('button', { class: 'test-change-tab', onClick: () => { emit('update:modelValue', 'PAID'); emit('tab-change') } }, '切换'), h('button', { class: 'test-review-tab', onClick: () => { emit('update:modelValue', 'PENDING_REVIEW'); emit('tab-change') } }, '切换待评价'), slots.default?.()]) } }))
+  app.component('ElImage', defineComponent({ props: ['src', 'alt'], setup(p) { return () => h('img', { src: p.src, alt: p.alt }) } }))
   app.component('ElEmpty', passthrough)
   app.mount(host); await flush()
 }
@@ -146,4 +147,176 @@ describe('order reviews and list lifecycle', () => {
     expect(host.querySelector('.test-dialog')?.textContent).toContain('ORD-60')
   })
 
+})
+
+
+describe('mature order presentation', () => {
+  it('shows product images, quantity totals and consistently formatted order amounts', async () => {
+    const value = { ...order(), totalAmount: 39.9, source: 'AI', createdAt: '2026-10-28T10:20:00',
+      items: [{ ...order().items[0], productImage: '/test-product.png', quantity: 2, price: 19.95 }] }
+    mocks.list.mockResolvedValue({ records: [value], total: 1 }); await mount()
+    expect(host.querySelector('.item-image')?.getAttribute('src')).toBe('/test-product.png')
+    expect(host.querySelector('.item-image')?.getAttribute('alt')).toBe('商品A')
+    expect(host.querySelector('.order-total')?.textContent).toContain('39.90')
+    expect(host.querySelector('.order-total')?.textContent).toContain('共 2 件商品')
+    expect(host.querySelector('.source')?.textContent).toContain('AI 下单')
+    expect(host.querySelector('.time')?.textContent).toContain('2026-10-28 10:20')
+  })
+  it.each([
+    ['PENDING_PAYMENT', '待付款', '去支付'], ['PAID', '待发货', undefined],
+    ['SHIPPED', '待收货', '确认收货'], ['DELIVERED', '已完成', '评价晒单'], ['CANCELLED', '已取消', undefined],
+  ])('gives %s its own customer-facing status and primary action', async (status, label, action) => {
+    mocks.list.mockResolvedValue({ records: [{ ...order(), status }], total: 1 }); await mount()
+    expect(host.querySelector('.order-status')?.textContent).toContain(label)
+    if (action) expect(button(action)?.classList.contains('order-primary-action')).toBe(true)
+    else expect(host.querySelector('.order-primary-action')).toBeNull()
+    expect(button('查看详情')).toBeDefined()
+  })
+  it('opens the actual product and order rather than a placeholder target', async () => {
+    await mount()
+    host.querySelector<HTMLButtonElement>('.item-product-link')!.click(); await flush()
+    expect(mocks.push).toHaveBeenCalledWith('/products/488')
+    button('查看详情')!.click(); await flush()
+    expect(mocks.push).toHaveBeenCalledWith('/orders/5')
+  })
+  it('does not fabricate shipping information when none was returned', async () => {
+    mocks.list.mockResolvedValue({ records: [{ ...order(), status: 'SHIPPED' }], total: 1 }); await mount()
+    expect(host.querySelector('.order-status-hint')?.textContent).toContain('商品已发出')
+    expect(host.textContent).not.toMatch(/顺丰|今日送达|免运费|旗舰店/)
+  })
+  it('distinguishes failed loading from empty orders and offers a working retry', async () => {
+    mocks.list.mockRejectedValueOnce(new Error('network')); await mount()
+    expect(host.querySelector('.orders-error')).not.toBeNull()
+    expect(host.querySelector('.orders-empty')).toBeNull()
+    button('重新加载')!.click(); await flush()
+    expect(mocks.list).toHaveBeenCalledTimes(2)
+    expect(host.querySelector('.orders-error')).toBeNull()
+    expect(host.textContent).toContain('ORD-5')
+  })
+  it('gives the empty list a real shopping entry point', async () => {
+    mocks.list.mockResolvedValue({ records: [], total: 0 }); await mount()
+    expect(host.querySelector('.orders-empty')?.textContent).toContain('暂无订单')
+    button('去逛逛')!.click(); await flush()
+    expect(mocks.push).toHaveBeenCalledWith('/products')
+  })
+})
+
+
+describe('order card edge cases', () => {
+  it('counts units across multiple products instead of counting product rows', async () => {
+    const value = order()
+    value.items[0].quantity = 2
+    value.items.push({ ...value.items[0], orderItemId: 52, productId: 489, quantity: 3 })
+    mocks.list.mockResolvedValue({ records: [value], total: 1 }); await mount()
+    expect(host.querySelectorAll('.item')).toHaveLength(2)
+    expect(host.querySelector('.order-total')?.textContent).toContain('共 5 件商品')
+  })
+  it('shows the returned carrier and tracking number without inventing a delivery promise', async () => {
+    mocks.list.mockResolvedValue({ records: [{ ...order(), status: 'SHIPPED', deliveryCompany: '测试物流', logisticsNo: 'TEST123' }], total: 1 }); await mount()
+    expect(host.querySelector('.order-status-hint')?.textContent).toContain('测试物流 · TEST123')
+    expect(host.querySelector('.order-status-hint')?.textContent).not.toContain('预计')
+  })
+  it('uses the selected status in its empty-state explanation and server total', async () => {
+    await mount()
+    mocks.list.mockResolvedValueOnce({ records: [], total: 0 })
+    host.querySelector<HTMLButtonElement>('.test-change-tab')!.click(); await flush()
+    expect(host.querySelector('.orders-empty')?.textContent).toContain('暂无待发货订单')
+    expect(host.querySelector('.order-count')?.textContent).toContain('共 0 笔')
+  })
+  it('keeps loaded orders and retries the failed next page without duplicating the first page', async () => {
+    mocks.list.mockResolvedValueOnce({ records: [order()], total: 2 }); await mount()
+    mocks.list.mockRejectedValueOnce(new Error('network'))
+    button('加载更多订单')!.click(); await flush()
+    expect(host.querySelectorAll('.order-card')).toHaveLength(1)
+    expect(host.querySelector('.orders-error')).not.toBeNull()
+    mocks.list.mockResolvedValueOnce({ records: [order(false, 6)], total: 2 })
+    button('重新加载')!.click(); await flush()
+    expect(mocks.list).toHaveBeenLastCalledWith({ page: 2, size: 10 })
+    expect(host.querySelectorAll('.order-card')).toHaveLength(2)
+    expect(host.querySelector('.orders-error')).toBeNull()
+  })
+})
+
+
+describe('consumer shopping order cards', () => {
+  it('puts totals and horizontal actions after products rather than in management-table columns', async () => {
+    await mount()
+    expect(host.querySelector('.orders-column-head')).toBeNull()
+    const card = host.querySelector('.order-card')!
+    expect(card.querySelector('.order-card-footer .order-total')).not.toBeNull()
+    expect(card.querySelector('.order-card-footer .actions')).not.toBeNull()
+    expect(card.querySelector('.item-code')).toBeNull()
+    expect(card.querySelector('.order-store')?.textContent).toContain('AI Mall')
+  })
+  it('makes repeat purchase and support actual navigation rather than decorative buttons', async () => {
+    await mount()
+    button('再次购买')!.click(); await flush()
+    expect(mocks.push).toHaveBeenCalledWith('/products/488')
+    host.querySelector<HTMLButtonElement>('.order-support')!.click(); await flush()
+    expect(mocks.push).toHaveBeenCalledWith('/assistant')
+  })
+  it('does not offer single-product repurchase for a multi-product or unavailable-product order', async () => {
+    const value = order(); value.items.push({ ...value.items[0], productId: 489 })
+    mocks.list.mockResolvedValueOnce({ records: [value, { ...order(false, 6), items: [] }], total: 2 }); await mount()
+    expect(button('再次购买')).toBeUndefined()
+  })
+  it('queries completed orders for the review tab, skips reviewed pages and counts only eligible orders', async () => {
+    await mount()
+    mocks.list.mockResolvedValueOnce({ records: [order(true)], total: 2 })
+      .mockResolvedValueOnce({ records: [order(false, 6)], total: 2 })
+    host.querySelector<HTMLButtonElement>('.test-review-tab')!.click(); await flush()
+    expect(mocks.list).toHaveBeenLastCalledWith({ page: 2, size: 10, status: 'DELIVERED' })
+    expect(host.querySelectorAll('.order-card')).toHaveLength(1)
+    expect(host.textContent).toContain('ORD-6')
+    expect(host.textContent).not.toContain('ORD-5')
+    expect(host.querySelector('.order-count')?.textContent).toContain('共 1 笔')
+  })
+  it('removes a fully reviewed order from the review tab after submission', async () => {
+    await mount()
+    host.querySelector<HTMLButtonElement>('.test-review-tab')!.click(); await flush()
+    await enterReview(); button('发表评价')!.click(); await flush()
+    expect(host.querySelectorAll('.order-card')).toHaveLength(0)
+    expect(host.querySelector('.orders-empty')?.textContent).toContain('暂无待评价订单')
+  })
+})
+
+
+describe('pending-review pagination accuracy', () => {
+  it('does not claim a completed-order total is the pending-review total before all pages are examined', async () => {
+    await mount()
+    mocks.list.mockResolvedValueOnce({ records: [order(false, 6)], total: 2 })
+    host.querySelector<HTMLButtonElement>('.test-review-tab')!.click(); await flush()
+    expect(host.querySelector('.order-count')?.textContent).toContain('已找到 1 笔')
+    mocks.list.mockResolvedValueOnce({ records: [order(true, 7)], total: 2 })
+    button('加载更多订单')!.click(); await flush()
+    expect(host.querySelectorAll('.order-card')).toHaveLength(1)
+    expect(host.querySelector('.order-count')?.textContent).toContain('共 1 笔')
+    expect(button('加载更多订单')).toBeUndefined()
+  })
+  it('reaches a genuine empty state only after all completed orders are checked', async () => {
+    await mount()
+    mocks.list.mockResolvedValueOnce({ records: [order(true, 6)], total: 2 })
+      .mockResolvedValueOnce({ records: [order(true, 7)], total: 2 })
+    host.querySelector<HTMLButtonElement>('.test-review-tab')!.click(); await flush()
+    expect(host.querySelector('.orders-empty')?.textContent).toContain('暂无待评价订单')
+    expect(host.querySelector('.order-count')?.textContent).toContain('共 0 笔')
+  })
+  it('does not scan another review page after a newer filter replaces its pending request', async () => {
+    await mount(); const old = deferred<any>()
+    mocks.list.mockReturnValueOnce(old.promise)
+    host.querySelector<HTMLButtonElement>('.test-review-tab')!.click(); await flush()
+    mocks.list.mockResolvedValueOnce({ records: [{ ...order(false, 9), status: 'PAID' }], total: 1 })
+    host.querySelector<HTMLButtonElement>('.test-change-tab')!.click(); await flush()
+    old.resolve({ records: [order(true, 6)], total: 10 }); await flush()
+    expect(mocks.list).toHaveBeenCalledTimes(3)
+    expect(host.textContent).toContain('ORD-9')
+    expect(host.textContent).not.toContain('ORD-6')
+  })
+})
+
+
+it('shows already-refunded money separately from the original paid amount',async()=>{
+  mocks.list.mockResolvedValue({records:[{...order(),refundedAmount:4.5}],total:1});await mount()
+  expect(host.querySelector('.order-refund-amount')?.textContent).toContain('4.50')
+  expect(host.querySelector('.order-total')?.textContent).toContain('10.00')
 })

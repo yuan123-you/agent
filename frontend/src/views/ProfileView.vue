@@ -37,6 +37,7 @@
 
     <!-- 菜单 -->
     <div class="menu-card">
+      <div class="menu-item" @click="$router.push('/after-sales')"><el-icon><ShoppingBag /></el-icon><span>退款 / 售后</span><el-icon class="arrow"><ArrowRight /></el-icon></div>
       <div class="menu-item" @click="$router.push('/assistant')">
         <el-icon><ChatDotRound /></el-icon>
         <span>AI 购物助手</span>

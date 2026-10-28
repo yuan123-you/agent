@@ -116,7 +116,7 @@
             </el-avatar>
 
             <!-- 消息气泡 -->
-            <div class="bubble" :class="{ user: msg.role === 'USER', assistant: msg.role === 'AI', failed: msg.status === 'FAILED' }">
+            <div class="bubble" :class="{ user: msg.role === 'USER', assistant: msg.role === 'AI' }">
               <AiMessage v-if="msg.role === 'AI'" :msg="msg" :streaming="chat.streaming && i === chat.messages.length - 1" />
               <div v-else class="plain">{{ msg.content }}</div>
             </div>
@@ -156,7 +156,7 @@
                 </el-tooltip>
               </div>
               <div class="actions-right">
-                <el-button v-if="chat.streaming" type="danger" round size="small" @click="chat.stopStream()">停止</el-button>
+                <el-button v-if="chat.streaming" type="danger" round size="small" @click="chat.stopStream()" title="暂停接收回复，稍后可恢复">暂停</el-button>
                 <el-button v-else type="primary" round size="small" :disabled="chat.loadingConversationId != null || !input.trim() || chat.current.status === 'PENDING_HUMAN'"
                   @click="send(input)">
                   发送
@@ -783,10 +783,6 @@ html.dark .bubble.assistant {
 
 html.dark .bubble.user {
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-}
-
-.bubble.failed {
-  border: 1px solid var(--el-color-danger-light-5);
 }
 
 .avatar {

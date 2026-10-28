@@ -14,21 +14,31 @@
       </div>
       <div class="thinking-copy">
         <span class="thinking-label">{{ waitingLabel }}…</span>
-        <span v-if="elapsedSeconds >= 12" class="thinking-hint">本次处理时间较长，你可以随时停止生成。</span>
+        <span v-if="elapsedSeconds >= 12" class="thinking-hint">等待时间较长，你可以先暂停接收，稍后恢复回复。</span>
       </div>
       <span class="thinking-elapsed" aria-hidden="true">已等待 {{ elapsedSeconds }} 秒</span>
     </div>
 
     <!-- 2. 正文流式 Markdown 输出 -->
-    <div v-show="msg.content?.trim()" class="md-content" v-html="html"></div>
+    <div v-show="answerContent.trim()" class="md-content" v-html="html"></div>
 
     <!-- 3. 流式打字呼吸光标 -->
     <span v-if="streaming && msg.content?.trim()" class="typing-cursor" />
 
-    <div v-if="!streaming && msg.status === 'FAILED'" class="reply-status failed" role="status">
-      {{ msg.error || '回复未完成，请重新发送消息重试' }}
+    <div v-if="!streaming && feedback" class="reply-status" :class="{ 'has-answer': answerContent.trim() }" role="status" aria-live="polite">
+      <svg class="status-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5" />
+        <path d="M10 6.5v4M10 13.4v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+      </svg>
+      <div class="status-copy">
+        <span class="status-title">{{ feedback.title }}</span>
+        <span class="status-detail">{{ feedbackDetail }}</span>
+        <button v-if="retryAvailable" class="reply-retry" type="button" @click.stop="chat.retryMessage(msg)">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.2 5.2 0 1 0 13 10M13 2v3.5H9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          {{ feedback.action === 'recover' ? '恢复回复' : '重新生成' }}
+        </button>
+      </div>
     </div>
-    <div v-else-if="!streaming && msg.status === 'STOPPED'" class="reply-status">已停止生成</div>
 
     <!-- 4. 订单动作确认卡片 -->
     <div v-if="msg.actions?.length" class="action-cards">
@@ -39,6 +49,7 @@
         @confirm="chat.confirmOrderAction"
         @cancel="chat.cancelOrderAction"
         @view-order="viewOrder"
+        @view-after-sale="id => router.push('/after-sales/'+id)"
       />
     </div>
   </div>
@@ -51,11 +62,17 @@ import { renderMarkdown } from '@/components/mall/link'
 import { useChatStore } from '@/stores/chat'
 import ToolCallCard from './ToolCallCard.vue'
 import type { ChatMessage } from '@/types/api'
+import { replyFeedback, visibleReplyContent } from './replyFeedback'
 
 const props = defineProps<{ msg: ChatMessage; streaming?: boolean }>()
 const router = useRouter()
 const chat = useChatStore()
-const html = computed(() => renderMarkdown(props.msg.content))
+const answerContent = computed(() => visibleReplyContent(props.msg))
+const html = computed(() => renderMarkdown(answerContent.value))
+const feedback = computed(() => replyFeedback(props.msg))
+const retryAvailable = computed(() => !!feedback.value?.action && chat.canRetryMessage(props.msg))
+const feedbackDetail = computed(() => feedback.value?.action && !retryAvailable.value
+  ? '此条回复未完成，可参考后续回复，或在下方继续提问。' : feedback.value?.detail)
 const now = ref(Date.now())
 const localStartedAt = ref(Date.now())
 const elapsedSeconds = computed(() => Math.max(0, Math.floor((now.value - (props.msg.startedAt ?? localStartedAt.value)) / 1000)))
@@ -162,8 +179,27 @@ function viewOrder(orderId?: number) {
 .thinking-copy { display: flex; flex-direction: column; gap: 4px; }
 .thinking-hint { color: var(--el-text-color-secondary); font-size: 11px; line-height: 1.5; }
 .thinking-elapsed { color: var(--el-text-color-secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.reply-status { margin-top: 8px; color: var(--el-text-color-secondary); font-size: 12px; }
-.reply-status.failed { color: var(--el-color-danger); }
+.reply-status {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  max-width: 480px; box-sizing: border-box; border: 1px solid var(--el-border-color-lighter, #e8ebef);
+  border-radius: 12px; background: var(--el-fill-color-extra-light, #fafbfc);
+  color: var(--el-text-color-regular, #515862); font-size: 13px; line-height: 1.6;
+}
+.reply-status.has-answer { margin-top: 12px; }
+.status-icon { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; color: var(--el-text-color-secondary, #87909c); }
+.status-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.status-title { font-weight: 500; color: var(--el-text-color-primary, #303640); }
+.status-detail { color: var(--el-text-color-regular, #606875); font-size: 12px; overflow-wrap: anywhere; }
+.reply-retry {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px;
+  margin-top: 7px; padding: 5px 12px; border: 1px solid var(--el-border-color, #dce1e7);
+  border-radius: 7px; background: var(--el-bg-color, #fff); color: var(--el-color-primary, #2563eb);
+  font: inherit; font-size: 12px; cursor: pointer;
+}
+.reply-retry svg { width: 14px; height: 14px; }
+.reply-retry:hover { background: var(--el-color-primary-light-9, #eff6ff); border-color: var(--el-color-primary-light-5, #9ec4ff); }
+.reply-retry:focus-visible { outline: 2px solid var(--el-color-primary, #2563eb); outline-offset: 3px; }
+@media (pointer: coarse) { .reply-retry { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) {
   .t-dot, .typing-cursor { animation: none; }
 }

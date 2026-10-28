@@ -21,8 +21,8 @@
       <!-- 2. 包邮与权益提示条 (对标拼多多/京东满减包邮提醒) -->
       <div v-if="items.length > 0" class="shipping-benefit-bar mall-card">
         <div class="sbb-left">
-          <span class="sbb-badge">顺丰包邮</span>
-          <span class="sbb-text">✨ 已享全场顺丰空运免运费 · 赠退货运费险</span>
+          <span class="sbb-badge">售后服务</span>
+          <span class="sbb-text">退款、退换货可在订单中申请并查看处理进度</span>
         </div>
         <span class="sbb-more" @click="$router.push('/coupons')">领券 ›</span>
       </div>
@@ -228,8 +228,8 @@
               </div>
             </div>
             <div class="cp-delivery-badge">
-              <span>🚚 顺丰速运 · 极速出库</span>
-              <span>📦 赠退货运费险</span>
+              <span>配送信息以订单登记为准</span>
+              <span>退换货与运费安排以审核及协商结果为准</span>
             </div>
           </div>
 

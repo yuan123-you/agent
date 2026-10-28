@@ -17,6 +17,8 @@ from app.agent.nodes import (
     finalize_without_tools,
     intent_router_node,
     route_by_intent,
+    route_after_tools,
+    web_answer_node,
     should_continue,
     small_talk_node,
 )
@@ -94,6 +96,7 @@ def build_graph(cp=None):
     builder.add_node("agent", agent_node)
     builder.add_node("tools", ToolNode(ALL_TOOLS))
     builder.add_node("small_talk", small_talk_node)
+    builder.add_node("web_answer", web_answer_node)
     builder.add_node("escalate_node", escalate_node)
     builder.add_node("finalize_without_tools", finalize_without_tools)
 
@@ -108,7 +111,8 @@ def build_graph(cp=None):
         should_continue,
         {"tools": "tools", "finalize_without_tools": "finalize_without_tools", END_FLAG: END},
     )
-    builder.add_edge("tools", "agent")
+    builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "web_answer": "web_answer"})
+    builder.add_edge("web_answer", END)
     builder.add_edge("small_talk", END)
     builder.add_edge("escalate_node", END)
     builder.add_edge("finalize_without_tools", END)

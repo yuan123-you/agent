@@ -324,17 +324,27 @@ public class CartController {
         var order = orderService.checkout(userId, items, body.getAddressId(),
                 body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress(),
                 body.getCouponUserId());
-        // Only the locked pre-order snapshot can be cleared. A persistence failure rolls back the order too.
+        // Consume only purchased units from the locked matching snapshot. The quantity CAS and
+        // outer transaction preserve concurrent additions and roll back order/stock on cleanup failure.
         for (CartItem snapshot : snapshots) {
-            int deleted = cartItemMapper.delete(new LambdaQueryWrapper<CartItem>()
+            long purchased = items.stream().filter(item -> snapshot.getProductId().equals(item.productId())
+                            && java.util.Objects.equals(snapshot.getSkuId() == null ? 0L : snapshot.getSkuId(), item.skuId()))
+                    .mapToLong(OrderService.CheckoutItem::quantity).sum();
+            int remaining = (int) Math.max(0L, snapshot.getQuantity() - purchased);
+            var condition = new LambdaQueryWrapper<CartItem>()
                     .eq(CartItem::getId, snapshot.getId())
                     .eq(CartItem::getUserId, userId)
                     .eq(CartItem::getProductId, snapshot.getProductId())
                     .eq(CartItem::getSkuId, snapshot.getSkuId() == null ? 0L : snapshot.getSkuId())
-                    .eq(CartItem::getQuantity, snapshot.getQuantity()));
-            if (deleted != 1) {
-                throw new BizException(2004, "购物车项已变化，请刷新后重试");
+                    .eq(CartItem::getQuantity, snapshot.getQuantity());
+            int changed;
+            if (remaining == 0) {
+                changed = cartItemMapper.delete(condition);
+            } else {
+                CartItem update = new CartItem(); update.setQuantity(remaining);
+                changed = cartItemMapper.update(update, condition);
             }
+            if (changed != 1) throw new BizException(2004, "购物车项已变化，请刷新后重试");
         }
         Map<String, Object> data = new HashMap<>();
         data.put("orderId", order.getId());

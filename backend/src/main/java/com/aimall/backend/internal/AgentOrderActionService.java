@@ -55,6 +55,9 @@ public class AgentOrderActionService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aimall.backend.aftersale.AfterSaleService afterSaleService;
+
     public record PrepareRequest(Long userId, Long conversationId, Long productId, Integer quantity,
                                  String receiverName, String receiverPhone, String receiverAddress) {}
     public record ApprovalRequest(String receiverName, String receiverPhone, String receiverAddress) {}
@@ -83,8 +86,9 @@ public class AgentOrderActionService {
         PrepareRequest prepared = withSavedDelivery(request);
         validateRequest(prepared);
         validateConversationOwner(prepared.userId(), prepared.conversationId());
-        Product product = requireAvailableProduct(prepared.productId(), prepared.quantity());
-        BigDecimal amount = product.getPrice().multiply(BigDecimal.valueOf(prepared.quantity()));
+        Product product = requireAvailableProduct(prepared.productId());
+        BigDecimal amount = orderService.quoteForAgent(prepared.userId(), prepared.productId(), prepared.quantity());
+        if (amount == null || amount.signum() < 0) throw new BizException(2013, "报价快照无效，请重新发起确认");
         Instant expiresAt = clock.instant().plus(ACTION_TTL);
 
         AgentAction action = new AgentAction();
@@ -98,7 +102,7 @@ public class AgentOrderActionService {
         action.setExpiresAt(expiresAt);
         actionMapper.insert(action);
         return new PrepareResult(action.getActionId(), product.getName(), prepared.quantity(),
-                product.getPrice(), amount, prepared.receiverName(), prepared.receiverPhone(),
+                amount.divide(BigDecimal.valueOf(prepared.quantity()), 2, java.math.RoundingMode.HALF_UP), amount, prepared.receiverName(), prepared.receiverPhone(),
                 prepared.receiverAddress(), expiresAt);
     }
 
@@ -134,7 +138,7 @@ public class AgentOrderActionService {
         actionMapper.insert(action);
         return new BusinessPrepareResult(AFTER_SALE_APPLY, action.getActionId(), order.getId(), order.getOrderNo(),
                 item.getId(), item.getProductName(), serviceType, issueCategory, reason, request.quantity(),
-                item.getPrice().multiply(BigDecimal.valueOf(request.quantity())), action.getExpiresAt());
+                afterSaleService.quote(request.userId(), request.orderId(), request.orderItemId(), serviceType, request.quantity()), action.getExpiresAt());
     }
 
     @Transactional
@@ -170,20 +174,10 @@ public class AgentOrderActionService {
             validateBusinessSnapshot(action, userId, request.userId(), request.conversationId(), request.orderId());
             OrderInfo order = requireAfterSaleOrder(userId, request.orderId());
             OrderItem item = requireOrderItem(order.getId(), request.orderItemId(), request.quantity());
-            Product product = productMapper.selectById(item.getProductId());
-            if (product == null) throw new BizException(2002, "订单商品不存在");
-            AfterSale afterSale = new AfterSale();
-            afterSale.setAfterSaleNo("AS" + clock.instant().toEpochMilli() + UUID.randomUUID().toString().substring(0, 6));
-            afterSale.setActionId(actionId); afterSale.setOrderId(order.getId()); afterSale.setOrderItemId(item.getId());
-            afterSale.setUserId(userId); afterSale.setMerchantId(product == null ? null : product.getMerchantId());
-            afterSale.setConversationId(request.conversationId()); afterSale.setServiceType(request.serviceType());
-            afterSale.setIssueCategory(request.issueCategory()); afterSale.setReason(request.reason());
-            afterSale.setQuantity(request.quantity());
-            afterSale.setRequestedRefundAmount(item.getPrice().multiply(BigDecimal.valueOf(request.quantity())));
-            boolean platform = "PLATFORM".equals(request.issueCategory());
-            afterSale.setStatus(platform ? "PENDING_PLATFORM" : "PENDING_MERCHANT");
-            afterSale.setCurrentHandler(platform ? "PLATFORM" : "MERCHANT");
-            afterSaleMapper.insert(afterSale);
+            AfterSale afterSale = afterSaleService.apply(userId,
+                    new com.aimall.backend.aftersale.AfterSaleService.Apply(order.getId(), item.getId(),
+                            request.serviceType(), request.issueCategory(), request.reason(), request.quantity(),
+                            null, java.util.List.of(), null), actionId, request.conversationId());
             if (actionMapper.markBusinessConfirmed(actionId) != 1) throw new BizException(2012, "操作已被处理");
             return new BusinessConfirmResult(AFTER_SALE_APPLY, "CONFIRMED", order.getId(), order.getOrderNo(),
                     order.getStatus(), afterSale.getId(), afterSale.getAfterSaleNo());
@@ -237,15 +231,20 @@ public class AgentOrderActionService {
             throw new BizException(2003, "操作快照归属校验失败");
         }
         validateConversationOwner(userId, request.conversationId());
-        Product current = requireAvailableProduct(request.productId(), request.quantity());
-        BigDecimal currentAmount = current.getPrice().multiply(BigDecimal.valueOf(request.quantity()));
+        requireAvailableProduct(request.productId());
+        BigDecimal currentAmount = orderService.quoteForAgent(userId, request.productId(), request.quantity());
+        if (action.getAmount() == null || action.getAmount().signum() < 0) throw new BizException(2013, "报价快照无效，请重新发起确认");
+        if (currentAmount == null || action.getAmount().compareTo(currentAmount) != 0) {
+            throw new BizException(2015, "商品价格或优惠已变化，请重新核对报价并发起确认");
+        }
 
-        String idempotencyKey = idempotencyKey(request.conversationId(), request.productId());
+        String idempotencyKey = idempotencyKey(actionId);
         try {
             String existingId = redisTemplate.opsForValue().get(idempotencyKey);
             if (existingId != null) {
                 OrderInfo existing = orderInfoMapper.selectById(Long.parseLong(existingId));
-                if (existing != null && userId.equals(existing.getUserId())) {
+                if (existing != null && userId.equals(existing.getUserId()) && "PENDING_PAYMENT".equals(existing.getStatus())
+                        && existing.getTotalAmount() != null && existing.getTotalAmount().compareTo(action.getAmount()) == 0) {
                     if (actionMapper.markConfirmed(actionId, existing.getId(), existing.getTotalAmount()) != 1) {
                         throw new BizException(2012, "操作已被处理，请勿重复确认");
                     }
@@ -265,6 +264,10 @@ public class AgentOrderActionService {
         create.setReceiverPhone(request.receiverPhone());
         create.setReceiverAddress(request.receiverAddress());
         OrderInfo order = orderService.create(userId, create, "AI", request.conversationId());
+        // A promotion may change between quoting and creation; the outer transaction must roll back.
+        if (order == null || order.getTotalAmount() == null || order.getTotalAmount().compareTo(action.getAmount()) != 0) {
+            throw new BizException(2015, "最终订单金额与已确认报价不一致，请重新核对");
+        }
         if (actionMapper.markConfirmed(actionId, order.getId(), order.getTotalAmount()) != 1) {
             throw new BizException(2012, "操作已被处理，请勿重复确认");
         }
@@ -445,14 +448,12 @@ public class AgentOrderActionService {
         }
     }
 
-    private Product requireAvailableProduct(Long productId, int quantity) {
+    private Product requireAvailableProduct(Long productId) {
         Product product = productMapper.selectById(productId);
         if (product == null || !"ON_SALE".equals(product.getStatus())) {
             throw new BizException(2005, "商品已下架");
         }
-        if (product.getStock() == null || product.getStock() < quantity) {
-            throw new BizException(2006, "库存不足");
-        }
+        // Effective quote validation owns ordinary/SKU/seckill stock rules.
         if (product.getPrice() == null || product.getPrice().signum() < 0) {
             throw new BizException(2001, "商品价格无效");
         }
@@ -473,8 +474,8 @@ public class AgentOrderActionService {
         catch (JsonProcessingException e) { throw new BizException(2013, "操作快照损坏"); }
     }
 
-    private String idempotencyKey(Long conversationId, Long productId) {
-        return "ai:order:" + conversationId + ":" + productId;
+    private String idempotencyKey(String actionId) {
+        return "ai:order:action:" + actionId;
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
 }

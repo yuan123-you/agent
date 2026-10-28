@@ -197,3 +197,125 @@ describe('catalog photograph deployment paths', () => {
     await expect(get('/products')).resolves.toEqual(rows)
   })
 })
+
+
+describe('transport response and account isolation', () => {
+  it('preserves a private evidence Blob instead of recursively converting it to an empty record', async () => {
+    const { default: instance, get } = await import('./request')
+    const proof = new Blob(['PNG-test'], { type: 'image/png' })
+    instance.defaults.adapter = async config => ({status:200,statusText:'OK',data:proof,config,headers:{}})
+    expect(await get('/after-sales/1/evidence/test.png', { responseType:'blob', cache:false })).toBe(proof)
+  })
+  it('preserves ArrayBuffer response identity', async () => {
+    const { default: instance, get } = await import('./request')
+    const bytes = new Uint8Array([1,2,3]).buffer
+    instance.defaults.adapter = async config => ({status:200,statusText:'OK',data:bytes,config,headers:{}})
+    expect(await get('/download', { responseType:'arraybuffer', cache:false })).toBe(bytes)
+  })
+  it('keeps the Axios response contract internally while the facade returns business data', async () => {
+    const { default: instance, get } = await import('./request')
+    instance.defaults.adapter = async config => ({status:200,statusText:'OK',data:{code:0,data:{id:1}},config,headers:{}})
+    const raw = await instance.get('/raw')
+    expect(raw.status).toBe(200); expect(raw.data).toEqual({id:1})
+    await expect(get('/raw')).resolves.toEqual({id:1})
+  })
+  it.each(['post','put','del','upload'] as const)('preserves the unwrapped %s facade contract', async method => {
+    const request = await import('./request')
+    request.default.defaults.adapter = async config => ({status:200,statusText:'OK',data:{code:0,data:{id:2}},config,headers:{}})
+    const result = method==='upload' ? request.upload('/write',new FormData()) : request[method]('/write')
+    await expect(result).resolves.toEqual({id:2})
+  })
+  it('does not overwrite a newer login when an older refresh finishes late', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, get } = await import('./request')
+    localStorage.setItem('token',jwt(Math.floor(Date.now()/1000)-1)); localStorage.setItem('refreshToken','old-refresh')
+    let resolveRefresh!: (value:any)=>void, signalRefresh!:()=>void
+    const started = new Promise<void>(resolve=>signalRefresh=resolve)
+    vi.spyOn(axios,'post').mockImplementation(()=>{signalRefresh();return new Promise(resolve=>resolveRefresh=resolve)})
+    const adapter=vi.fn(async config=>({status:200,statusText:'OK',data:{code:0,data:{}},config,headers:{}})); instance.defaults.adapter=adapter
+    const pending=get('/addresses'); const rejected=expect(pending).rejects.toMatchObject({name:'CanceledError'})
+    await started
+    localStorage.setItem('token','new-account-access');localStorage.setItem('refreshToken','new-account-refresh')
+    resolveRefresh({data:{code:0,data:{accessToken:'old-account-renewed'}}})
+    await rejected
+    expect(localStorage.getItem('token')).toBe('new-account-access');expect(adapter).not.toHaveBeenCalled()
+  })
+  it('does not refresh or replay an old-account mutation under a newly signed-in account', async () => {
+    const axios = (await import('axios')).default
+    const { default: instance, post, setUnauthorizedHandler } = await import('./request')
+    localStorage.setItem('token','old-access');localStorage.setItem('refreshToken','old-refresh')
+    let release!:()=>void, signal!:()=>void
+    const started=new Promise<void>(resolve=>signal=resolve), gate=new Promise<void>(resolve=>release=resolve)
+    const refresh=vi.spyOn(axios,'post').mockResolvedValue({data:{code:0,data:{accessToken:'unexpected-renewal'}}})
+    const unauthorized=vi.fn();setUnauthorizedHandler(unauthorized)
+    const adapter=vi.fn(async config=>{signal();await gate;throw new axios.AxiosError('Rejected','ERR_BAD_RESPONSE',config,undefined,{status:401,statusText:'Unauthorized',data:{code:1003},config,headers:{}})})
+    instance.defaults.adapter=adapter
+    const pending=post('/addresses',{receiverName:'old-account draft'});const rejected=expect(pending).rejects.toMatchObject({name:'CanceledError'})
+    await started
+    localStorage.setItem('token','new-access');localStorage.setItem('refreshToken','new-refresh');release()
+    await rejected
+    expect(adapter).toHaveBeenCalledTimes(1);expect(refresh).not.toHaveBeenCalled();expect(unauthorized).not.toHaveBeenCalled();expect(localStorage.getItem('token')).toBe('new-access')
+  })
+  it('discards a successful private response from an account that has since logged out', async () => {
+    const { default: instance, get } = await import('./request')
+    let finish!:(value:any)=>void, signal!:()=>void
+    const started=new Promise<void>(resolve=>signal=resolve)
+    instance.defaults.adapter=config=>{signal();return new Promise(resolve=>finish=value=>resolve({status:200,statusText:'OK',data:{code:0,data:value},config,headers:{}}))}
+    const pending=get('/orders/my',{cache:false});const rejected=expect(pending).rejects.toMatchObject({name:'CanceledError'})
+    await started;localStorage.clear();finish({records:[{privateData:'old account'}]});await rejected
+  })
+})
+
+
+it('keeps a peer tab access-token refresh in the same refresh-token session without logging it out', async () => {
+  const axios=(await import('axios')).default
+  const {default:instance,get,setUnauthorizedHandler}=await import('./request')
+  localStorage.setItem('token',jwt(Math.floor(Date.now()/1000)-1));localStorage.setItem('refreshToken','shared-refresh')
+  let finish!:(v:any)=>void,signal!:()=>void
+  const started=new Promise<void>(resolve=>signal=resolve)
+  vi.spyOn(axios,'post').mockImplementation(()=>{signal();return new Promise(resolve=>finish=resolve)})
+  const unauthorized=vi.fn();setUnauthorizedHandler(unauthorized)
+  const authorizations:unknown[]=[]
+  instance.defaults.adapter=async config=>{authorizations.push(config.headers.Authorization);return{status:200,statusText:'OK',data:{code:0,data:{items:[]}},config,headers:{}}}
+  const request=get('/cart');await started
+  localStorage.setItem('token','peer-refreshed-access')
+  finish({data:{code:0,data:{accessToken:'older-refresh-result'}}})
+  await expect(request).resolves.toEqual({items:[]})
+  expect(authorizations).toEqual(['Bearer peer-refreshed-access']);expect(localStorage.getItem('token')).toBe('peer-refreshed-access');expect(unauthorized).not.toHaveBeenCalled()
+})
+
+
+it('does not copy a refresh credential into serializable request metadata',async()=>{
+  const {default:instance,get}=await import('./request')
+  localStorage.setItem('token','access-token');localStorage.setItem('refreshToken','private-refresh-token')
+  instance.defaults.adapter=async config=>{
+    const marker=(config as typeof config & {_authSession?: string})._authSession
+    expect(marker).not.toBe('private-refresh-token');expect(marker).toMatch(/^session:\d+$/)
+    return {status:200,statusText:'OK',data:{code:0,data:{}},config,headers:{}}
+  }
+  await get('/orders/my',{cache:false})
+})
+
+
+it('does not treat public coupon endpoints with user-specific received state as shared catalog data',async()=>{
+  const {default:instance,get}=await import('./request')
+  let finish!:(value:any)=>void,signal!:()=>void
+  const started=new Promise<void>(resolve=>signal=resolve)
+  instance.defaults.adapter=config=>{signal();return new Promise(resolve=>finish=value=>resolve({status:200,statusText:'OK',data:{code:0,data:value},config,headers:{}}))}
+  const pending=get('/promotions/coupons',{cache:false});const rejected=expect(pending).rejects.toMatchObject({name:'CanceledError'})
+  await started;localStorage.setItem('token','new-user-access');localStorage.setItem('refreshToken','new-user-refresh');finish([{id:1,received:true}]);await rejected
+})
+
+
+it('does not erase a same-session peer refresh when this tab refresh fails',async()=>{
+  const axios=(await import('axios')).default
+  const {default:instance,get,setUnauthorizedHandler}=await import('./request')
+  localStorage.setItem('token',jwt(Math.floor(Date.now()/1000)-1));localStorage.setItem('refreshToken','shared-session')
+  let fail!:(error:Error)=>void,signal!:()=>void
+  const started=new Promise<void>(resolve=>signal=resolve)
+  vi.spyOn(axios,'post').mockImplementation(()=>{signal();return new Promise((_,reject)=>fail=reject)})
+  const unauthorized=vi.fn();setUnauthorizedHandler(unauthorized)
+  instance.defaults.adapter=async config=>({status:200,statusText:'OK',data:{code:0,data:{owner:'same user'}},config,headers:{}})
+  const pending=get('/cart');await started;localStorage.setItem('token','peer-current-access');fail(new Error('refresh network outage'))
+  await expect(pending).resolves.toEqual({owner:'same user'});expect(localStorage.getItem('token')).toBe('peer-current-access');expect(unauthorized).not.toHaveBeenCalled()
+})

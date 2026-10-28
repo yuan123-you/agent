@@ -68,6 +68,8 @@ services:
       OLLAMA_NUM_PARALLEL: '1'
       OLLAMA_MAX_LOADED_MODELS: '1'
       OLLAMA_CONTEXT_LENGTH: '4096'
+      # Keep the existing chat/classification model resident; embeddings have a separate service.
+      OLLAMA_KEEP_ALIVE: '-1'
     volumes: [ollama-data:/root/.ollama]
     healthcheck:
       test: [CMD, ollama, list]
@@ -106,6 +108,9 @@ services:
       LLM_REASONING_EFFORT: none
       LLM_CHAT_TIMEOUT_S: '60'
       LLM_INTENT_TIMEOUT_S: '30'
+      LLM_INTENT_MAX_TOKENS: '64'
+      LLM_WARMUP_ENABLED: 'true'
+      LLM_KEEP_ALIVE_S: '-1'
       EMBEDDING_PROVIDER: ollama
       EMBEDDING_MODEL: shaw/dmeta-embedding-zh
       EMBEDDING_DIM: '768'
@@ -161,6 +166,7 @@ services:
       SERVER_ERROR_INCLUDE_MESSAGE: never
       SERVER_ERROR_INCLUDE_STACKTRACE: never
       CHAT_RATE_LIMIT: '5'
+    volumes: [after-sale-evidence:/app/data/after-sale-evidence]
     depends_on:
       mysql: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -194,3 +200,4 @@ volumes:
   ollama-data:
   embeddings-data:
   ai-service-data:
+  after-sale-evidence:

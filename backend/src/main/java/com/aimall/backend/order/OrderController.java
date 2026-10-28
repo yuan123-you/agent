@@ -36,6 +36,9 @@ public class OrderController {
     @Autowired
     private ProductReviewMapper reviewMapper;
 
+    @Autowired
+    private com.aimall.backend.aftersale.AfterSaleService afterSaleService;
+
     /** 订单状态订阅（SSE）：状态变更时接收 order_status 事件 */
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(@AuthenticationPrincipal Long userId) {
@@ -68,13 +71,11 @@ public class OrderController {
         return ApiResponse.ok();
     }
 
-    /** 模拟商家发货（仅本人已支付订单：PAID -> SHIPPED） */
+    /** Legacy demo endpoint retained only to fail closed; buyers cannot dispatch business orders. */
+    @Deprecated
     @PostMapping("/{id}/simulate-ship")
     public ApiResponse<Void> simulateShip(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
-        OrderInfo order = orderService.requireOwned(userId, id);
-        String sfNo = "SF" + (System.currentTimeMillis() % 10000000000L);
-        orderService.ship(order.getId(), sfNo, "顺丰速运");
-        return ApiResponse.ok();
+        throw new com.aimall.backend.common.BizException(2003, "买家不能执行发货，请由授权的订单管理端登记真实物流");
     }
 
     /** 买家确认收货（仅本人已发货订单：SHIPPED -> DELIVERED） */
@@ -124,6 +125,12 @@ public class OrderController {
                         .select(ProductReview::getProductId)
                         .eq(ProductReview::getUserId, userId)
                         .in(ProductReview::getProductId, productIds)));
+        vo.put("discountAmount", order.getDiscountAmount());
+        if (afterSaleService != null) {
+            vo.put("afterSaleItems", afterSaleService.eligibility(userId, order.getId()));
+            vo.put("afterSales", afterSaleService.forOrder(userId, order.getId()));
+            vo.put("refundedAmount", afterSaleService.refundedAmount(order.getId()));
+        }
         vo.put("items", items.stream().map(i -> {
             Map<String, Object> itemVo = new HashMap<>();
             boolean reviewed = reviewedProducts.contains(i.getProductId());
@@ -136,6 +143,7 @@ public class OrderController {
             itemVo.put("price", i.getPrice());
             itemVo.put("quantity", i.getQuantity());
             itemVo.put("subtotal", i.getSubtotal());
+            itemVo.put("skuSp", i.getSkuSp());
             return itemVo;
         }).toList());
         return vo;
@@ -148,6 +156,7 @@ public class OrderController {
             case "SHIPPED" -> "已发货";
             case "DELIVERED" -> "已送达";
             case "CANCELLED" -> "已取消";
+            case "REFUNDED" -> "已退款";
             default -> status;
         };
     }

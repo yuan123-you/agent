@@ -82,3 +82,6 @@ id_ed25519*
 
 aimall-*.png
 *.png
+
+# Private after-sale evidence (served only after case authorization)
+**/data/after-sale-evidence/

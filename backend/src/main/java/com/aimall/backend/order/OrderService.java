@@ -49,6 +49,33 @@ public class OrderService {
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /** Read-only effective TOTAL for an Agent proposal. No address, reservation, or order writes.
+     * SKU products must be ordered on the product page with an explicit variant.
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal quoteForAgent(Long userId, Long productId, int quantity) {
+        if (userId == null || userId <= 0) throw new BizException(2003, "请先登录后下单");
+        validateOrderInput(productId, quantity);
+        Product product = productMapper.selectById(productId);
+        if (product == null || !"ON_SALE".equals(product.getStatus())) throw new BizException(2005, "商品已下架");
+        validatePrice(product);
+        MallSku sku = resolveSku(product, null);
+        var seckill = promotionService.resolveSeckill(productId);
+        if (seckill != null) {
+            promotionService.validateSeckill(seckill, quantity);
+            promotionService.validateBuyerSeckillQuote(userId, seckill, quantity);
+        }
+        else if (product.getStock() == null || product.getStock() < quantity) throw new BizException(2006, "库存不足");
+        return effectiveUnitPrice(product, sku, seckill).multiply(BigDecimal.valueOf(quantity));
+    }
+
+    private BigDecimal effectiveUnitPrice(Product product, MallSku sku,
+                                          com.aimall.backend.entity.MallSeckill seckill) {
+        BigDecimal price = seckill != null ? seckill.getSeckillPrice() : sku != null ? sku.getPrice() : product.getPrice();
+        if (price == null || price.signum() < 0) throw new BizException(2001, "商品价格无效");
+        return price;
+    }
+
     /** 下单（页面或 AI 工具统一入口）：事务 + 乐观锁防超卖。skuId 可空=无规格商品 */
     @Transactional
     public OrderInfo create(Long userId, OrderDtos.CreateOrderRequest req, String source, Long conversationId) {
@@ -68,6 +95,7 @@ public class OrderService {
         com.aimall.backend.entity.MallSeckill seckill = promotionService.resolveSeckill(product.getId());
         if (seckill != null) {
             promotionService.validateSeckill(seckill, req.getQuantity());
+            promotionService.validateBuyerSeckill(userId, seckill, req.getQuantity());
         }
         if (seckill != null) {
             // 秒杀下单：仅扣秒杀专属库存（mall 模式），不占用商品/SKU 常规库存
@@ -80,8 +108,7 @@ public class OrderService {
         }
 
         // 订单 + 明细（价格名称快照）
-        BigDecimal unitPrice = seckill != null ? seckill.getSeckillPrice()
-                : (sku != null ? sku.getPrice() : product.getPrice());
+        BigDecimal unitPrice = effectiveUnitPrice(product, sku, seckill);
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(req.getQuantity()));
         // 优惠券：先校验门槛并计算优惠，订单落库后核销
         BigDecimal discount = req.getCouponUserId() == null ? BigDecimal.ZERO
@@ -182,6 +209,22 @@ public class OrderService {
                 .eq(OrderItem::getOrderId, orderId));
     }
 
+    /** Purchased quantity stays immutable; only the persisted per-case release marker reduces dispatch. */
+    public List<OrderItem> dispatchItemsOf(Long orderId) {
+        boolean locking = TransactionSynchronizationManager.isActualTransactionActive()
+                && !TransactionSynchronizationManager.isCurrentTransactionReadOnly();
+        java.util.Map<Long, Long> reductions = new java.util.HashMap<>();
+        for (var c : orderItemMapper.fulfillmentReductions(orderId, locking)) {
+            reductions.merge(c.getOrderItemId(), c.getCancelledFulfillmentQuantity().longValue(), Long::sum);
+        }
+        List<OrderItem> items = itemsOf(orderId);
+        for (OrderItem item : items) {
+            long released = reductions.getOrDefault(item.getId(), 0L);
+            item.setDispatchableQuantity((int) Math.max(0L, item.getQuantity() - released));
+        }
+        return items;
+    }
+
     // ---------- 管理端 ----------
 
     public Page<OrderInfo> adminList(String status, long page, long size) {
@@ -193,13 +236,24 @@ public class OrderService {
 
     @Transactional
     public void ship(Long orderId, String logisticsNo, String deliveryCompany) {
+        String tracking = logisticsNo == null ? "" : logisticsNo.trim();
+        String carrier = deliveryCompany == null ? null : deliveryCompany.trim();
+        if (tracking.isEmpty() || tracking.length() > 100) throw new BizException(2001, "请填写100字以内的真实物流单号");
+        if (carrier != null && carrier.length() > 80) throw new BizException(2001, "物流公司不能超过80字");
         OrderInfo order = orderInfoMapper.selectById(orderId);
         if (order == null) {
             throw new BizException(2002, "订单不存在");
         }
+        orderInfoMapper.lockOrder(orderId);
+        if (!orderInfoMapper.blockingAfterSalesForUpdate(orderId).isEmpty()) {
+            throw new BizException(2004, "订单有进行中的退款/售后，请先处理后再发货");
+        }
+        if (dispatchItemsOf(orderId).stream().noneMatch(item -> item.getDispatchableQuantity() > 0)) {
+            throw new BizException(2004, "订单已无可发货数量，请核对退款记录");
+        }
         OrderInfo update = new OrderInfo();
-        update.setLogisticsNo(logisticsNo);
-        update.setDeliveryCompany(deliveryCompany);
+        update.setLogisticsNo(tracking);
+        update.setDeliveryCompany(carrier == null || carrier.isEmpty() ? null : carrier);
         update.setShippedAt(LocalDateTime.now());
         transition(order, OrderTransition.SHIP, update);
         publishAfterCommit(order);
@@ -286,6 +340,7 @@ public class OrderService {
         DeliveryInfo delivery = resolveDelivery(userId, addressId, receiverName, receiverPhone, receiverAddress);
         BigDecimal total = BigDecimal.ZERO;
         List<OrderItem> pendingItems = new ArrayList<>();
+        java.util.Map<Long, Long> campaignQuantities = new java.util.HashMap<>();
         for (CheckoutItem ci : items) {
             Product product = productMapper.selectById(ci.productId());
             if (product == null || !"ON_SALE".equals(product.getStatus())) {
@@ -296,6 +351,9 @@ public class OrderService {
             com.aimall.backend.entity.MallSeckill seckill = promotionService.resolveSeckill(product.getId());
             if (seckill != null) {
                 promotionService.validateSeckill(seckill, ci.quantity());
+                long requested = campaignQuantities.getOrDefault(seckill.getId(), 0L) + ci.quantity();
+                promotionService.validateBuyerSeckill(userId, seckill, requested);
+                campaignQuantities.put(seckill.getId(), requested);
             }
             if (seckill != null) {
                 // 秒杀下单：仅扣秒杀专属库存
@@ -306,8 +364,7 @@ public class OrderService {
                     deductSkuStock(sku, ci.quantity());
                 }
             }
-            BigDecimal unitPrice = seckill != null ? seckill.getSeckillPrice()
-                    : (sku != null ? sku.getPrice() : product.getPrice());
+            BigDecimal unitPrice = effectiveUnitPrice(product, sku, seckill);
             BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(ci.quantity()));
             total = total.add(subtotal);
             OrderItem item = new OrderItem();
@@ -356,6 +413,10 @@ public class OrderService {
      */
     private MallSku resolveSku(Product product, Long skuId) {
         if (skuId == null || skuId <= 0) {
+            if (skuMapper.selectCount(new LambdaQueryWrapper<MallSku>()
+                    .eq(MallSku::getProductId, product.getId())) > 0) {
+                throw new BizException(2108, "该商品需要选择规格，请前往商品详情选择规格后下单");
+            }
             return null;
         }
         MallSku sku = skuMapper.selectById(skuId);

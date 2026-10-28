@@ -1,6 +1,7 @@
 """LLM and embedding factories backed entirely by environment configuration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from functools import lru_cache
 from typing import Awaitable, Callable, TypeVar
@@ -30,7 +31,7 @@ def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
     )
 
 
-def get_intent_llm() -> ChatOpenAI:
+def get_intent_llm(*, classification: bool = True) -> ChatOpenAI:
     """意图识别模型（低延迟、温度 0）"""
     return ChatOpenAI(
         base_url=settings.llm_api_base,
@@ -40,8 +41,31 @@ def get_intent_llm() -> ChatOpenAI:
         streaming=False,
         timeout=settings.llm_intent_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
-        max_retries=1,
+        max_retries=0,
+        max_tokens=getattr(settings, "llm_intent_max_tokens", 64) if classification else None,
     )
+
+
+async def warm_local_models() -> None:
+    """Prime existing model weights and static prompt prefixes before accepting user traffic."""
+    if not settings.llm_warmup_enabled:
+        return
+    from app.agent.prompts import INTENT_SYSTEM_PROMPT, WEB_SYSTEM_PROMPT
+
+    base = settings.llm_api_base.rstrip("/").removesuffix("/v1")
+    jobs = [(settings.llm_intent_model, INTENT_SYSTEM_PROMPT),
+            (settings.llm_chat_model, WEB_SYSTEM_PROMPT)]
+    async with asyncio.timeout(settings.llm_warmup_timeout_s):
+        async with httpx.AsyncClient(timeout=settings.llm_warmup_timeout_s) as client:
+            for model, prompt in jobs:
+                response = await client.post(base + "/api/chat", json={
+                    "model": model, "messages": [{"role": "system", "content": prompt}],
+                    "stream": False, "keep_alive": settings.llm_keep_alive_s,
+                    # A single preload token only; user-facing answers have no new output cap.
+                    "options": {"num_predict": 1, "temperature": 0},
+                })
+                response.raise_for_status()
+                logger.info("local LLM prompt prefix preloaded: %s", model)
 
 
 class MaaSEmbeddings(Embeddings):

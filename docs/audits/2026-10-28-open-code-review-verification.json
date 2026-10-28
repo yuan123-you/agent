@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-28",
+  "verifiedAt": "2026-10-28T16:49:27.519022+08:00",
+  "referenceCommit": "375f64cd6f67a48a135da83cfcf59c52669a09cb",
+  "projectHead": "ac4d87015dcba66ea0f7cbd917b1d88eefaf5ed0",
+  "backend": {
+    "suites": 79,
+    "tests": 773,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "mavenExit": 0,
+    "packageExit": 0,
+    "ignoredHistoricalReportCopies": [
+      "TEST-com.aimall.backend.config.JwtAuthFilterSecurityTest-p1-red.xml",
+      "TEST-com.aimall.backend.workbench.WorkbenchMessageSecurityTest-p1-red.xml"
+    ]
+  },
+  "frontend": {
+    "tests": 473,
+    "testExit": 0,
+    "typecheckExit": 0,
+    "buildExit": 0
+  },
+  "aiService": {
+    "tests": 449,
+    "exit": 0,
+    "mode": "offline: dotenv/model credentials disabled, in-memory checkpoints, live HTTP/DNS blocked; normal mock transports allowed"
+  },
+  "tooling": {
+    "tests": 232,
+    "exit": 0,
+    "scope": "eval/tests backend/scripts/tests tests deploy/test_production.py"
+  },
+  "productionActions": {
+    "deployed": false,
+    "liveDatabaseMigrated": false,
+    "liveKnowledgeIngested": false,
+    "evidenceCopied": false,
+    "referenceCliInstalledOrExecuted": false,
+    "sourceUploadedToAdditionalReviewProvider": false
+  }
+}

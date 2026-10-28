@@ -85,7 +85,7 @@ class CartSkuBoundaryTransactionTest {
         var item = new CartController.CheckoutItemBody(); item.setProductId(1L); item.setSkuId(11L); item.setQuantity(1);
         var body = new CartController.CheckoutBody(); body.setItems(List.of(item));
         controller.checkout(7L,body);
-        assertEquals(List.of(2L,3L),jdbc.queryForList("select id from cart_item order by id",Long.class));
+        assertEquals(List.of(1,2,2),jdbc.queryForList("select quantity from cart_item order by id",Integer.class));
     }
     private CartController.AddBody addBody(int quantity) {
         var body = new CartController.AddBody(); body.setProductId(1L); body.setSkuId(11L); body.setQuantity(quantity); return body;

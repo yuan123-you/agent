@@ -19,6 +19,7 @@ class AgentState(TypedDict, total=False):
     # ── 图运行时与会话记忆状态 ──
     messages: Annotated[list[Any], add_messages]   # 会话级消息通道（含工具调用与结果，自动追加）
     intent: str | None
+    web_query: str | None        # classifier-produced contextual query; reset each turn
     tool_loop_count: int
     escalated: bool
     active_entities: dict | None  # 会话级实体记忆（品类偏好、最近推荐商品列表、最近订单号等）

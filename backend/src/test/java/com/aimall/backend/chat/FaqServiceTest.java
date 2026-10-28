@@ -29,11 +29,11 @@ class FaqServiceTest {
     }
 
     @Test
-    @DisplayName("精准命中政策FAQ时返回固定答案")
-    void shouldMatchExactOrHighSimilarityFaqs() {
-        assertNotNull(faqService.match("退款多久能到账？"));
-        assertNotNull(faqService.match("什么时候发货？"));
-        assertNotNull(faqService.match("定制商品可以退货吗？"));
+    @DisplayName("政策FAQ必须交给当前有效知识库与引用校验，不返回打包文本")
+    void shouldDeferPolicyFaqsToCurrentEvidencePipeline() {
+        assertNull(faqService.match("退款多久能到账？"));
+        assertNull(faqService.match("什么时候发货？"));
+        assertNull(faqService.match("定制商品可以退货吗？"));
     }
 
     @Test

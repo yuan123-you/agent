@@ -3,9 +3,9 @@ import { createApp, nextTick, reactive, type App } from 'vue'
 import AiMessage from './AiMessage.vue'
 import type { ChatMessage } from '@/types/api'
 
-const mocks = vi.hoisted(() => ({ push: vi.fn() }))
+const mocks = vi.hoisted(() => ({ push: vi.fn(), retry: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
-vi.mock('@/stores/chat', () => ({ useChatStore: () => ({ confirmOrderAction: vi.fn(), cancelOrderAction: vi.fn() }) }))
+vi.mock('@/stores/chat', () => ({ useChatStore: () => ({ confirmOrderAction: vi.fn(), cancelOrderAction: vi.fn(), retryMessage: mocks.retry, canRetryMessage: () => true }) }))
 vi.mock('./ToolCallCard.vue', () => ({ default: { template: '<div class="tool-stub" />' } }))
 
 let app: App | undefined
@@ -47,7 +47,7 @@ describe('AI reply feedback', () => {
     mount()
     await vi.advanceTimersByTimeAsync(12000)
     expect(host.textContent).toContain('12 秒')
-    expect(host.textContent).toContain('可以随时停止')
+    expect(host.textContent).toContain('暂停接收')
     props.streaming = false
     props.msg.status = 'SUCCESS'
     props.msg.content = '完成'
@@ -75,13 +75,40 @@ describe('AI reply feedback', () => {
 
   it('shows a distinct stopped state without a thinking animation', () => {
     mount({ content: '保留的回答', status: 'STOPPED' }, false)
-    expect(host.textContent).toContain('已停止生成')
+    expect(host.textContent).toContain('已暂停接收回复')
     expect(host.querySelector('.ai-thinking-state')).toBeNull()
   })
 
   it('shows interruption feedback next to retained partial output', () => {
     mount({ content: '部分回答', status: 'FAILED', error: '网络中断，请重试' }, false)
     expect(host.textContent).toContain('部分回答')
-    expect(host.querySelector('.reply-status')?.textContent).toContain('网络中断')
+    expect(host.querySelector('.reply-status')?.textContent).toContain('回复暂时未完成')
+  })
+})
+
+// Regression: failure copy is feedback, never a duplicate AI answer.
+describe('recoverable reply feedback', () => {
+  it('shows one neutral failure panel with a working regenerate button', async () => {
+    mount({ content: '', status: 'FAILED', error: 'upstream stack trace', errorCode: 5001, messageId: 42 }, false)
+    expect(host.textContent).not.toContain('upstream stack trace')
+    expect(host.querySelector('.reply-status')?.textContent).toContain('回复暂时未完成')
+    const button = [...host.querySelectorAll('button')].find(b => b.textContent?.includes('重新生成'))
+    expect(button).toBeDefined()
+    button!.click()
+    await flush()
+    expect(mocks.retry).toHaveBeenCalledWith(props.msg)
+  })
+
+  it('offers recovery rather than regeneration when a transport disconnects', () => {
+    mount({ content: '已经生成的内容', status: 'INTERRUPTED', requestId: 'run-1' }, false)
+    expect(host.textContent).toContain('已经生成的内容')
+    expect(host.textContent).toContain('恢复回复')
+    expect(host.textContent).not.toContain('重新生成')
+  })
+
+  it('does not offer a misleading retry for authentication and closed conversations', () => {
+    mount({ content: '', status: 'FAILED', errorCode: 2004 }, false)
+    expect(host.textContent).toContain('会话已结束')
+    expect([...host.querySelectorAll('button')].some(b => b.textContent?.includes('重新生成'))).toBe(false)
   })
 })

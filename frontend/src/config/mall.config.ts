@@ -143,7 +143,7 @@ export const defaultMallConfig: MallConfig = {
   trustBadges: [
     { icon: 'ShieldCheck', title: '正品溯源保障', desc: '100% 官方品牌严选直供' },
     { icon: 'Van', title: '全仓极速发货', desc: '全国智能云仓次日达服务' },
-    { icon: 'RefreshRight', title: '7天无理由退换', desc: '极速审核 · 闪电极速退款' },
+    { icon: 'RefreshRight', title: '退款退换服务', desc: '申请、审核与处理进度可查' },
     { icon: 'ChatLineRound', title: 'AI 智能专属管家', desc: '24小时智能导购与秒级解答' },
   ],
   heroSlides: [
@@ -259,8 +259,8 @@ export const defaultMallConfig: MallConfig = {
     {
       title: '售后保障',
       links: [
-        { label: '7天无理由退换' },
-        { label: '极速退款通道' },
+        { label: '退款与退换货说明' },
+        { label: '退款 / 售后进度' },
         { label: '保修与品质承诺' },
         { label: '发票开具服务' },
       ],

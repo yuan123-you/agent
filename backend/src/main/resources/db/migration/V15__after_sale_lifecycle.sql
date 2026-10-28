@@ -1,0 +1,17 @@
+ALTER TABLE after_sale
+  ADD COLUMN evidence_json TEXT NULL,
+  ADD COLUMN history_json MEDIUMTEXT NULL,
+  ADD COLUMN return_recipient VARCHAR(80) NULL,
+  ADD COLUMN return_phone VARCHAR(40) NULL,
+  ADD COLUMN return_address VARCHAR(500) NULL,
+  ADD COLUMN return_company VARCHAR(80) NULL,
+  ADD COLUMN return_tracking_no VARCHAR(100) NULL,
+  ADD COLUMN exchange_company VARCHAR(80) NULL,
+  ADD COLUMN exchange_tracking_no VARCHAR(100) NULL,
+  ADD COLUMN decision_reason VARCHAR(500) NULL,
+  ADD COLUMN approved_refund_amount DECIMAL(10,2) NULL,
+  ADD COLUMN refund_reference VARCHAR(80) NULL,
+  ADD COLUMN refund_mode VARCHAR(24) NOT NULL DEFAULT 'SIMULATED',
+  ADD COLUMN appealed TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN completed_at DATETIME(3) NULL,
+  ADD KEY idx_after_sale_merchant (merchant_id, status, id);

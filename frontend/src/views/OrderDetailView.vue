@@ -18,9 +18,7 @@
         <el-button v-if="order.status === 'PENDING_PAYMENT'" type="danger" size="small" round @click="pay">
           去支付
         </el-button>
-        <el-button v-if="order.status === 'PAID'" type="primary" size="small" round :loading="shippingSimulating" @click="handleSimulateShip">
-          🚀 模拟商家发货
-        </el-button>
+
         <el-button v-if="order.status === 'SHIPPED'" type="success" size="small" round @click="confirmReceipt">
           确认收货
         </el-button>
@@ -30,43 +28,12 @@
       </div>
     </div>
 
-    <!-- 顺丰物流轨迹动态卡片 -->
     <div v-if="order.status === 'SHIPPED' || order.status === 'DELIVERED'" class="logistics-card mall-card">
-      <div class="lc-head">
-        <span class="lc-company">📦 {{ order.deliveryCompany || '顺丰速运' }}</span>
-        <span class="lc-no">运单号：{{ order.logisticsNo || 'SF1982839210' }}</span>
-      </div>
-      <div class="lc-timeline">
-        <div v-if="order.status === 'DELIVERED'" class="lc-node active">
-          <div class="lcn-dot" />
-          <div class="lcn-body">
-            <div class="lcn-text">【已签收】快件已安全送达收件人，感谢您选择官方旗舰店！</div>
-            <div class="lcn-time">{{ order.deliveredAt || '今日 14:20' }}</div>
-          </div>
-        </div>
-        <div class="lc-node" :class="{ active: order.status === 'SHIPPED' }">
-          <div class="lcn-dot" />
-          <div class="lcn-body">
-            <div class="lcn-text">【派送中】顺丰速运 快递员正在为您派送，请保持电话畅通</div>
-            <div class="lcn-time">预计今日送达</div>
-          </div>
-        </div>
-        <div class="lc-node">
-          <div class="lcn-dot" />
-          <div class="lcn-body">
-            <div class="lcn-text">【运输中】快件已离开 [北京顺义智能总仓] 陆运枢纽，正发往目的地城市</div>
-            <div class="lcn-time">{{ order.shippedAt || '今日 09:15' }}</div>
-          </div>
-        </div>
-        <div class="lc-node">
-          <div class="lcn-dot" />
-          <div class="lcn-body">
-            <div class="lcn-text">【已揽收】顺丰速运 智能分拣仓已完成打包出库与面单打印</div>
-            <div class="lcn-time">{{ order.shippedAt || '今日 08:30' }}</div>
-          </div>
-        </div>
-      </div>
+      <div class="lc-head"><span class="lc-company">{{ order.deliveryCompany || '物流公司待登记' }}</span><span class="lc-no">{{ order.logisticsNo ? '运单号：' + order.logisticsNo : '暂无物流单号' }}</span></div>
+      <div class="lc-timeline"><div v-if="order.shippedAt" class="lc-node"><div class="lcn-dot" /><div class="lcn-body"><div class="lcn-text">商家已登记发货</div><div class="lcn-time">{{ order.shippedAt }}</div></div></div><div v-if="order.deliveredAt" class="lc-node active"><div class="lcn-dot" /><div class="lcn-body"><div class="lcn-text">订单已确认收货</div><div class="lcn-time">{{ order.deliveredAt }}</div></div></div></div>
+      <p class="logistics-note">运输进度以物流服务方查询结果为准；未登记的信息不作送达承诺。</p>
     </div>
+    <div v-if="order.afterSales?.length" class="mall-card order-after-sale-overview"><span>此订单有 {{ order.afterSales.length }} 笔售后记录</span><button type="button" @click="router.push({path:'/after-sales',query:{orderId:order.orderId}})">查看退款 / 售后进度 ›</button></div>
 
     <!-- 收货地址 -->
     <div class="address-info-card mall-card">
@@ -91,34 +58,27 @@
         </div>
         <div class="oi-info">
           <div class="oi-name">{{ i.productName }}</div>
-          <div class="oi-spec">{{ i.skuSp || '官方正品 · 顺丰直达' }}</div>
+          <div class="oi-spec">{{ i.skuSp || '已购商品' }}</div>
           <div class="oi-bottom">
             <span class="oi-price">￥{{ i.price }}</span>
             <span class="oi-qty">× {{ i.quantity }}</span>
           </div>
         </div>
+        <AfterSaleOrderActions :order="order" :item-id="i.orderItemId" @changed="load" />
       </div>
 
-      <!-- 履约保障 -->
-      <div class="guarantee-row">
-        <span>🛡️ 假一赔十</span>
-        <span>🚚 顺丰包邮</span>
-        <span>⚡ 极速退款</span>
-        <span>📦 赠退货运费险</span>
-      </div>
+      <p class="logistics-note">退款与退换货请从商品旁的售后入口申请，具体处理以审核结果为准。</p>
 
       <!-- 费用汇总 -->
       <div class="calc-section">
         <div class="calc-row">
-          <span>商品总额</span>
-          <span>￥{{ order.totalAmount }}</span>
+          <span>商品金额</span>
+          <span>￥{{ goodsTotal.toFixed(2) }}</span>
         </div>
-        <div class="calc-row">
-          <span>运费</span>
-          <span class="free">免运费</span>
-        </div>
+        <div v-if="order.discountAmount" class="calc-row"><span>优惠</span><span>-￥{{ Number(order.discountAmount).toFixed(2) }}</span></div>
+        <div v-if="order.refundedAmount" class="calc-row refunded-amount"><span>已退款（模拟）</span><span>￥{{ Number(order.refundedAmount).toFixed(2) }}</span></div>
         <div class="calc-row total">
-          <span>实付款</span>
+          <span>{{ order.status === 'PENDING_PAYMENT' ? '待付款' : order.status === 'CANCELLED' ? '订单金额' : '实付款' }}</span>
           <span class="actual-price">￥{{ order.totalAmount }}</span>
         </div>
       </div>
@@ -147,13 +107,14 @@
 </template>
 
 <script setup lang="ts">
+import AfterSaleOrderActions from '@/components/order/AfterSaleOrderActions.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  apiCancelOrder, apiConfirmReceipt, apiOrderDetail, apiOrderSimulateShip, apiPayOrder,
+  apiCancelOrder, apiConfirmReceipt, apiOrderDetail,  apiPayOrder,
 } from '@/api'
 import type { OrderVO } from '@/types/api'
 
@@ -161,8 +122,8 @@ const route = useRoute()
 const router = useRouter()
 const order = ref<OrderVO | null>(null)
 const loading = ref(false)
-const shippingSimulating = ref(false)
 let generation = 0
+const goodsTotal = computed(() => order.value?.items.reduce((sum,item)=>sum+Number(item.subtotal ?? item.price*item.quantity),0) || 0)
 const canReview = computed(() => order.value?.status === 'DELIVERED' && order.value.items.some(i => i.canReview && !i.reviewed))
 
 function goBack() {
@@ -174,10 +135,11 @@ const statusBannerTitle = computed(() => {
   if (!order.value) return ''
   switch (order.value.status) {
     case 'PENDING_PAYMENT': return '等待买家付款'
-    case 'PAID': return '🎉 付款成功，等待商家发货'
-    case 'SHIPPED': return '🚚 顺丰速运极速派送中'
-    case 'DELIVERED': return '✨ 订单已完成，期待再次相遇'
+    case 'PAID': return '付款成功，等待商家发货'
+    case 'SHIPPED': return '商品已发货'
+    case 'DELIVERED': return '订单已完成'
     case 'CANCELLED': return '订单已取消'
+    case 'REFUNDED': return '订单已退款（模拟）'
     default: return order.value.statusText || order.value.status
   }
 })
@@ -185,11 +147,12 @@ const statusBannerTitle = computed(() => {
 const statusBannerSub = computed(() => {
   if (!order.value) return ''
   switch (order.value.status) {
-    case 'PENDING_PAYMENT': return '请在 30 分钟内完成支付，超时订单将自动关闭'
-    case 'PAID': return '智能仓储正在加急出库，点击右侧可模拟商家发货'
-    case 'SHIPPED': return '顺丰特快专递直达，预计明日送达'
+    case 'PENDING_PAYMENT': return '当前为模拟支付，付款操作不产生真实资金划转'
+    case 'PAID': return '等待发货；如需取消已付款商品，可从商品旁申请退款'
+    case 'SHIPPED': return '请以已登记的物流信息为准，收到商品后再确认收货'
     case 'DELIVERED': return canReview.value ? '已确认收货，可点击右侧评价商品分享使用心得' : '已确认收货，感谢您的支持'
-    case 'CANCELLED': return '款项已原路退回，库存已回补'
+    case 'CANCELLED': return '订单已关闭，无需继续付款'
+    case 'REFUNDED': return '模拟退款已记录，具体金额及记录见退款 / 售后详情，不代表真实资金到账'
     default: return ''
   }
 })
@@ -213,19 +176,6 @@ async function pay() {
   await apiPayOrder(order.value!.orderId)
   ElMessage.success('支付成功，已进入待发货状态')
   await load()
-}
-
-async function handleSimulateShip() {
-  shippingSimulating.value = true
-  try {
-    await apiOrderSimulateShip(order.value!.orderId)
-    ElMessage.success('已成功模拟顺丰速运出库发货！')
-    await load()
-  } catch {
-    ElMessage.error('模拟发货失败，请重试')
-  } finally {
-    shippingSimulating.value = false
-  }
 }
 
 async function confirmReceipt() {
@@ -254,6 +204,12 @@ onUnmounted(() => { generation++ })
 </script>
 
 <style scoped>
+.logistics-note { margin:12px 0; font-size:11px; line-height:1.7; color:var(--el-text-color-secondary); }
+.order-after-sale-overview { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;font-size:12px;flex-wrap:wrap; }
+.order-after-sale-overview button { border:0;background:none;color:var(--mall-price);font:inherit;cursor:pointer; }
+.order-item-row :deep(.order-after-sale) { margin-left:auto;flex-shrink:0; }
+@media(max-width:480px) { .order-item-row { flex-wrap:wrap; } .order-item-row :deep(.order-after-sale) { width:100%;align-items:flex-end; } }
+
 .detail-page {
   max-width: 720px;
   margin: 0 auto;

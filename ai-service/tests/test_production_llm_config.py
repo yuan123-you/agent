@@ -13,5 +13,7 @@ class ProductionLlmConfigTests(unittest.TestCase):
             llm.get_intent_llm()
             self.assertEqual(constructor.call_args.kwargs.get('reasoning_effort'),'none')
             self.assertEqual(constructor.call_args.kwargs['timeout'],60)
+            self.assertEqual(constructor.call_args.kwargs.get('max_tokens'),64)
+            self.assertEqual(constructor.call_args.kwargs.get('max_retries'),0)
 
 if __name__=='__main__': unittest.main()

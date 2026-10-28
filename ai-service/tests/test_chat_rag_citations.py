@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 from app.api import chat
 
@@ -22,8 +22,10 @@ class _Graph:
         reason="answerable",
         preamble_parts=(),
         node="agent",
+        web_footer="",
     ):
         self.node = node
+        self.web_footer = web_footer
         self.context = context
         self.answer_parts = answer_parts
         self.rag = rag
@@ -62,6 +64,11 @@ class _Graph:
                 "metadata": {"langgraph_node": self.node},
                 "data": {"chunk": AIMessageChunk(content=part)},
             }
+        if self.web_footer:
+            yield {"event": "on_chain_end", "name": "web_answer", "data": {"output": {"messages": [AIMessage(
+                content="".join(self.answer_parts) + self.web_footer,
+                additional_kwargs={"web_source_footer": self.web_footer},
+            )]}}}
         self.completed = True
         yield {
             "event": "on_chain_end",
@@ -90,6 +97,7 @@ def _setup(
     reason="answerable",
     preamble_parts=(),
     node="agent",
+    web_footer="",
 ):
     context = {}
     graph = _Graph(
@@ -100,6 +108,7 @@ def _setup(
         reason=reason,
         preamble_parts=preamble_parts,
         node=node,
+        web_footer=web_footer,
     )
     monkeypatch.setattr(chat, "graph", graph)
     monkeypatch.setattr(chat, "set_tool_ctx", lambda ctx: setattr(graph, "context", ctx))
@@ -211,16 +220,17 @@ async def test_preamble_before_kb_search_never_leaks_or_duplicates(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("node", ["small_talk", "finalize_without_tools"])
+@pytest.mark.parametrize("node", ["small_talk", "finalize_without_tools", "web_answer"])
 async def test_safe_terminal_model_nodes_stream_before_graph_finishes(monkeypatch, node):
     graph = _setup(monkeypatch, answer_parts=["你好", "，很高兴帮你"], rag=False, node=node)
     response = await chat.chat_stream(_request("普通咨询"), _Request())
     stream = response.body_iterator
-    assert _decode(await anext(stream)) == ("token", {"content": "你好"})
+    prefix = "【联网搜索】\n" if node == "web_answer" else ""
+    assert _decode(await anext(stream)) == ("token", {"content": prefix + "你好"})
     assert graph.completed is False
     events = [_decode(item) async for item in stream]
     assert [data["content"] for event, data in events if event == "token"] == ["，很高兴帮你"]
-    assert next(data for event, data in events if event == "done")["content"] == "你好，很高兴帮你"
+    assert next(data for event, data in events if event == "done")["content"] == prefix + "你好，很高兴帮你"
 
 
 @pytest.mark.asyncio
@@ -245,3 +255,86 @@ async def test_finalization_keeps_rag_citations_buffered(monkeypatch):
     events = [_decode(item) async for item in response.body_iterator]
     assert graph.completed
     assert [data["content"] for event, data in events if event == "token"] == ["当前知识库证据不足，暂时无法可靠回答该问题。"]
+
+@pytest.mark.asyncio
+async def test_web_terminal_stream_labels_real_output_once_without_waiting_for_completion(monkeypatch):
+    graph=_setup(monkeypatch,answer_parts=['这是', '实际回答'],rag=False,node='web_answer')
+    response=await chat.chat_stream(_request('普通咨询'),_Request())
+    stream=response.body_iterator
+    first=_decode(await anext(stream))
+    assert first==('token',{'content':'【联网搜索】\n这是'})
+    assert graph.completed is False
+    events=[first]+[_decode(item) async for item in stream]
+    text=''.join(data['content'] for kind,data in events if kind=='token')
+    assert text=='【联网搜索】\n这是实际回答'
+    assert next(data for kind,data in events if kind=='done')['content']==text
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('parts', [['【','联网搜索','】','实际回答'], ['# ', '【联网搜索】\n', '实际回答']])
+async def test_web_terminal_stream_normalizes_a_split_model_label_without_duplicate_output(monkeypatch,parts):
+    graph=_setup(monkeypatch,answer_parts=parts,rag=False,node='web_answer')
+    response=await chat.chat_stream(_request('普通咨询'),_Request())
+    events=[_decode(item) async for item in response.body_iterator]
+    text=''.join(data['content'] for kind,data in events if kind=='token')
+    assert text=='【联网搜索】\n实际回答'
+    assert next(data for kind,data in events if kind=='done')['content']==text
+
+
+@pytest.mark.asyncio
+async def test_program_owned_web_sources_follow_the_streamed_answer_exactly_once(monkeypatch):
+    footer="\n\n参考来源：\n[1. 真实来源](https://example.com/source)"
+    graph=_setup(monkeypatch,answer_parts=['回答','继续'],rag=False,node='web_answer',web_footer=footer)
+    response=await chat.chat_stream(_request('普通咨询'),_Request())
+    stream=response.body_iterator
+    first=_decode(await anext(stream))
+    assert first==('token',{'content':'【联网搜索】\n回答'})
+    assert graph.completed is False
+    events=[first]+[_decode(item) async for item in stream]
+    text=''.join(data['content'] for kind,data in events if kind=='token')
+    assert text=='【联网搜索】\n回答继续'+footer
+    assert text.count('https://example.com/source')==1
+    assert next(data for kind,data in events if kind=='done')['content']==text
+
+@pytest.mark.asyncio
+async def test_real_graph_streaming_keeps_program_owned_sources(monkeypatch):
+    from unittest.mock import AsyncMock,MagicMock
+    from langchain_core.messages import AIMessage
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+    from langgraph.checkpoint.memory import MemorySaver
+    from app.agent import nodes
+    from app.agent.graph import build_graph
+    from app.tools import web_search
+    classifier=MagicMock();classifier.ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"SMALL_TALK","web_query":"技术新闻"}'))
+    monkeypatch.setattr(nodes,'get_intent_llm',lambda:classifier)
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:FakeListChatModel(responses=['依据真实资料回答。']))
+    monkeypatch.setattr(web_search,'_search',AsyncMock(return_value=([{'title':'真实来源','snippet':'真实事实','url':'https://example.com/source'}],'searxng')))
+    cp=MemorySaver();monkeypatch.setattr(chat,'checkpointer',cp);monkeypatch.setattr(chat,'graph',build_graph(cp))
+    response=await chat.chat_stream(chat.ChatRequest(conversation_id=42,user_id=0,message='最近技术有哪些新闻？',web_search_enabled=True),_Request())
+    events=[_decode(item) async for item in response.body_iterator]
+    assert not any(kind=='error' for kind,data in events)
+    tokens=[data['content'] for kind,data in events if kind=='token']
+    assert len(tokens)>1 and '参考来源' not in tokens[0]
+    joined=''.join(tokens)
+    assert joined.count('https://example.com/source')==1
+    assert '真实来源' in joined
+    assert next(data for kind,data in events if kind=='done')['content']==joined
+
+@pytest.mark.asyncio
+async def test_no_chunk_web_fallback_does_not_duplicate_markdown_bearing_source_footer(monkeypatch):
+    from unittest.mock import AsyncMock,MagicMock
+    from langgraph.checkpoint.memory import MemorySaver
+    from langchain_core.messages import HumanMessage,ToolMessage
+    from app.agent import nodes
+    model=MagicMock();model.ainvoke=AsyncMock(return_value=AIMessage(content='根据真实资料回答。'))
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
+    output=await nodes.web_answer_node({'messages':[HumanMessage(content='普通咨询'),ToolMessage(name='web_search',tool_call_id='web1',content=json.dumps({'results':[{'title':'[fake product](mall://product/123)','snippet':'真实资料','url':'https://example.com/source'}]}))]})
+    class Graph:
+        async def astream_events(self,*args,**kwargs):
+            yield {'event':'on_chain_end','name':'web_answer','data':{'output':output}}
+            yield {'event':'on_chain_end','name':'LangGraph','data':{'output':output}}
+    monkeypatch.setattr(chat,'graph',Graph());monkeypatch.setattr(chat,'checkpointer',MemorySaver())
+    response=await chat.chat_stream(chat.ChatRequest(conversation_id=43,user_id=0,message='普通咨询'),_Request())
+    events=[_decode(item) async for item in response.body_iterator]
+    text=next(data for kind,data in events if kind=='done')['content']
+    assert text.count('参考来源：')==1 and text.count('https://example.com/source')==1
+    assert ''.join(data['content'] for kind,data in events if kind=='token')==text

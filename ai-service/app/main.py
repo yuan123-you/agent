@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import chat, health, kb, products
 from app.config import settings
+from app.clients.llm import warm_local_models
 from app.rag.ingest import sync_products
 from app.rag.product_index import get_product_index
 from app.rag.vectorstore import get_vectorstore
@@ -38,7 +39,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         health.set_dependency("milvus", False, str(e)[:200])
         logger.error("Milvus init failed (RAG will degrade): %s", e)
-    # 其余依赖（LLM / 后端）仅在健康检查时实时探测，此处不阻塞启动
+    if settings.llm_warmup_enabled:
+        try:
+            await warm_local_models()
+        except Exception as e:
+            # A preload failure must not take down otherwise usable/degraded service.
+            logger.warning("local LLM preload unavailable: %s", type(e).__name__)
+    # 其余依赖（LLM / 后端）在健康检查时实时探测
     if settings.product_sync_enabled:
         sync_task = asyncio.create_task(_product_sync_loop())
         logger.info("product sync job started (interval=%ss)", settings.product_sync_interval_s)

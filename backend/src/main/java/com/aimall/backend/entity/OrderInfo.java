@@ -27,7 +27,7 @@ public class OrderInfo {
     /** 使用的用户券ID */
     private Long couponUserId;
 
-    /** PENDING_PAYMENT / PAID / SHIPPED / DELIVERED / CANCELLED */
+    /** PENDING_PAYMENT / PAID / SHIPPED / DELIVERED / CANCELLED / REFUNDED */
     private String status;
 
     private String receiverName;

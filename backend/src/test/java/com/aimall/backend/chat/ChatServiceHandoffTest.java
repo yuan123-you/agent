@@ -22,7 +22,7 @@ class ChatServiceHandoffTest {
     void streamCompletionDoesNotOverwriteTheStateOwnedByTheEscalationEndpoint(String status) {
         ConversationMapper conversations = mock(ConversationMapper.class);
         MessageMapper messages = mock(MessageMapper.class);
-        ChatService service = new ChatService(conversations, messages, null, null, null, null, null, null, null, null);
+        ChatService service = new ChatService(conversations, messages, null, null, null, null, null, null, null, null, null);
         Conversation conversation = new Conversation();
         conversation.setId(7L);
         conversation.setStatus(status);

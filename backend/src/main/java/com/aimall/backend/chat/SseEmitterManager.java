@@ -22,13 +22,13 @@ public class SseEmitterManager {
     public void register(Long userId, Long conversationId, SseEmitter emitter) {
         String key = key(userId, conversationId);
         emitters.put(key, emitter);
-        emitter.onCompletion(() -> emitters.remove(key));
-        emitter.onTimeout(() -> emitters.remove(key));
-        emitter.onError(e -> emitters.remove(key));
+        emitter.onCompletion(() -> emitters.remove(key, emitter));
+        emitter.onTimeout(() -> emitters.remove(key, emitter));
+        emitter.onError(e -> emitters.remove(key, emitter));
     }
 
-    public void remove(Long userId, Long conversationId) {
-        emitters.remove(key(userId, conversationId));
+    public void remove(Long userId, Long conversationId, SseEmitter emitter) {
+        emitters.remove(key(userId, conversationId), emitter);
     }
 
     /** 每 15s 心跳（SSE 注释行），防中间层超时断连 */
@@ -40,7 +40,7 @@ public class SseEmitterManager {
                     emitter.send(SseEmitter.event().comment("ping"));
                 }
             } catch (Exception e) {
-                emitters.remove(key);
+                emitters.remove(key, emitter);
             }
         });
     }

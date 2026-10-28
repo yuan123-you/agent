@@ -8,10 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, RemoveMessage
 from pydantic import BaseModel
 
 from app.agent.graph import checkpointer, graph
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from app.agent.memory import background_memory_extraction, parse_naming_command
 from app.agent.link_guard import GuardedLinkBuffer, collect_known_ids, ensure_product_links, guard_links
 from app.agent.prompts import SUMMARY_PROMPT
@@ -65,7 +66,14 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
 
     saved_entities = {}
     if existing_ckpt:
-        msgs = [HumanMessage(content=req.message)]
+        if req.options.get("regenerate") is True:
+            # The backend has validated the failed reply and supplied history before its USER turn.
+            msgs = [RemoveMessage(id=REMOVE_ALL_MESSAGES)]
+            msgs.extend(HumanMessage(content=h.content) if h.role == "USER" else AIMessage(content=h.content)
+                        for h in req.history[-10:])
+            msgs.append(HumanMessage(content=req.message))
+        else:
+            msgs = [HumanMessage(content=req.message)]
         saved_entities = existing_ckpt.get("channel_values", {}).get("active_entities") or {}
         ckpt_profile = existing_ckpt.get("channel_values", {}).get("user_profile") or {}
         merged_profile = dict(ckpt_profile)
@@ -89,6 +97,7 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
     return AgentState(
         messages=msgs,
         intent=None,
+        web_query=None,
         tool_loop_count=0,
         escalated=False,
         user_id=str(req.user_id),
@@ -240,6 +249,9 @@ async def chat_stream(req: ChatRequest, request: Request):
         known_ids: set[str] = set()
         live_buffer: GuardedLinkBuffer | None = None
         streamed_length = 0
+        web_prefix_pending = ""
+        web_prefix_done = False
+        web_source_footer = ""
         product_result: dict | None = None
         rag_started = False
         policy_requires_kb = requires_kb(req.message)
@@ -276,11 +288,21 @@ async def chat_stream(req: ChatRequest, request: Request):
                             content = getattr(chunk, "content", "")
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
-                                parts.append(content)
                                 node = (ev.get("metadata") or {}).get("langgraph_node")
+                                if (node == "web_answer" and not web_prefix_done and not policy_requires_kb
+                                        and not rag_started and not ctx.get("rag_used")):
+                                    web_prefix_pending += content
+                                    candidate = re.sub(r"^\s*#{1,6}\s*", "", web_prefix_pending.lstrip())
+                                    if "【联网搜索】".startswith(candidate.strip()):
+                                        # Hold a possible model-supplied label until substantive output arrives.
+                                        continue
+                                    body = candidate[len("【联网搜索】"):].lstrip() if candidate.startswith("【联网搜索】") else web_prefix_pending
+                                    content = "【联网搜索】\n" + body
+                                    web_prefix_done = True
+                                parts.append(content)
                                 # Tool-enabled agents may still retrieve evidence or replace invalid
                                 # recommendations. Only terminal nodes can safely expose early text.
-                                safe_terminal = node in {"small_talk", "finalize_without_tools"}
+                                safe_terminal = node in {"small_talk", "finalize_without_tools", "web_answer"}
                                 if (safe_terminal and not policy_requires_kb and not rag_started and not ctx.get("rag_used")
                                         and (product_result is None or not product_links_needed)):
                                     if live_buffer is None:
@@ -346,12 +368,28 @@ async def chat_stream(req: ChatRequest, request: Request):
                                 if eval_data:
                                     tool_payload["eval"] = eval_data
                             yield sse("tool_result", tool_payload)
+                        elif (kind == "on_chain_end" and ev.get("name") == "web_answer"
+                              and not policy_requires_kb and not rag_started and not ctx.get("rag_used")):
+                            output = ev["data"].get("output")
+                            messages = output.get("messages") if isinstance(output, dict) else None
+                            if messages:
+                                footer = (getattr(messages[-1], "additional_kwargs", {}) or {}).get("web_source_footer")
+                                if isinstance(footer, str):
+                                    web_source_footer = footer
                         elif kind == "on_chain_end" and ev.get("name") == "LangGraph":
                             # 捕获图最终状态（非流式节点如 escalate_node 的回复兜底）
                             final_state = ev["data"].get("output")
             except TimeoutError:
                 logger.warning("chat stream timed out after %ss, forcing finish", settings.chat_timeout_s)
                 timed_out = True
+
+            if timed_out:
+                # A timeout is a failed turn, not a successful generated answer containing error copy.
+                for action in ctx.get("actions", []):
+                    yield sse("action", action)
+                end_trace(output={"error": "timeout", "latencyMs": int((time.time() - start) * 1000)})
+                yield sse("error", {"code": 5002, "message": "回复等待超时"})
+                return
 
             # 非流式节点兜底：token 流为空时取最终 state 的最后一条 AI 消息
             final_text = "".join(parts)
@@ -364,10 +402,16 @@ async def chat_stream(req: ChatRequest, request: Request):
                             final_text = content
                             break
             final_text = _timeout_fallback(final_text, timed_out)
+            if web_source_footer and final_text.endswith(web_source_footer):
+                # Non-streaming state already includes the program-owned footer. Guard only model text.
+                final_text = final_text[:-len(web_source_footer)]
             citations: tuple[dict, ...] = ()
             rag_used = bool(ctx.get("rag_used") or rag_started or policy_requires_kb)
             citation_guard_required = rag_used and (policy_requires_kb or not web_search_used)
-            if citation_guard_required:
+            if ctx.get("policy_clarification"):
+                # Only the deterministic clarification may pass without policy evidence.
+                final_text = ctx["policy_clarification"]
+            elif citation_guard_required:
                 normalized_text = re.sub(r"[【（(](S[0-9]+)[】）)]", r"[\1]", final_text)
                 normalized_text = re.sub(r"\[s([0-9]+)\]", r"[S\1]", normalized_text)
                 validation = validate_citations(
@@ -381,6 +425,9 @@ async def chat_stream(req: ChatRequest, request: Request):
             if not rag_used and not web_search_used and product_links_needed:
                 final_text = ensure_product_links(final_text, product_result)
             guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
+            if web_source_footer:
+                # These verified links bypass inference, not model-output validation/early streaming.
+                guarded += web_source_footer
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):

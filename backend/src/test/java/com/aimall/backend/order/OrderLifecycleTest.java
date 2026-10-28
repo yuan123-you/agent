@@ -46,7 +46,11 @@ class OrderLifecycleTest {
         switch (name) {
             case "pay" -> service.pay(7L, 30L);
             case "cancel" -> service.cancel(7L, 30L);
-            case "ship" -> service.ship(30L, "TRACK-30", null);
+            case "ship" -> {
+                OrderItem item = new OrderItem(); item.setId(1L); item.setOrderId(30L); item.setQuantity(1);
+                when(items.selectList(any())).thenReturn(List.of(item));
+                service.ship(30L, "TRACK-30", null);
+            }
             case "deliver" -> service.deliver(30L);
             default -> throw new AssertionError(name);
         }
@@ -60,7 +64,10 @@ class OrderLifecycleTest {
         BizException error = assertThrows(BizException.class, () -> command(command));
         assertEquals(2004, error.getCode());
         assertEquals(from, selected.getStatus());
-        verifyNoInteractions(notifier, products, items);
+        verifyNoInteractions(notifier, products);
+        if (!"ship".equals(command)) verifyNoInteractions(items);
+        verify(items, never()).insert(any(OrderItem.class));
+        verify(items, never()).updateById(any(OrderItem.class));
     }
 
     @ParameterizedTest

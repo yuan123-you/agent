@@ -51,18 +51,15 @@ public class AdminOrderController {
             vo.put("logisticsNo", o.getLogisticsNo());
             vo.put("deliveryCompany", o.getDeliveryCompany());
             vo.put("createdAt", o.getCreatedAt());
-            vo.put("items", orderService.itemsOf(o.getId()));
+            vo.put("items", orderService.dispatchItemsOf(o.getId()));
             return vo;
         }));
     }
 
     @PostMapping("/{id}/ship")
     public ApiResponse<Void> ship(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String logisticsNo = body.get("logisticsNo");
-        if (logisticsNo == null || logisticsNo.isBlank()) {
-            logisticsNo = "SF" + System.currentTimeMillis();
-        }
-        orderService.ship(id, logisticsNo, body.get("deliveryCompany"));
+        orderService.ship(id, body == null ? null : body.get("logisticsNo"),
+                body == null ? null : body.get("deliveryCompany"));
         return ApiResponse.ok();
     }
 

@@ -132,6 +132,8 @@ services:
       KB_INGEST_BATCH_SIZE: ${KB_INGEST_BATCH_SIZE:-2}
       KB_INGEST_MAX_CONCURRENT: ${KB_INGEST_MAX_CONCURRENT:-4}
       KB_INGEST_STUCK_TIMEOUT_SECONDS: ${KB_INGEST_STUCK_TIMEOUT_SECONDS:-900}
+    volumes:
+      - after-sale-evidence:/app/data/after-sale-evidence
     ports:
       - "8080:8080"   # 唯一对外业务入口
     depends_on:
@@ -199,6 +201,7 @@ services:
       start_period: 30s
 
 volumes:
+  after-sale-evidence:
   mysql-data:
   redis-data:
   minio-data:

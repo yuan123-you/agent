@@ -8,6 +8,7 @@
           <el-menu-item index="/admin/dashboard">数据看板</el-menu-item>
           <el-menu-item index="/admin/products">商品管理</el-menu-item>
           <el-menu-item index="/admin/orders">订单管理</el-menu-item>
+          <el-menu-item index="/admin/after-sales">售后管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/stats">使用统计</el-menu-item>
@@ -38,6 +39,7 @@
           <el-menu-item index="/admin/dashboard">数据看板</el-menu-item>
           <el-menu-item index="/admin/products">商品管理</el-menu-item>
           <el-menu-item index="/admin/orders">订单管理</el-menu-item>
+          <el-menu-item index="/admin/after-sales">售后管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/stats">使用统计</el-menu-item>

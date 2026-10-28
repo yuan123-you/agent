@@ -1,7 +1,22 @@
 import json
 import pytest
+import httpx
 
 from app.tools import web_search
+
+
+_original_client = httpx.AsyncClient
+
+def _mock_http(monkeypatch, responder):
+    def handle(request):
+        response = responder(request)
+        return httpx.Response(200, content=response.read())
+    monkeypatch.setattr(web_search.httpx, "AsyncClient", lambda **kwargs: _original_client(transport=httpx.MockTransport(handle), **kwargs))
+
+
+def _async_result(value):
+    async def call(*args, **kwargs): return value
+    return call
 
 
 class _JsonResponse:
@@ -32,10 +47,9 @@ class _HtmlResponse:
         return self._html
 
 
-def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
+async def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
     monkeypatch.setenv("TAVILY_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "urllib.request.urlopen",
+    _mock_http(monkeypatch,
         lambda *args, **kwargs: _JsonResponse({
             "results": [{
                 "title": "電競手機推薦與什麼手機最適合打遊戲與 &#x20;",
@@ -45,7 +59,7 @@ def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
         })
     )
 
-    result = web_search._search_tavily("電競手機", 1)
+    result = await web_search._search_tavily("電競手機", 1)
 
     assert result == [{
         "title": "电竞手机推荐与什么手机最适合打游戏与",
@@ -54,10 +68,9 @@ def test_tavily_results_decode_entities_and_use_simplified_chinese(monkeypatch):
     }]
 
 
-def test_searxng_results_extract_and_normalize_clean_text(monkeypatch):
+async def test_searxng_results_extract_and_normalize_clean_text(monkeypatch):
     monkeypatch.setenv("SEARXNG_URL", "http://searxng.local:8080")
-    monkeypatch.setattr(
-        "urllib.request.urlopen",
+    _mock_http(monkeypatch,
         lambda *args, **kwargs: _JsonResponse({
             "query": "折叠屏手机",
             "results": [
@@ -75,7 +88,7 @@ def test_searxng_results_extract_and_normalize_clean_text(monkeypatch):
         })
     )
 
-    results = web_search._search_searxng("折叠屏手机", max_results=2)
+    results = await web_search._search_searxng("折叠屏手机", max_results=2)
 
     assert len(results) == 2
     assert results[0] == {
@@ -90,7 +103,7 @@ def test_searxng_results_extract_and_normalize_clean_text(monkeypatch):
     }
 
 
-def test_bing_results_extract_and_normalize_clean_text(monkeypatch):
+async def test_bing_results_extract_and_normalize_clean_text(monkeypatch):
     sample_html = """
     <html><body>
     <li class="b_algo">
@@ -103,9 +116,9 @@ def test_bing_results_extract_and_normalize_clean_text(monkeypatch):
     </li>
     </body></html>
     """
-    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: _HtmlResponse(sample_html))
+    _mock_http(monkeypatch, lambda *args, **kwargs: _HtmlResponse(sample_html))
 
-    results = web_search._search_bing("电竞手机", max_results=2)
+    results = await web_search._search_bing("电竞手机", max_results=2)
 
     assert len(results) == 2
     assert results[0] == {
@@ -120,16 +133,16 @@ def test_bing_results_extract_and_normalize_clean_text(monkeypatch):
     }
 
 
-def test_sogou_results_extract_and_normalize_clean_text(monkeypatch):
+async def test_sogou_results_extract_and_normalize_clean_text(monkeypatch):
     sample_html = """
     <html><body>
     <h3><a href="https://example.com/sogou1">搜狗<strong>熱門</strong>手機資訊</a></h3>
     <p class="txt-info">這是一篇關於<strong>手機</strong>性價比評測的文章。</p>
     </body></html>
     """
-    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: _HtmlResponse(sample_html))
+    _mock_http(monkeypatch, lambda *args, **kwargs: _HtmlResponse(sample_html))
 
-    results = web_search._search_sogou("手机资讯", max_results=1)
+    results = await web_search._search_sogou("手机资讯", max_results=1)
 
     assert len(results) == 1
     assert results[0]["title"] == "搜狗热门手机资讯"
@@ -137,49 +150,49 @@ def test_sogou_results_extract_and_normalize_clean_text(monkeypatch):
     assert results[0]["url"] == "https://example.com/sogou1"
 
 
-def test_search_falls_back_to_searxng_when_configured(monkeypatch):
+async def test_search_falls_back_to_searxng_when_configured(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.setenv("SEARXNG_URL", "http://searxng.local:8080")
     monkeypatch.setattr(
         web_search,
         "_search_searxng",
-        lambda query, max_results: [{"title": "SearXNG手机", "snippet": "自建元搜索结果", "url": "https://searx.example.com"}]
+        _async_result([{"title": "SearXNG手机", "snippet": "自建元搜索结果", "url": "https://searx.example.com"}])
     )
 
-    results, engine = web_search._search("手机", 1)
+    results, engine = await web_search._search("手机", 1)
 
     assert engine == "searxng"
     assert len(results) == 1
     assert results[0]["title"] == "SearXNG手机"
 
 
-def test_search_falls_back_to_bing_when_searxng_not_set(monkeypatch):
+async def test_search_falls_back_to_bing_when_searxng_not_set(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.delenv("SEARXNG_URL", raising=False)
     monkeypatch.setattr(
         web_search,
         "_search_bing",
-        lambda query, max_results: [{"title": "Bing手机", "snippet": "国内直连结果", "url": "https://bing.example.com"}]
+        _async_result([{"title": "Bing手机", "snippet": "国内直连结果", "url": "https://bing.example.com"}])
     )
 
-    results, engine = web_search._search("手机", 1)
+    results, engine = await web_search._search("手机", 1)
 
     assert engine == "bing"
     assert len(results) == 1
     assert results[0]["title"] == "Bing手机"
 
 
-def test_search_falls_back_to_sogou_when_bing_fails(monkeypatch):
+async def test_search_falls_back_to_sogou_when_bing_fails(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.delenv("SEARXNG_URL", raising=False)
-    monkeypatch.setattr(web_search, "_search_bing", lambda query, max_results: [])
+    monkeypatch.setattr(web_search, "_search_bing", _async_result([]))
     monkeypatch.setattr(
         web_search,
         "_search_sogou",
-        lambda query, max_results: [{"title": "搜狗手机", "snippet": "备用结果", "url": "https://sogou.com"}]
+        _async_result([{"title": "搜狗手机", "snippet": "备用结果", "url": "https://sogou.com"}])
     )
 
-    results, engine = web_search._search("手机", 1)
+    results, engine = await web_search._search("手机", 1)
 
     assert engine == "sogou"
     assert len(results) == 1
@@ -191,7 +204,7 @@ async def test_web_search_tool_handles_searxng_results(monkeypatch):
     monkeypatch.setattr(
         web_search,
         "_search",
-        lambda query, max_results: ([{"title": "SearXNG测试", "snippet": "内容摘要", "url": "https://test.com"}], "searxng")
+        _async_result(([{"title": "SearXNG测试", "snippet": "内容摘要", "url": "https://test.com"}], "searxng"))
     )
 
     result = await web_search.web_search.ainvoke({"query": "手机推荐", "max_results": 1})

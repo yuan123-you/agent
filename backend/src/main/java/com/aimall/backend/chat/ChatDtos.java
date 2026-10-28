@@ -19,6 +19,12 @@ public class ChatDtos {
         private String content;
         /** 联网搜索开关（AI 优先搜索网络内容） */
         private Boolean webSearchEnabled;
+        @jakarta.validation.constraints.Pattern(regexp = "[a-zA-Z0-9_-]{8,80}")
+        private String requestId;
+        /** Reconnect only: an expired identity must never create a new generation. */
+        private Boolean resumeOnly;
+        /** Explicit regeneration of the most recent failed AI message. */
+        private Long retryMessageId;
     }
 
     @Data

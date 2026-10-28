@@ -7,6 +7,8 @@ import {
 } from '@/api'
 import { streamChat, type SseStream } from '@/composables/useSseChat'
 import { StreamBuffer } from '@/components/mall/StreamBuffer'
+import { loadRecovery, saveRecovery, clearRecovery } from './chatRecovery'
+import { replyFeedback } from '@/components/chat/replyFeedback'
 import type { ChatMessage, ConversationVO, OrderAction, OrderApprovalForm, ToolCard } from '@/types/api'
 
 /** 单个会话的后台流式状态（切换会话/更换页面后恢复渲染用） */
@@ -14,6 +16,7 @@ interface PendingStream {
   aiMessage: ChatMessage
   stream: SseStream | null
   streaming: boolean
+  flush?: () => void
 }
 
 const listLoads = new WeakMap<object, Promise<void>>()
@@ -93,10 +96,28 @@ export const useChatStore = defineStore('chat', {
             actions: parseOrderActions(m as unknown as { toolCalls?: unknown }),
           }))
           const pending = this.pendingByConv[id]
+          const recovery = !pending ? loadRecovery(id) : undefined
+          if (recovery) {
+            const last = messages[messages.length - 1]
+            const user = [...messages].reverse().find(m => m.role === 'USER')
+            const newerQuestion = user && (user.messageId || user.id || 0) > (recovery.recoveryAfterId || 0)
+              && user.content !== recovery.requestContent
+            if (newerQuestion || (last?.role === 'AI' && (last.messageId || last.id || 0) > (recovery.recoveryAfterId || 0)
+                && user?.content === recovery.requestContent)) {
+              clearRecovery(id, recovery.requestId)
+            } else if (recovery.retryMessageId && (last?.messageId || last?.id) === recovery.retryMessageId) {
+              const content = last.content
+              Object.assign(last, recovery, { content })
+            } else {
+              if (user?.content !== recovery.requestContent) messages.push({ role: 'USER', content: recovery.requestContent || '' })
+              messages.push(recovery)
+            }
+          }
           if (pending) {
             const ai = pending.aiMessage
-            const alreadyLoaded = messages.some((m) => ai.messageId != null && m.messageId === ai.messageId)
-            if (ai.status === 'PENDING' || !alreadyLoaded) messages.push(ai)
+            const loadedIndex = messages.findIndex((m) => ai.messageId != null && (m.messageId || m.id) === ai.messageId)
+            if (ai.status === 'PENDING' && loadedIndex >= 0) messages[loadedIndex] = ai
+            else if (loadedIndex < 0) messages.push(ai)
           }
           // Commit title, messages and stream state together; ignore stale selections.
           this.$patch((state) => {
@@ -160,26 +181,65 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    canRetryMessage(message: ChatMessage): boolean {
+      if (!this.current || this.pendingByConv[this.current.conversationId]?.streaming) return false
+      const action = replyFeedback(message)?.action
+      if (!action || this.messages[this.messages.length - 1] !== message) return false
+      if (action === 'recover') return !!message.requestId
+      return this.current.status === 'ACTIVE' && (message.status === 'FAILED')
+        && !!(message.messageId || message.id || message.requestContent)
+    },
+
+    async retryMessage(message: ChatMessage): Promise<void> {
+      if (!this.canRetryMessage(message)) return
+      const question = message.requestContent || [...this.messages.slice(0, this.messages.indexOf(message))].reverse().find(m => m.role === 'USER')?.content
+      if (!question) return
+      await this.sendMessage(question, message)
+    },
+
     /** ⭐ 发送消息（SSE 流式）：乐观插入 + StreamBuffer 缓冲渲染 + 工具卡片 */
-    async sendMessage(content: string): Promise<void> {
+    async sendMessage(content: string, retry?: ChatMessage): Promise<void> {
       if (!this.current) return
       const conversationId = this.current.conversationId
       // 按会话粒度拦截：仅阻止同一会话的重复发送，允许其他会话后台生成
       if (this.pendingByConv[conversationId]?.streaming || !content.trim()) return
 
-      // 乐观插入用户消息与流式 AI 消息
-      this.messages.push({ role: 'USER', content })
-      this.messages.push({ role: 'AI', content: '', toolCalls: [], status: 'PENDING', startedAt: Date.now() })
-      // ⚡ 必须通过响应式数组重新取引用：直接持有 push 前的原始对象会被 Vue 深响应式
-      // 包装成副本，后续对其 content 的修改不会触发视图更新（"要刷新才显示"根因）
-      const aiMsg = this.messages[this.messages.length - 1] as ChatMessage
+      if (!retry) {
+        this.messages.push({ role: 'USER', content })
+        this.messages.push({ role: 'AI', content: '', toolCalls: [], status: 'PENDING', startedAt: Date.now(),
+          requestId: crypto.randomUUID(), requestContent: content, requestWebSearch: this.webSearchEnabled,
+          recoveryAfterId: Math.max(0, ...this.messages.map(m => m.messageId || m.id || 0)),
+        })
+      }
+      const aiMsg = retry || this.messages[this.messages.length - 1]
+      const resumeOnly = !!retry && (retry.status === 'INTERRUPTED' || retry.status === 'STOPPED' || retry.errorCode === 5003)
+      if (retry && !resumeOnly) {
+        aiMsg.retryMessageId = aiMsg.messageId || aiMsg.id
+        aiMsg.requestId = crypto.randomUUID()
+        aiMsg.recoveryAfterId = Math.max(0, ...this.messages.map(m => m.messageId || m.id || 0))
+      }
+      aiMsg.requestContent = content
+      aiMsg.requestWebSearch ??= this.webSearchEnabled
+      aiMsg.status = 'PENDING'
+      aiMsg.error = undefined
+      aiMsg.errorCode = undefined
+      aiMsg.startedAt = Date.now()
+      saveRecovery(conversationId, aiMsg)
       // 记录该会话的流式状态：切走会话/页面后后台继续生成，切回时恢复
-      const pending: PendingStream = { aiMessage: aiMsg, stream: null, streaming: true }
-      this.pendingByConv[conversationId] = pending
+      this.pendingByConv[conversationId] = { aiMessage: aiMsg, stream: null, streaming: true }
+      const pending = this.pendingByConv[conversationId]
+      const isCurrentStream = () => this.pendingByConv[conversationId] === pending
       this.streaming = true
 
       const buffer = new StreamBuffer()
-      const toolCards = aiMsg.toolCalls as ToolCard[]
+      const toolCards = aiMsg.toolCalls ||= []
+      let replaced = !retry
+      const replaceOutput = () => {
+        if (replaced) return
+        replaced = true
+        toolCards.splice(0)
+        aiMsg.actions = []
+      }
       let stream: SseStream | null = null
       let renderTimer: ReturnType<typeof setTimeout> | undefined
       const cancelRender = () => {
@@ -191,24 +251,31 @@ export const useChatStore = defineStore('chat', {
         if (buffer.full) aiMsg.content = buffer.full
       }
 
+      pending.flush = flushPartial
       try {
-        stream = streamChat({ conversationId, content, webSearchEnabled: this.webSearchEnabled }, {
+        stream = streamChat({ conversationId, content, webSearchEnabled: aiMsg.requestWebSearch,
+          requestId: aiMsg.requestId, resumeOnly, retryMessageId: aiMsg.retryMessageId }, {
           onToken: (t) => {
-            if (aiMsg.status !== 'PENDING') return
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
+            replaceOutput()
             buffer.push(t)
             if (renderTimer === undefined) {
               renderTimer = setTimeout(() => {
                 renderTimer = undefined
-                aiMsg.content = buffer.renderable
+                if (isCurrentStream()) aiMsg.content = buffer.renderable
               }, 32)
             }
           },
           onToolCall: (evt) => {
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
+            replaceOutput()
             toolCards.push({
               callId: evt.callId, tool: evt.tool, args: evt.args, status: 'running',
             })
           },
           onToolResult: (evt) => {
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
+            replaceOutput()
             const card = toolCards.find((c) => c.callId === evt.callId)
             if (card) {
               card.status = 'done'
@@ -218,45 +285,46 @@ export const useChatStore = defineStore('chat', {
             }
           },
           onAction: (action) => {
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
+            replaceOutput()
             this.upsertOrderAction(aiMsg, action)
           },
           onError: (evt) => {
-            if (aiMsg.status === 'STOPPED') return
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
             flushPartial()
-            aiMsg.status = 'FAILED'
-            aiMsg.error = evt.message
-            if (!aiMsg.content) aiMsg.content = evt.message
-            ElMessage.error(evt.message)
+            aiMsg.status = evt.transport ? 'INTERRUPTED' : 'FAILED'
+            aiMsg.errorCode = evt.code
+            if (evt.messageId) aiMsg.messageId = evt.messageId
           },
           onDone: (evt) => {
-            // 终态：渲染完整文本（含闭合链接）
-            if (aiMsg.status === 'STOPPED') return
+            if (!isCurrentStream() || aiMsg.status !== 'PENDING') return
             cancelRender()
+            replaceOutput()
             aiMsg.content = evt.content ?? buffer.full
             aiMsg.messageId = evt.messageId
-            aiMsg.status = 'SUCCESS'
+            aiMsg.status = evt.timedOut ? 'FAILED' : evt.degraded ? 'DEGRADED' : 'SUCCESS'
+            if (evt.timedOut) aiMsg.errorCode = 5002
           },
         })
         pending.stream = stream
         await stream.promise
       } catch {
-        flushPartial()
-        if (aiMsg.status !== 'STOPPED') {
-          aiMsg.status = 'FAILED'
-          aiMsg.error = '生成中断，请重试'
+        if (isCurrentStream()) {
+          flushPartial()
+          if (aiMsg.status === 'PENDING') aiMsg.status = 'INTERRUPTED'
         }
-        if (!aiMsg.content) aiMsg.content = aiMsg.status === 'STOPPED' ? '已停止生成' : '生成中断，请重试'
       } finally {
         cancelRender()
+        if (!isCurrentStream()) return
         if (aiMsg.status === 'PENDING') {
           flushPartial()
-          aiMsg.status = 'FAILED'
-          aiMsg.error = '连接已中断，请重试'
-          if (!aiMsg.content) aiMsg.content = aiMsg.error
+          aiMsg.status = 'INTERRUPTED'
         } else if (aiMsg.status === 'STOPPED') {
           flushPartial()
-          if (!aiMsg.content) aiMsg.content = '已停止生成'
         }
+        if (aiMsg.status === 'INTERRUPTED' || aiMsg.status === 'STOPPED'
+            || (aiMsg.status === 'FAILED' && !aiMsg.messageId)) saveRecovery(conversationId, aiMsg)
+        else clearRecovery(conversationId, aiMsg.requestId)
         for (const card of toolCards) {
           if (card.status === 'running') card.status = 'interrupted'
         }

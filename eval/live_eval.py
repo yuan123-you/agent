@@ -52,15 +52,21 @@ class LiveClient:
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             events = parse_sse(response)
         result = {"tool_calls": [], "tool_results": [], "done": {}}
+        completed = False
         for name, payload in events:
             if name == "tool_call":
                 result["tool_calls"].append(payload)
             elif name == "tool_result":
                 result["tool_results"].append(payload)
             elif name == "done":
+                if payload.get("timedOut"):
+                    raise RuntimeError("live Agent evaluation timed out before completion")
                 result["done"] = payload
+                completed = True
             elif name == "error":
                 raise RuntimeError(payload.get("message", "live Agent evaluation failed"))
+        if not completed:
+            raise RuntimeError("live Agent stream ended without a terminal done event")
         return result
 
 

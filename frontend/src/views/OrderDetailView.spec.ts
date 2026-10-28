@@ -54,3 +54,21 @@ describe('order detail state', () => {
   })
 
 })
+
+
+describe('honest logistics and after-sale integration', () => {
+  it('does not invent shipping company, tracking, insurance or refund guarantees', async () => {
+    mocks.detail.mockResolvedValue({ ...value(), status: 'SHIPPED' }); await mount()
+    expect(host.textContent).not.toMatch(/SF1982839210|顺丰|极速退款|运费险|假一赔十|预计今日|预计明日|北京顺义|已原路退回/)
+  })
+  it('shows refund accounting independently of the original order amount', async () => {
+    mocks.detail.mockResolvedValue({ ...value(), refundedAmount: 4, discountAmount: 2 }); await mount()
+    expect(host.querySelector('.refunded-amount')?.textContent).toContain('4.00')
+  })
+})
+
+
+it('never presents a buyer-side dispatch operation for paid orders',async()=>{
+  mocks.detail.mockResolvedValue({...value(),status:'PAID'});await mount()
+  expect(host.textContent).not.toContain('模拟商家发货')
+})

@@ -154,6 +154,7 @@ export interface CreateOrderPayload extends CheckoutDeliveryPayload {
 }export const apiCreateOrder = (data: CreateOrderPayload) => post<{ orderId: number; orderNo: string }>('/orders', data)
 export const apiPayOrder = (id: number) => post<void>(`/orders/${id}/pay`)
 export const apiCancelOrder = (id: number) => post<void>(`/orders/${id}/cancel`)
+/** @deprecated Buyer dispatch is disabled; fulfillment requires an authorized operator. */
 export const apiOrderSimulateShip = (id: number) => post<void>(`/orders/${id}/simulate-ship`)
 export const apiConfirmReceipt = (id: number) => post<void>(`/orders/${id}/confirm`)
 export const apiMyOrders = (params: Record<string, unknown>) =>
@@ -307,3 +308,14 @@ export const apiWorkbenchMessages = (id: number) =>
 export const apiWorkbenchStatus = (id: number) =>
   get<{ conversationId: number; status: string }>(`/workbench/conversations/${id}/status`, { silent: true } as never)
 export const apiWorkbenchSla = () => get<WorkbenchSla>('/workbench/sla')
+
+
+// Shared buyer / merchant / platform after-sale workflow. Authorization is enforced on the server.
+export const apiAfterSaleEligibility = (orderId: number) => get<import('@/types/aftersale').AfterSaleEligibility[]>('/after-sales/eligibility', { params: { orderId }, cache: false })
+export const apiAfterSaleQuote = (orderId: number, orderItemId: number, serviceType: string, quantity: number) => get<{ maxRefundAmount: number }>('/after-sales/quote', { params: { orderId, orderItemId, serviceType, quantity }, cache: false })
+export const apiAfterSaleApply = (data: import('@/types/aftersale').AfterSaleApply) => post<import('@/types/aftersale').AfterSaleVO>('/after-sales', data)
+export const apiAfterSales = (params: Record<string,unknown>, manage = false) => get<PageResult<import('@/types/aftersale').AfterSaleVO>>(`/after-sales/${manage ? 'manage' : 'my'}`, { params, cache: false })
+export const apiAfterSaleDetail = (id: number) => get<import('@/types/aftersale').AfterSaleVO>(`/after-sales/${id}`, { cache: false })
+export const apiAfterSaleAction = (id: number, data: import('@/types/aftersale').AfterSaleCommand) => post<import('@/types/aftersale').AfterSaleVO>(`/after-sales/${id}/actions`, data)
+export const apiAfterSaleUpload = (file: File) => { const form = new FormData(); form.append('file',file); return upload<{ token: string }>('/after-sales/evidence',form) }
+export const apiAfterSaleEvidence = (id: number, token: string) => get<Blob>(`/after-sales/${id}/evidence/${encodeURIComponent(token)}`, { responseType: 'blob', cache: false })

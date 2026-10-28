@@ -56,7 +56,18 @@ class CartCheckoutInputIntegrityTest {
         var sequence = inOrder(cart, orders);
         sequence.verify(cart).selectList(selected.capture());
         sequence.verify(orders).checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null);
-        sequence.verify(cart).delete(deleted.capture());
+        long purchased = expected.stream().filter(item -> item.productId().equals(snapshot.getProductId())
+                && item.skuId().equals(snapshot.getSkuId() == null ? 0L : snapshot.getSkuId()))
+                .mapToLong(OrderService.CheckoutItem::quantity).sum();
+        int remaining = (int) Math.max(0L, snapshot.getQuantity() - purchased);
+        if (remaining == 0) {
+            sequence.verify(cart).delete(deleted.capture());
+        } else {
+            var updated = ArgumentCaptor.forClass(CartItem.class);
+            sequence.verify(cart).update(updated.capture(), deleted.capture());
+            assertEquals(remaining, updated.getValue().getQuantity());
+            verify(cart, never()).delete(any());
+        }
         sequence.verifyNoMoreInteractions();
         String selectionSql = selected.getValue().getSqlSegment();
         assertTrue(selectionSql.contains("user_id ="));
@@ -136,14 +147,14 @@ class CartCheckoutInputIntegrityTest {
     }
 
     @ParameterizedTest @ValueSource(strings = {"25.00", "0.00"})
-    void validExplicitEntriesRetainCheckoutAndCartCleanup(String total) {
+    void validExplicitEntriesRetainCheckoutAndOnlyConsumePurchasedQuantity(String total) {
         var body = body();
         body.setItems(List.of(item()));
         var expected = List.of(new OrderService.CheckoutItem(10L, 0L, 2));
-        // Explicit quantity is 2; existing policy clears the whole locked cart row of 5.
+        // Buy two from a locked row of five: retain three, with the same ownership/SKU/quantity CAS.
         var snapshot = snapshot(5);
         when(cart.selectList(any())).thenReturn(List.of(snapshot));
-        when(cart.delete(any())).thenReturn(1);
+        when(cart.update(any(CartItem.class), any())).thenReturn(1);
         var order = order();
         order.setTotalAmount(new BigDecimal(total));
         when(orders.checkout(7L, expected, null, "Receiver", "13800000000", "Test address", null)).thenReturn(order);

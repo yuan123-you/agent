@@ -79,4 +79,66 @@ describe('live catalog identity',()=>{
   expect(mocks.products).toHaveBeenCalledTimes(1);expect(host.textContent).toContain('后端真实商品701')
  })
 
+
+ it('shows all products rather than phone as the active category for a global search',async()=>{
+  route.query={keyword:'车厘子'}
+  mocks.products.mockResolvedValue({records:[{...product(),name:'智利车厘子',category:'FOOD'}],total:1})
+  await mount(ProductListView)
+  expect(host.querySelector('.main-cat-tab.active')?.textContent?.trim()).toBe('全部商品')
+  expect(mocks.products.mock.lastCall![0]).not.toHaveProperty('category')
+  expect(host.textContent).toContain('智利车厘子')
+ })
+ it('submitting a search from a category resets the scope to all products',async()=>{
+  route.query={category:'FOOD'}
+  await mount(ProductListView)
+  const input=host.querySelector<HTMLInputElement>('.cs-input')!
+  input.value='耳机';input.dispatchEvent(new Event('input'))
+  host.querySelector<HTMLButtonElement>('.cs-submit-btn')!.click();await flush()
+  expect(host.querySelector('.main-cat-tab.active')?.textContent?.trim()).toBe('全部商品')
+  expect(mocks.products.mock.lastCall![0]).toMatchObject({page:1,keyword:'耳机'})
+  expect(mocks.products.mock.lastCall![0]).not.toHaveProperty('category')
+ })
+ it('switching category keeps the submitted keyword and filters the search within that category',async()=>{
+  route.query={keyword:'苹果'};await mount(ProductListView)
+  const food=Array.from(host.querySelectorAll<HTMLElement>('.main-cat-tab')).find(el=>el.textContent?.trim()==='食品生鲜')!
+  food.click();await flush()
+  expect(host.querySelector<HTMLInputElement>('.cs-input')!.value).toBe('苹果')
+  expect(mocks.products).toHaveBeenLastCalledWith(expect.objectContaining({page:1,keyword:'苹果',category:'FOOD'}))
+ })
+ it('switching category preserves an unsubmitted draft without searching for it',async()=>{
+  route.query={keyword:'苹果'};await mount(ProductListView)
+  const input=host.querySelector<HTMLInputElement>('.cs-input')!
+  input.value='尚未提交';input.dispatchEvent(new Event('input'))
+  Array.from(host.querySelectorAll<HTMLElement>('.main-cat-tab')).find(el=>el.textContent?.trim()==='食品生鲜')!.click();await flush()
+  expect(input.value).toBe('尚未提交')
+  expect(mocks.products).toHaveBeenLastCalledWith(expect.objectContaining({keyword:'苹果',category:'FOOD'}))
+ })
+ it('selecting all products removes the category filter but keeps the keyword',async()=>{
+  route.query={keyword:'苹果',category:'FOOD'};await mount(ProductListView)
+  const all=Array.from(host.querySelectorAll<HTMLElement>('.main-cat-tab')).find(el=>el.textContent?.trim()==='全部商品')
+  expect(all).toBeDefined();all!.click();await flush()
+  expect(host.querySelector<HTMLInputElement>('.cs-input')!.value).toBe('苹果')
+  expect(mocks.products.mock.lastCall![0]).toMatchObject({page:1,keyword:'苹果'})
+  expect(mocks.products.mock.lastCall![0]).not.toHaveProperty('category')
+ })
+ it('resubmitting the same keyword exits the selected category',async()=>{
+  route.query={keyword:'苹果',category:'FOOD'};await mount(ProductListView)
+  host.querySelector<HTMLButtonElement>('.cs-submit-btn')!.click();await flush()
+  expect(host.querySelector('.main-cat-tab.active')?.textContent?.trim()).toBe('全部商品')
+  expect(mocks.products.mock.lastCall![0]).not.toHaveProperty('category')
+ })
+ it('a new route search clears the previous category scope',async()=>{
+  route.query={category:'FOOD'};await mount(ProductListView)
+  route.query={keyword:'耳机'};await flush()
+  expect(host.querySelector<HTMLInputElement>('.cs-input')!.value).toBe('耳机')
+  expect(host.querySelector('.main-cat-tab.active')?.textContent?.trim()).toBe('全部商品')
+  expect(mocks.products.mock.lastCall![0]).toMatchObject({keyword:'耳机'})
+  expect(mocks.products.mock.lastCall![0]).not.toHaveProperty('category')
+ })
+ it('an explicit category in a search route is applied together with the keyword',async()=>{
+  route.query={keyword:'苹果',category:'FOOD'};await mount(ProductListView)
+  expect(host.querySelector('.main-cat-tab.active')?.textContent?.trim()).toBe('食品生鲜')
+  expect(mocks.products).toHaveBeenLastCalledWith(expect.objectContaining({keyword:'苹果',category:'FOOD'}))
+ })
+
 })

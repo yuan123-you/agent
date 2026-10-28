@@ -404,7 +404,9 @@ function handleSearch() {
   const kw = keywordInput.value.trim()
   if (kw) saveHistory(kw)
   showSearchPanel.value = false
+  activeCategoryCode.value = ''
   selectedSub.value = ''
+  selectedBrand.value = ''
 }
 
 function applyKeyword(w: string) {
@@ -412,8 +414,9 @@ function applyKeyword(w: string) {
   handleSearch()
 }
 
-// 16 大全品类
+// 全站入口 + 16 大品类
 const MAIN_CATEGORIES = [
+  { code: '', name: '全部商品', icon: '🛍️' },
   { code: 'PHONE', name: '手机数码', icon: '📱' },
   { code: 'LAPTOP', name: '电脑办公', icon: '💻' },
   { code: 'APPLIANCE', name: '家用电器', icon: '🧺' },
@@ -451,7 +454,7 @@ const CATEGORY_SUB_TAGS: Record<string, string[]> = {
   HOBBY: ['全部', '电钢琴', '尤克里里', '潮玩模型', '编曲设备'],
 }
 
-const activeCategoryCode = ref((route.query.category as string) || 'PHONE')
+const activeCategoryCode = ref((route.query.category as string) || (searchKeyword.value ? '' : 'PHONE'))
 const selectedSub = ref('')
 
 const currentSubcategories = computed(() => {
@@ -462,7 +465,7 @@ const currentSubcategories = computed(() => {
 const currentCategoryBrands = computed(() => {
   const set = new Set<string>()
   for (const p of products.value) {
-    if (p.brand && (p.category === activeCategoryCode.value || p.category === MAIN_CATEGORIES.find(c => c.code === activeCategoryCode.value)?.name)) {
+    if (p.brand && (!activeCategoryCode.value || p.category === activeCategoryCode.value || p.category === MAIN_CATEGORIES.find(c => c.code === activeCategoryCode.value)?.name)) {
       set.add(p.brand)
     }
   }
@@ -473,8 +476,6 @@ function selectCategory(code: string) {
   activeCategoryCode.value = code
   selectedSub.value = ''
   selectedBrand.value = ''
-  keywordInput.value = ''
-  searchKeyword.value = ''
 }
 
 function selectSubcategory(sub: string) {
@@ -600,10 +601,9 @@ async function loadCatalogPage() {
   try {
     const result = await apiProducts({
       page: catalogPage, size: 24,
-      ...(searchKeyword.value.trim() ? { keyword: searchKeyword.value.trim() } : {
-        category: activeCategoryCode.value,
-        ...(selectedBrand.value ? { keyword: selectedBrand.value } : {}),
-      }),
+      ...(activeCategoryCode.value ? { category: activeCategoryCode.value } : {}),
+      ...(searchKeyword.value.trim() ? { keyword: searchKeyword.value.trim() } :
+        selectedBrand.value ? { keyword: selectedBrand.value } : {}),
       ...(filterMinPrice.value !== '' ? { minPrice: filterMinPrice.value } : {}),
       ...(filterMaxPrice.value !== '' ? { maxPrice: filterMaxPrice.value } : {}),
       sort: sort.value,
@@ -628,15 +628,16 @@ function reloadCatalog() {
   void loadCatalogPage()
 }
 watch([searchKeyword, activeCategoryCode, selectedBrand, filterMinPrice, filterMaxPrice, sort], reloadCatalog, { immediate: true })
-watch(() => route.query.keyword, value => { keywordInput.value = typeof value === 'string' ? value : ''; searchKeyword.value = keywordInput.value })
 onUnmounted(() => { disposed = true; catalogGeneration++ })
 
 watch(
-  () => route.query.category,
-  (cat) => {
-    if (cat && typeof cat === 'string') {
-      activeCategoryCode.value = cat
-    }
+  () => [route.query.keyword, route.query.category],
+  ([keyword, category]) => {
+    keywordInput.value = typeof keyword === 'string' ? keyword : ''
+    searchKeyword.value = keywordInput.value
+    activeCategoryCode.value = typeof category === 'string' && category ? category : (searchKeyword.value ? '' : 'PHONE')
+    selectedSub.value = ''
+    selectedBrand.value = ''
   }
 )
 </script>

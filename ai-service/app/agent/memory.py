@@ -4,8 +4,9 @@ import logging
 import re
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.agent.prompt_context import compact_prompt_messages
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_intent_llm
 
@@ -143,8 +144,9 @@ async def extract_memories_with_llm(user_text: str, ai_text: str) -> list[dict]:
     """使用轻量模型异步提取长期记忆片段"""
     if not user_text or len(user_text.strip()) < 3:
         return []
-    llm = get_intent_llm()
-    prompt = f"用户说: {user_text}\nAI回复: {ai_text}"
+    llm = get_intent_llm(classification=False)
+    ai_context = compact_prompt_messages([AIMessage(content=ai_text)], question=user_text)[0].content
+    prompt = f"用户说: {user_text}\nAI回复: {ai_context}"
     try:
         resp = await llm.ainvoke([
             SystemMessage(content=MEMORY_EXTRACT_SYSTEM_PROMPT),
