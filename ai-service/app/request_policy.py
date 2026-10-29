@@ -67,9 +67,9 @@ def is_out_of_scope(text: str) -> bool:
     if not t:
         return False
     # 优先拦截明确的对抗注入、恶意攻击与越权指令（不受电商白名单词汇干扰）
-    if re.search(r"(?:系统提示词|system\s*prompt|系统指令|系统设定|数据库密码|api[_-]?key|服务器密码|后台密码)", t, re.IGNORECASE):
+    if re.search(r"(?:系统提示词|system\s*prompt|系统指令|系统设定|数据库密码|api[_-]?key|服务器密码|后台密码|system\s*override|ignore\s*(?:all\s*)?previous|hidden\s*instructions|developer\s*mode|开发者模式|越狱|jailbreak)", t, re.IGNORECASE):
         return True
-    if re.search(r"(?:钓鱼.*链接|木马|病毒|外挂|恶意.*链接)", t):
+    if re.search(r"(?:钓鱼.*链接|木马|病毒|外挂|恶意.*链接|爆破)", t):
         return True
     if re.search(r"(?:删除|drop|delete\s+from).*(?:表|数据库|sys_user)", t, re.IGNORECASE):
         return True
@@ -130,6 +130,6 @@ def requires_kb(text: str) -> bool:
         return False
     if re.search(r"规则|政策|条件|标准|期限|规定|流程|要求", t):
         return True
-    if re.search(r"(?:帮我|我要|请)(?:申请|发起|提交)(?:退款|退货|售后)", t):
+    if re.search(r"(?:帮我|我要|我想|请)(?:申请|发起|提交|办|办理)?(?:退款|退货|售后)", t):
         return False
     return bool(re.search(r"几天|多久|谁|怎么|如何|能否|是否|支持|几点|上班|[?？吗]", t))

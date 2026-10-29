@@ -10,6 +10,13 @@ from typing import Any
 IDENTITY_KEYS = frozenset({"assistant_name", "user_name"})
 
 
+def _clean_name(name: str) -> str:
+    if not name:
+        return ""
+    n = name.strip()
+    return re.sub(r"(?:了|啦|吧|呗|就好|就行|即可)+$", "", n).strip()
+
+
 def _is_valid_name(name: str) -> bool:
     if not name:
         return False
@@ -31,8 +38,8 @@ def parse_naming_command(text: str) -> dict[str, str]:
         t,
     )
     if m1 and _is_valid_name(m1.group(1)) and _is_valid_name(m1.group(2)):
-        res["assistant_name"] = m1.group(1).strip()
-        res["user_name"] = m1.group(2).strip()
+        res["assistant_name"] = _clean_name(m1.group(1))
+        res["user_name"] = _clean_name(m1.group(2))
         return res
 
     m2 = re.search(
@@ -41,8 +48,8 @@ def parse_naming_command(text: str) -> dict[str, str]:
         t,
     )
     if m2 and _is_valid_name(m2.group(1)) and _is_valid_name(m2.group(2)):
-        res["user_name"] = m2.group(1).strip()
-        res["assistant_name"] = m2.group(2).strip()
+        res["user_name"] = _clean_name(m2.group(1))
+        res["assistant_name"] = _clean_name(m2.group(2))
         return res
 
     # 2. 单独为助手起名: "从现在开始你叫大肥鱼" / "你叫大肥鱼，记住了吗"
@@ -51,7 +58,7 @@ def parse_naming_command(text: str) -> dict[str, str]:
         t,
     )
     if m3 and _is_valid_name(m3.group(1)) and not re.search(r"(?:你叫|叫你|称呼你为)\s*[^，, ]+?[吗么呢？?]", t):
-        res["assistant_name"] = m3.group(1).strip()
+        res["assistant_name"] = _clean_name(m3.group(1))
 
     # 3. 单独自我介绍: "我叫派蒙" / "叫我派蒙"
     m4 = re.search(
@@ -59,7 +66,7 @@ def parse_naming_command(text: str) -> dict[str, str]:
         t,
     )
     if m4 and _is_valid_name(m4.group(1)) and not any(w in t for w in ["什么", "谁", "名字", "买", "要"]) and not re.search(r"(?:我叫|叫我|称呼我为)\s*[^，, ]+?[吗么呢？?]", t):
-        res["user_name"] = m4.group(1).strip()
+        res["user_name"] = _clean_name(m4.group(1))
 
     return res
 

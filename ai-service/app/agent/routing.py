@@ -41,7 +41,7 @@ def fallback_intent_by_rules(user_text: str) -> str:
         return "SMALL_TALK"
     if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
         return "AFTER_SALE_FAQ"
-    if re.search(r"(?:帮我|我要|请)(?:申请|发起|提交)(?:退款|退货|售后)", t):
+    if re.search(r"(?:帮我|我要|我想|请)(?:申请|发起|提交|办|办理)?(?:退款|退货|售后)", t):
         return "ORDER_QUERY"
     if any(w in t for w in ["订单", "物流", "发货", "快递", "到哪了", "待支付"]):
         return "ORDER_QUERY"
