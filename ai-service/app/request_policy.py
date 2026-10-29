@@ -6,7 +6,7 @@ def requests_human(text: str) -> bool:
     for clause in re.split(r'[，。！？,!?；;\n]', text):
         if re.search(r'不(?:要|用|需要|想|是)|别|无需|取消|怎么|如何', clause):
             continue
-        if re.search(r'(?:转(?:接)?|找|联系|接(?:入|通|一下)?|呼叫|我要|我需要|让).{0,4}(?:人工|真人)|(?:我要|要求)投诉', clause):
+        if re.search(r'(?:转(?:接)?|找|联系|接(?:入|通|一下)?|呼叫|我要|我需要|让).{0,15}?(?:人工|真人)|(?:我要|要求)?投诉.*(?:人工|介入|处理)?|(?:找|联系).{0,6}?主管', clause):
             return True
         if clause.strip() in {'人工', '人工客服', '人工服务', '真人客服', '投诉'}:
             return True
@@ -15,7 +15,7 @@ def requests_human(text: str) -> bool:
 
 def asks_assistant_identity(text: str) -> bool:
     return any(word in text for word in ('你是谁', '你能做什么', '你能帮我做什么', '介绍你自己',
-        '你有什么功能', '你叫什么', '介绍下你自己', '你是真人', '你是机器人', '你是人工'))
+        '你有什么功能', '你叫什么', '你叫啥', '你的名字', '介绍下你自己', '你是真人', '你是机器人', '你是人工'))
 
 
 def asks_user_identity(text: str) -> bool:
@@ -56,6 +56,8 @@ def is_negative_sentiment(text: str) -> bool:
         return True
     if re.search(r"你(?:是不是|是)(?:傻|猪|弱智|机器人吧)", t):
         return True
+    if re.search(r"(?:气死我了|搞什么鬼|怎么搞的|太耽误事|货不对板|服务态度太烂|太差劲了|大傻逼)", t):
+        return True
     return False
 
 
@@ -64,20 +66,34 @@ def is_out_of_scope(text: str) -> bool:
     t = (text or "").strip().lower()
     if not t:
         return False
+    # 优先拦截明确的对抗注入、恶意攻击与越权指令（不受电商白名单词汇干扰）
+    if re.search(r"(?:系统提示词|system\s*prompt|系统指令|系统设定|数据库密码|api[_-]?key|服务器密码|后台密码)", t, re.IGNORECASE):
+        return True
+    if re.search(r"(?:钓鱼.*链接|木马|病毒|外挂|恶意.*链接)", t):
+        return True
+    if re.search(r"(?:删除|drop|delete\s+from).*(?:表|数据库|sys_user)", t, re.IGNORECASE):
+        return True
     # 若包含电商导购关键词，优先归入电商服务而非越界
-    if re.search(r"推荐|挑选|选购|想买|购买|多少钱|价格|哪款|好用吗|有货|在售|链接|正品|牌子|品牌|什么.*(?:好|适合|推荐)|笔记本|电脑|手机|主机|键盘|显示器|耳机|图书|书籍", t):
+    if re.search(r"推荐|挑选|选购|想买|购买|多少钱|价格|哪款|好用吗|有货|在售|正品|牌子|品牌|什么.*(?:好|适合|推荐)|笔记本|电脑|手机|主机|键盘|显示器|耳机|图书|书籍", t):
         return False
     # 代码生成与算法实现任务
     code_pattern = (
-        r"(?:帮我|给我|请)?(?:写|生成|实现|编写|运行).*(?:代码|程序|算法|函数|脚本|爬虫|冒泡排序|快速排序|二叉树|前端|后端|python|java|c\+\+|golang|javascript|vue|react|sql语句)"
+        r"(?:帮我|给我|请)?(?:写|生成|实现|编写|运行).*(?:代码|程序|算法|函数|脚本|爬虫|冒泡排序|快速排序|二叉树|前端|后端|python|java|c\+\+|golang|javascript|vue|react|sql)"
     )
     if re.search(code_pattern, t, re.IGNORECASE):
         return True
     if re.search(r"(?:冒泡排序|快速排序|二叉树遍历|动态规划|斐波那契|递归算法)", t):
         return True
+    if re.search(r"(?:删除|drop|delete\s+from).*(?:表|数据库|sys_user)", t, re.IGNORECASE):
+        return True
     # 非电商创作与通用解题任务
-    task_pattern = r"(?:帮我|给我|请)?(?:写|做|算|解).{0,10}?(?:数学题|物理题|化学题|微积分|几何题|方程|作文|小说|故事|诗歌?|歌词)"
+    task_pattern = r"(?:帮我|给我|请)?(?:写|做|算|解).{0,30}?(?:数学题|物理题|化学题|微积分|几何题|方程|作文|小说|故事|诗歌?|歌词|散文)"
     if re.search(task_pattern, t):
+        return True
+    # 提示词注入、恶意越权与凭证刺探
+    if re.search(r"(?:系统提示词|system\s*prompt|系统指令|系统设定|数据库密码|api[_-]?key|服务器密码|后台密码)", t, re.IGNORECASE):
+        return True
+    if re.search(r"(?:钓鱼.*链接|木马|病毒|外挂|恶意.*链接)", t):
         return True
     return False
 

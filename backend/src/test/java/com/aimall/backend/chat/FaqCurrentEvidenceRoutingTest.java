@@ -51,7 +51,7 @@ class FaqCurrentEvidenceRoutingTest {
         when(redis.opsForValue()).thenReturn(values);
         when(values.increment(anyString())).thenReturn(1L);
         chat = new ChatService(conversations, messages, null, mock(UserMapper.class), client,
-                mock(SseEmitterManager.class), redis, new AppProperties(), new FaqService(), null, recovery);
+                mock(SseEmitterManager.class), redis, new AppProperties(), null, recovery, null);
     }
 
     private void askRefundFaq() {

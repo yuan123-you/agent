@@ -16,7 +16,15 @@ from app.tools.tools import set_tool_ctx
 
 
 @pytest.fixture(autouse=True)
-def isolated_ctx():
+def isolated_ctx(monkeypatch):
+    # Unit tests exercise orchestration, not the availability/latency of Ollama.
+    async def reply(messages):
+        naming = parse_naming_command(messages[-1].content)
+        return AIMessage(content=f"记住了！我是「{naming.get('assistant_name', 'AI Mall')}」，"
+                                 f"你是「{naming.get('user_name', '朋友')}」。")
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=reply)
+    monkeypatch.setattr("app.agent.nodes.get_chat_llm", lambda: model)
     set_tool_ctx({})
     yield
     set_tool_ctx({})
@@ -215,3 +223,35 @@ async def test_mutual_identity_when_assistant_name_not_set_or_empty():
     ans2 = result2["messages"][-1].content
     assert "「大肥鱼」" in ans2
     assert "「派蒙」" in ans2
+
+@pytest.mark.asyncio
+async def test_reproducing_screenshot_paimon_retention():
+    cp = MemorySaver()
+    g = build_graph(cp)
+
+    req1 = chat.ChatRequest(
+        conversation_id=888,
+        user_id=1,
+        message="从现在起，你叫派蒙，我叫旅行者",
+        user_profile={"nickname": "用户", "user_name": "用户", "assistant_name": "AI Mall"},
+    )
+    state1 = chat.build_state(req1, checkpointer=cp)
+    res1 = await g.ainvoke(state1, {"configurable": {"thread_id": "conv_888"}})
+    turn1_content = res1["messages"][-1].content
+    assert "派蒙" in turn1_content
+    assert "旅行者" in turn1_content
+
+    # Turn 2: 问“你叫什么”
+    req2 = chat.ChatRequest(
+        conversation_id=888,
+        user_id=1,
+        message="你叫什么",
+        user_profile={"nickname": "用户", "user_name": "用户", "assistant_name": "AI Mall"},
+    )
+    state2 = chat.build_state(req2, checkpointer=cp)
+    res2 = await g.ainvoke(state2, {"configurable": {"thread_id": "conv_888"}})
+    turn2_content = res2["messages"][-1].content
+    assert "派蒙" in turn2_content
+    assert "旅行者" in turn2_content
+    assert "也是您的专属伙伴「AI Mall」" not in turn2_content
+    assert "用户，" not in turn2_content

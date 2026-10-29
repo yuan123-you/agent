@@ -31,7 +31,7 @@ class ChatServiceHandoffTest {
 
         ReflectionTestUtils.invokeMethod(service, "handleEvent", "done", "{\"content\":\"已转接人工\"}",
                 conversation, new SseEmitter(), new StringBuilder(),
-                List.of(Map.<String, Object>of("tool", "escalate_to_human")), finished, System.currentTimeMillis());
+                List.of(Map.<String, Object>of("tool", "escalate_to_human")), finished, System.currentTimeMillis(), null);
 
         assertThat(finished).isTrue();
         verify(messages).insert(any(com.aimall.backend.entity.Message.class));

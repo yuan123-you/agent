@@ -28,3 +28,16 @@ async def test_vector_search_discards_chunks_not_current_in_backend(monkeypatch)
     assert [hit["chunk_id"] for hit in result["hits"]] == [11]
     assert result["hits"][0]["source"] == "现行政策标题"
     current.assert_awaited_once_with([11, 12])
+
+
+async def test_vector_trace_separates_embedding_search_and_version_validation(monkeypatch):
+    from app.observability.execution_trace import TraceRecorder,activate_trace
+    store=vectorstore.VectorStore.__new__(vectorstore.VectorStore)
+    store.client=FakeMilvus();store.embeddings=AsyncMock();store.embeddings.aembed_query.return_value=[.1,.2]
+    monkeypatch.setattr(vectorstore.backend_client,"kb_current_chunks",AsyncMock(return_value={11:"当前规则"}))
+    record=TraceRecorder("vector-run")
+    with activate_trace(record):
+        await store.search("退款规则",top_k=2)
+    stages={s["name"]:s for s in record.snapshot("SUCCESS")["stages"]}
+    assert stages["rag.embedding"]["output"]["dimensions"] == 2
+    assert "rag.milvus" in stages and "rag.current_version" in stages

@@ -11,6 +11,7 @@
           <el-menu-item index="/admin/after-sales">售后管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
+          <el-menu-item index="/admin/ai-traces">AI 链路</el-menu-item>
           <el-menu-item index="/admin/stats">使用统计</el-menu-item>
         </template>
         <template v-else-if="auth.isAgent">
@@ -42,6 +43,7 @@
           <el-menu-item index="/admin/after-sales">售后管理</el-menu-item>
           <el-menu-item index="/admin/kb">知识库</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
+          <el-menu-item index="/admin/ai-traces">AI 链路</el-menu-item>
           <el-menu-item index="/admin/stats">使用统计</el-menu-item>
         </template>
         <template v-else-if="auth.isAgent">

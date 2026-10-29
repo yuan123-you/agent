@@ -40,9 +40,9 @@ public class ChatService {
     private final SseEmitterManager sseEmitterManager;
     private final StringRedisTemplate redisTemplate;
     private final AppProperties props;
-    private final FaqService faqService;
     private final UserMemoryService userMemoryService;
     private final ChatStreamRecovery recovery;
+    private final AiTraceService traceService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -60,16 +60,18 @@ public class ChatService {
                     Boolean.TRUE.equals(req.getWebSearchEnabled()), req.getRetryMessageId(), Boolean.TRUE.equals(req.getResumeOnly()))
                 : new ChatStreamRecovery.Ticket(new SseEmitter(300_000L), false);
         if (ticket.replay()) return ticket.emitter();
+        String traceId = traceService != null ? traceService.begin(userId,conv.getId(),req.getContent()) : null;
         AtomicBoolean accepted = new AtomicBoolean(false);
         try {
-            return startMessage(userId, req, conv, ticket.emitter(), accepted);
+            return startMessage(userId, req, conv, ticket.emitter(), accepted, traceId);
         } catch (RuntimeException e) {
             int code = e instanceof BizException biz ? biz.getCode()
                     : e instanceof ChatStreamRecovery.RecordingException ? 5003 : 5001;
             if (accepted.get()) {
                 failStream(conv, ticket.emitter(), new StringBuilder(), Collections.emptyList(),
-                        System.currentTimeMillis(), code, "暂时无法完成回复");
+                        System.currentTimeMillis(), code, "暂时无法完成回复", traceId);
             } else {
+                finishTrace(traceId,null,"FAILED");
                 signalFailure(ticket.emitter(), code, null, "暂时无法完成回复");
                 if (req.getRequestId() == null) throw e;
             }
@@ -78,7 +80,7 @@ public class ChatService {
     }
 
     private SseEmitter startMessage(Long userId, ChatDtos.SendMessageRequest req, Conversation conv,
-                                    SseEmitter emitter, AtomicBoolean accepted) {
+                                    SseEmitter emitter, AtomicBoolean accepted, String traceId) {
         if (!"ACTIVE".equals(conv.getStatus())) {
             throw new BizException(2004, "当前会话已转人工或已关闭，无法使用AI对话");
         }
@@ -135,38 +137,17 @@ public class ChatService {
         // 2. 会话摘要压缩（P1：消息数超 20 时后台刷新）
         maybeCompressSummary(conv);
 
-        // ⚡ FAQ 关键词命中：直接返回固定答案，不调用 AI 服务
-        String faqAnswer = faqService.match(req.getContent());
-        if (faqAnswer != null) {
-            sseEmitterManager.register(userId, conv.getId(), emitter);
-            try {
-                sendEvent(emitter, "token", "{\"content\":\"" + escapeJson(faqAnswer) + "\"}");
-                Message ai = saveAiMessage(conv, faqAnswer, Collections.emptyList(), null,
-                        System.currentTimeMillis(), "SUCCESS");
-                sendEvent(emitter, "done", "{\"content\":\"" + escapeJson(faqAnswer)
-                        + "\",\"messageId\":" + ai.getId() + ",\"faq\":true}");
-            } finally {
-                completeQuietly(emitter);
-                sseEmitterManager.remove(userId, conv.getId(), emitter);
-            }
-            return emitter;
-        }
-
         User user = userMapper.selectById(userId);
-        Map<String, String> memoryMap = userMemoryService != null ? userMemoryService.getMemoryMap(userId) : Collections.emptyMap();
+        // One memory snapshot serves both profile and evidence; do not query the same rows twice.
+        List<Map<String, String>> longTermMemory = userMemoryService != null
+                ? userMemoryService.getMemoriesDto(userId) : Collections.emptyList();
         Map<String, Object> userProfile = new HashMap<>();
         String nickname = user != null && user.getNickname() != null ? user.getNickname().trim() : "";
         userProfile.put("nickname", nickname);
-        String userName = memoryMap.getOrDefault("user_name", nickname);
-        if (org.springframework.util.StringUtils.hasText(userName)) {
-            userProfile.put("user_name", userName.trim());
-        }
-        userProfile.putAll(memoryMap);
-        Object assistantNameObj = userProfile.get("assistant_name");
-        if (assistantNameObj instanceof String assistantName && !org.springframework.util.StringUtils.hasText(assistantName)) {
-            userProfile.remove("assistant_name");
-        } else if (assistantNameObj == null) {
-            userProfile.remove("assistant_name");
+        for (Map<String, String> memory : longTermMemory) {
+            String key = memory.get("key");
+            String value = memory.get("value");
+            if (key != null && value != null) userProfile.put(key, value);
         }
 
         Map<String, Object> body = new HashMap<>();
@@ -174,11 +155,14 @@ public class ChatService {
         body.put("user_id", userId);
         body.put("message", req.getContent());
         body.put("history", history);
-        body.put("options", Map.of("regenerate", req.getRetryMessageId() != null));
+        Map<String,Object> options=new HashMap<>();
+        options.put("regenerate",req.getRetryMessageId()!=null);
+        if (traceId!=null) options.put("trace_id",traceId);
+        body.put("options",options);
         body.put("summary", conv.getSummary());
         body.put("web_search_enabled", Boolean.TRUE.equals(req.getWebSearchEnabled()));
         body.put("user_profile", userProfile);
-        body.put("long_term_memory", userMemoryService != null ? userMemoryService.getMemoriesDto(userId) : Collections.emptyList());
+        body.put("long_term_memory", longTermMemory);
 
         // 3. SSE 代理
         sseEmitterManager.register(userId, conv.getId(), emitter);
@@ -193,32 +177,39 @@ public class ChatService {
                 .doOnNext(evt -> {
                     String name = evt.event() == null ? "message" : evt.event();
                     String data = evt.data() == null ? "" : evt.data();
-                    handleEvent(name, data, conv, emitter, contentBuf, toolCalls, finished, start);
+                    handleEvent(name, data, conv, emitter, contentBuf, toolCalls, finished, start, traceId);
                 })
                 .doOnComplete(() -> {
                     if (finished.compareAndSet(false, true)) {
-                        failStream(conv, emitter, contentBuf, toolCalls, start, 5002, "回复未能完成");
+                        failStream(conv, emitter, contentBuf, toolCalls, start, 5002, "回复未能完成", traceId);
                     }
                 })
                 .doOnError(e -> {
                     log.warn("ai stream error: {}", e.getClass().getSimpleName());
                     if (finished.compareAndSet(false, true)) {
                         int code = e instanceof ChatStreamRecovery.RecordingException ? 5003 : 5001;
-                        failStream(conv, emitter, contentBuf, toolCalls, start, code, "AI 服务暂时不可用");
+                        failStream(conv, emitter, contentBuf, toolCalls, start, code, "AI 服务暂时不可用", traceId);
                     }
                 })
                 .onErrorResume(e -> reactor.core.publisher.Flux.empty())
-                .doFinally(sig -> sseEmitterManager.remove(userId, conv.getId(), emitter))
+                .doFinally(sig -> {
+                    if (!finished.get()) finishTrace(traceId,null,"FAILED");
+                    sseEmitterManager.remove(userId, conv.getId(), emitter);
+                })
                 .subscribe();
         return emitter;
     }
 
     private void handleEvent(String name, String data, Conversation conv, SseEmitter emitter,
                              StringBuilder contentBuf, List<Map<String, Object>> toolCalls,
-                             AtomicBoolean finished, long start) {
+                             AtomicBoolean finished, long start, String traceId) {
         if (finished.get()) return;
         try {
             switch (name) {
+                case "trace" -> {
+                    // Diagnostics never enter customer SSE, message content or recovery replay.
+                    if (traceService != null) traceService.record(traceId,data);
+                }
                 case "token" -> {
                     JsonNode node = JsonUtil.parse(data);
                     if (node != null && node.hasNonNull("content")) {
@@ -237,12 +228,13 @@ public class ChatService {
                             ? node.get("content").asText() : contentBuf.toString();
                     if (node != null && node.path("timedOut").asBoolean(false)) {
                         finished.set(true);
-                        failStream(conv, emitter, new StringBuilder(content), toolCalls, start, 5002, "回复等待超时");
+                        failStream(conv, emitter, new StringBuilder(content), toolCalls, start, 5002, "回复等待超时", traceId);
                         return;
                     }
                     boolean degraded = node != null && node.path("degraded").asBoolean(false);
                     Message ai = saveAiMessage(conv, content, toolCalls, node, start,
                             degraded ? "DEGRADED" : "SUCCESS");
+                    finishTrace(traceId,ai.getId(),degraded ? "DEGRADED" : "SUCCESS");
                     // 转人工状态由 /internal/tools/escalate 更新；流结束不得覆盖取消、接入或关闭状态。
                     sendEvent(emitter, "done", JsonUtil.putField(data, "messageId", ai.getId()));
                     finished.set(true);
@@ -250,6 +242,7 @@ public class ChatService {
                 }
                 case "error" -> {
                     Message failed = saveAiMessage(conv, contentBuf.toString(), toolCalls, null, start, "FAILED");
+                    finishTrace(traceId,failed.getId(),"FAILED");
                     sendEvent(emitter, "error", JsonUtil.putField(data, "messageId", failed.getId()));
                     finished.set(true);
                     completeQuietly(emitter);
@@ -263,7 +256,7 @@ public class ChatService {
     }
 
     private void failStream(Conversation conv, SseEmitter emitter, StringBuilder content,
-                            List<Map<String, Object>> tools, long start, int code, String message) {
+                            List<Map<String, Object>> tools, long start, int code, String message, String traceId) {
         Message failed = null;
         try {
             failed = saveAiMessage(conv, content.toString(), tools, null, start, "FAILED");
@@ -271,7 +264,12 @@ public class ChatService {
             log.warn("failed to persist interrupted reply: {}", e.getClass().getSimpleName());
             code = 5003;
         }
+        finishTrace(traceId,failed == null ? null : failed.getId(),"FAILED");
         signalFailure(emitter, code, failed == null ? null : failed.getId(), message);
+    }
+
+    private void finishTrace(String traceId, Long messageId, String status) {
+        if (traceService != null) traceService.finish(traceId,messageId,status);
     }
 
     private void signalFailure(SseEmitter emitter, int code, Long messageId, String message) {

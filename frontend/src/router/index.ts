@@ -68,6 +68,7 @@ const router = createRouter({
         { path: 'kb', component: () => import('@/views/admin/KbManageView.vue') },
         { path: 'users', component: () => import('@/views/admin/UserManageView.vue') },
         { path: 'stats', component: () => import('@/views/admin/StatsView.vue') },
+        { path: 'ai-traces', component: () => import('@/views/admin/AiTraceView.vue') },
       ],
     },
     { path: '/403', component: () => import('@/views/Error403.vue'), meta: { public: true } },

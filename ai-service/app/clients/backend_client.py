@@ -57,6 +57,9 @@ class BackendClient:
                 await asyncio.sleep(0.3)
         return {"error": "后端服务暂时不可用"}
 
+    async def record_ai_trace(self, trace_id: str, payload: dict) -> dict:
+        return await self._post(f"/internal/ai-traces/{trace_id}", payload, retries=1)
+
     # ---------- 长期记忆管理 ----------
 
     async def get_user_memory(self, user_id: int) -> list[dict]:

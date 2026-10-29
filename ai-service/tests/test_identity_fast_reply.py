@@ -27,7 +27,7 @@ def forbid_models(monkeypatch):
 
 
 @pytest.mark.parametrize("text", [
-    "你是谁", "  你是谁？  ", "你叫什么", "介绍你自己", "介绍下你自己",
+    "你是谁", "  你是谁？  ", "你叫什么", "你叫啥", "你的名字是什么", "介绍你自己", "介绍下你自己",
     "你能做什么", "你能帮我做什么", "你有什么功能", "你是真人还是机器人",
 ])
 async def test_standalone_identity_answers_without_model_calls(monkeypatch, text):

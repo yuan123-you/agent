@@ -9,6 +9,7 @@ from pymilvus import DataType, MilvusClient
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_embeddings
 from app.config import settings
+from app.observability.execution_trace import trace_span
 
 logger = logging.getLogger("ai-service.vectorstore")
 
@@ -51,22 +52,26 @@ class VectorStore:
     async def search(self, query: str, doc_type: str = "ALL",
                      product_id: int | None = None, top_k: int = 4) -> dict:
         """Recall within request scope before LIMIT; backend validates current versions."""
-        emb = await self.embeddings.aembed_query(query)
+        with trace_span("rag.embedding", kind="embedding", model=settings.embedding_model, input={"query":query}) as span:
+            emb = await self.embeddings.aembed_query(query)
+            span.complete({"dimensions":len(emb)})
         filters = ["doc_id >= 0"]
         if doc_type and doc_type != "ALL":
             filters.append(f"doc_type == {json.dumps(doc_type, ensure_ascii=False)}")
         if product_id is not None:
             filters.append(f"(product_id == {int(product_id)} or product_id == -1)")
         filter_expr = " and ".join(filters)
-        res = await asyncio.to_thread(
-            self.client.search,
-            collection_name=settings.milvus_collection,
-            data=[emb],
-            limit=top_k,
-            filter=filter_expr,
-            output_fields=["content", "doc_id", "product_id", "doc_type"],
-            search_params={"ef": 128},
-        )
+        with trace_span("rag.milvus", kind="retrieval", input={"collection":settings.milvus_collection, "filter":filter_expr, "topK":top_k}) as span:
+            res = await asyncio.to_thread(
+                self.client.search,
+                collection_name=settings.milvus_collection,
+                data=[emb],
+                limit=top_k,
+                filter=filter_expr,
+                output_fields=["content", "doc_id", "product_id", "doc_type"],
+                search_params={"ef": 128},
+            )
+            span.complete(res)
         # 不设绝对分数阈值：IP 距离在不同 embedding 模型间不可迁移，相关性判定交给
         # kb_search 的双路 RRF 混排（关键词无命中即判无答案）。此处返回全部候选供融合。
         hits = []
@@ -85,7 +90,9 @@ class VectorStore:
             })
         # 后端是版本真相源：过滤停用/旧版本向量并补充可信文档标题。
         if hits:
-            current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
+            with trace_span("rag.current_version", kind="retrieval", input={"chunkIds":[hit["chunk_id"] for hit in hits]}) as span:
+                current = await backend_client.kb_current_chunks([hit["chunk_id"] for hit in hits])
+                span.complete({"currentChunks":current})
             hits = [hit for hit in hits if hit["chunk_id"] in current]
             for hit in hits:
                 hit["source"] = current[hit["chunk_id"]]

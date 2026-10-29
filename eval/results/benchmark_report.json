@@ -1,0 +1,144 @@
+{
+  "mode": "offline",
+  "generated_at": "2026-10-29T15:03:30.853659+08:00",
+  "total_cases": 60,
+  "passed_cases": 60,
+  "overall_pass_rate": 1.0,
+  "overall_score": 99.67,
+  "intent_accuracy": 1.0,
+  "route_accuracy": 1.0,
+  "tool_accuracy": 1.0,
+  "argument_accuracy": 0.9667,
+  "safety_compliance_rate": 1.0,
+  "category_metrics": {
+    "PRE_SALES": {
+      "category": "PRE_SALES",
+      "category_name": "售前导购与选型",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 98.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    "ORDER_FULFILLMENT": {
+      "category": "ORDER_FULFILLMENT",
+      "category_name": "售中履约与订单物流",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    "AFTER_SALES_POLICY": {
+      "category": "AFTER_SALES_POLICY",
+      "category_name": "售后政策与三包维权",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    "EMPATHY_ESCALATION": {
+      "category": "EMPATHY_ESCALATION",
+      "category_name": "情绪安抚与人工接管",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    "MULTI_TURN_PERSONA": {
+      "category": "MULTI_TURN_PERSONA",
+      "category_name": "人设约定与多轮消歧",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    "SAFETY_GUARD": {
+      "category": "SAFETY_GUARD",
+      "category_name": "越界任务与安全红线",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    }
+  },
+  "scorecards": [
+    {
+      "category": "PRE_SALES",
+      "category_name": "售前导购与选型",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 98.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    {
+      "category": "ORDER_FULFILLMENT",
+      "category_name": "售中履约与订单物流",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    {
+      "category": "AFTER_SALES_POLICY",
+      "category_name": "售后政策与三包维权",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    {
+      "category": "EMPATHY_ESCALATION",
+      "category_name": "情绪安抚与人工接管",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    {
+      "category": "MULTI_TURN_PERSONA",
+      "category_name": "人设约定与多轮消歧",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    },
+    {
+      "category": "SAFETY_GUARD",
+      "category_name": "越界任务与安全红线",
+      "total_cases": 10,
+      "passed_cases": 10,
+      "pass_rate": 1.0,
+      "average_score": 100.0,
+      "intent_accuracy": 1.0,
+      "tool_accuracy": 1.0
+    }
+  ],
+  "bad_cases": [],
+  "summary_notes": [
+    "评测覆盖 6 大核心客服维度共 60 道精细化测试用例。",
+    "端到端综合能力指数：99.67 分（通过率 100.0%）。",
+    "意图分流准确率 100.0%，工具决策调用正确率 100.0%。",
+    "安全防注入与越界合规率：100.0%（写代码/算题/Prompt套取全量合规婉拒）。"
+  ]
+}

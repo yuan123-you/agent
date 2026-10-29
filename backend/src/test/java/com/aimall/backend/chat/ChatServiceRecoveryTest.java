@@ -17,7 +17,7 @@ class ChatServiceRecoveryTest {
     MessageMapper messages = mock(MessageMapper.class);
     AiClient client = mock(AiClient.class);
     ChatService service = new ChatService(conversations, messages, null, mock(UserMapper.class), client,
-            mock(SseEmitterManager.class), null, null, mock(FaqService.class), null, null);
+            mock(SseEmitterManager.class), null, null, null, null, null);
     void setup() {
         var conv = new Conversation(); conv.setId(7L); conv.setUserId(1L);
         conv.setStatus("ACTIVE"); conv.setMessageCount(2);
@@ -71,7 +71,7 @@ class ChatServiceRecoveryTest {
         setup(); var recovery = mock(ChatStreamRecovery.class);
         var emitter = mock(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.class);
         service = new ChatService(conversations, messages, null, mock(UserMapper.class), client,
-                mock(SseEmitterManager.class), null, null, mock(FaqService.class), null, recovery);
+                mock(SseEmitterManager.class), null, null, null, recovery, null);
         when(recovery.open(anyLong(), anyLong(), anyString(), anyString(), anyBoolean(), isNull(), anyBoolean()))
                 .thenReturn(new ChatStreamRecovery.Ticket(emitter, false));
         when(messages.selectRecent(7L, 10)).thenReturn(new ArrayList<>());
@@ -88,10 +88,10 @@ class ChatServiceRecoveryTest {
     }
 
     @Test void initializationFailureAfterUserInsertionPersistsAFailedReply() {
-        setup(); var faq = mock(FaqService.class);
-        when(faq.match("hello")).thenThrow(new IllegalStateException("lookup failed"));
+        setup(); var memory = mock(UserMemoryService.class);
+        when(memory.getMemoriesDto(1L)).thenThrow(new IllegalStateException("lookup failed"));
         service = new ChatService(conversations, messages, null, mock(UserMapper.class), client,
-                mock(SseEmitterManager.class), null, null, faq, null, null);
+                mock(SseEmitterManager.class), null, null, memory, null, null);
         when(messages.selectRecent(7L, 10)).thenReturn(new ArrayList<>());
         assertThatCode(() -> service.sendMessage(1L, request(null))).doesNotThrowAnyException();
         verify(messages).insert(argThat((Message m) -> "AI".equals(m.getRole()) && "FAILED".equals(m.getStatus())));
@@ -100,7 +100,7 @@ class ChatServiceRecoveryTest {
         setup(); var recovery = mock(ChatStreamRecovery.class);
         var emitter = mock(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.class);
         service = new ChatService(conversations, messages, null, mock(UserMapper.class), client,
-                mock(SseEmitterManager.class), null, null, mock(FaqService.class), null, recovery);
+                mock(SseEmitterManager.class), null, null, null, recovery, null);
         when(recovery.open(anyLong(), anyLong(), anyString(), anyString(), anyBoolean(), isNull(), anyBoolean()))
                 .thenReturn(new ChatStreamRecovery.Ticket(emitter, false));
         doThrow(new IllegalStateException("replay write failed")).when(recovery).record(eq(emitter), eq("tool_call"), anyString());

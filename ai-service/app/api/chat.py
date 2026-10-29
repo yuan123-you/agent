@@ -1,28 +1,32 @@
 """对话流接口：POST /v1/chat/stream（含独立 action 事件）+ 会话摘要压缩"""
 import asyncio
+from contextlib import aclosing
 import json
 import logging
 import re
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, RemoveMessage
 from pydantic import BaseModel
 
 from app.agent.graph import checkpointer, graph
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
-from app.agent.memory import background_memory_extraction, parse_naming_command
-from app.agent.link_guard import GuardedLinkBuffer, collect_known_ids, ensure_product_links, guard_links
+from app.agent.memory import background_memory_extraction, persist_naming_memory, should_extract_memory
+from app.agent.identity import resolve_profile
+from app.agent.link_guard import GuardedLinkBuffer
+from app.agent.output import OutputPolicy
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
 from app.config import settings
+from app.observability.execution_trace import TraceRecorder, activate_trace, trace_span
+from app.clients.backend_client import backend_client
 from app.observability.telemetry import end_trace, get_trace_id, start_trace, tool_span
-from app.rag.citations import validate_citations
 from app.sse import sse
-from app.request_policy import budget_from_text, requires_kb
+from app.request_policy import budget_from_text
 from app.tools.tools import category_from_user_text, set_tool_ctx
 
 router = APIRouter()
@@ -56,15 +60,12 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
     若 checkpointer 中已有该会话的历史快照，则本轮只传入新增的 HumanMessage，
     由 LangGraph 的 add_messages 自动做流式累加，避免会话记忆重复；
     同时继承已有快照中的 active_entities 与 user_profile，保持跨轮次记忆连续。"""
-    profile = dict(req.user_profile or {})
-    naming = parse_naming_command(req.message)
-    if naming:
-        profile.update(naming)
-
     config = {"configurable": {"thread_id": f"conv_{req.conversation_id}"}}
     existing_ckpt = checkpointer.get(config) if checkpointer else None
 
     saved_entities = {}
+    ckpt_profile = {}
+
     if existing_ckpt:
         if req.options.get("regenerate") is True:
             # The backend has validated the failed reply and supplied history before its USER turn.
@@ -75,10 +76,8 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
         else:
             msgs = [HumanMessage(content=req.message)]
         saved_entities = existing_ckpt.get("channel_values", {}).get("active_entities") or {}
-        ckpt_profile = existing_ckpt.get("channel_values", {}).get("user_profile") or {}
-        merged_profile = dict(ckpt_profile)
-        merged_profile.update(profile)
-        profile = merged_profile
+        if not req.options.get("regenerate"):
+            ckpt_profile = existing_ckpt.get("channel_values", {}).get("user_profile") or {}
     else:
         msgs = []
         for h in req.history[-10:]:
@@ -94,9 +93,16 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
                 if b:
                     saved_entities["budget"] = b
 
+    profile = resolve_profile(
+        req.user_profile, ckpt_profile,
+        user_history=(h.content for h in req.history if h.role == "USER"),
+        current_text=req.message,
+    )
+
     return AgentState(
         messages=msgs,
         intent=None,
+        reply_route=None,
         web_query=None,
         tool_loop_count=0,
         escalated=False,
@@ -235,50 +241,85 @@ def _done_eval_metadata(final_state, enabled: bool) -> dict:
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest, request: Request):
+    background = BackgroundTasks()
+    trace_id = req.options.get("trace_id")
+    record = TraceRecorder(trace_id) if isinstance(trace_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", trace_id) else None
+
+    async def extract_preferences(answer_text, status):
+        with activate_trace(record):
+            with trace_span("memory.preference", kind="memory", input={"message":req.message}) as span:
+                await background_memory_extraction(req.user_id, req.message, answer_text)
+                span.complete({"completed":True})
+        if record:
+            try:
+                await backend_client.record_ai_trace(trace_id, record.snapshot(status))
+            except Exception:
+                logger.warning("failed to update background memory trace")
+
     async def gen():
+        with activate_trace(record):
+            try:
+                async for item in generate():
+                    yield item
+            except Exception as exc:
+                # Initialization can fail before the graph's own error handler starts.
+                logger.warning("chat initialization failed: %s", type(exc).__name__)
+                if record:
+                    yield sse("trace", record.snapshot("FAILED", error=type(exc).__name__))
+                yield sse("error", {"code":5001, "message":"AI 服务内部错误，请稍后重试"})
+
+    async def generate():
         start = time.time()
         eval_enabled = req.options.get("include_eval_metadata") is True
         # 工具上下文：身份由服务端注入（越权防护红线），同时注入会话级实体记忆
-        initial_state = build_state(req, checkpointer=checkpointer)
+        with trace_span("context.assemble", kind="context", input={"message":req.message, "history":[h.model_dump() for h in req.history],
+                                                                    "summary":req.summary}) as span:
+            initial_state = build_state(req, checkpointer=checkpointer)
+            span.complete({"profile":initial_state.get("user_profile"), "messageCount":len(initial_state["messages"]),
+                           "longTermMemory":initial_state.get("long_term_memory"), "entities":initial_state.get("active_entities")})
         ctx = {"latest_user_text": req.message, "user_id": str(req.user_id), "conversation_id": str(req.conversation_id),
                "degraded": False, "escalated": False,
                "active_entities": dict(initial_state.get("active_entities") or {})}
         set_tool_ctx(ctx)
         parts: list[str] = []
         usage: dict = {}
-        known_ids: set[str] = set()
+        output = OutputPolicy(req.message, link_guard_enabled=settings.link_guard_enabled)
         live_buffer: GuardedLinkBuffer | None = None
         streamed_length = 0
         web_prefix_pending = ""
         web_prefix_done = False
         web_source_footer = ""
-        product_result: dict | None = None
-        rag_started = False
-        policy_requires_kb = requires_kb(req.message)
-        web_search_used = False
-        product_links_needed = True
         # 可观测：开启本会话 trace（session=conversation_id）
         traced = start_trace(conversation_id=req.conversation_id, user_id=req.user_id,
-                             metadata={"message": _short(req.message, 200), "trace_id": ""})
+                             metadata={"message": _short(req.message, 200), "trace_id": trace_id or ""})
         timed_out = False
         try:
             final_state: dict | None = None
             tool_spans: dict[str, object] = {}
             try:
                 # 总请求超时保护：超过 chat_timeout_s 秒强制终止图运行；recursion_limit 限制图递归深度
-                async with asyncio.timeout(settings.chat_timeout_s):
-                    async for ev in graph.astream_events(
+                async with (
+                    asyncio.timeout(settings.chat_timeout_s),
+                    aclosing(graph.astream_events(
                         initial_state,
                         config={
                             "recursion_limit": settings.agent_recursion_limit,
                             "configurable": {"thread_id": f"conv_{req.conversation_id}"},
                         },
                         version="v2",
-                    ):
+                    )) as events,
+                ):
+                    async for ev in events:
                         # 客户端断连：取消剩余图执行，停止产出
                         if await request.is_disconnected():
                             logger.info("client disconnected, cancelling graph")
-                            break
+                            end_trace(output={"cancelled": True})
+                            return
+                        if record:
+                            try:
+                                record.observe(ev)
+                            except Exception:
+                                logger.warning("execution trace event omitted")
                         kind = ev["event"]
                         if kind == "on_chat_model_stream":
                             # 意图识别节点的输出不面向用户，跳过
@@ -289,8 +330,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                             tool_chunks = getattr(chunk, "tool_call_chunks", None)
                             if isinstance(content, str) and content and not tool_chunks:
                                 node = (ev.get("metadata") or {}).get("langgraph_node")
-                                if (node == "web_answer" and not web_prefix_done and not policy_requires_kb
-                                        and not rag_started and not ctx.get("rag_used")):
+                                if (node == "web_answer" and not web_prefix_done and not output.policy_required
+                                        and not output.rag_started and not ctx.get("rag_used")):
                                     web_prefix_pending += content
                                     candidate = re.sub(r"^\s*#{1,6}\s*", "", web_prefix_pending.lstrip())
                                     if "【联网搜索】".startswith(candidate.strip()):
@@ -300,13 +341,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                                     content = "【联网搜索】\n" + body
                                     web_prefix_done = True
                                 parts.append(content)
-                                # Tool-enabled agents may still retrieve evidence or replace invalid
-                                # recommendations. Only terminal nodes can safely expose early text.
-                                safe_terminal = node in {"small_talk", "finalize_without_tools", "web_answer"}
-                                if (safe_terminal and not policy_requires_kb and not rag_started and not ctx.get("rag_used")
-                                        and (product_result is None or not product_links_needed)):
+                                if output.can_stream(node, ctx):
                                     if live_buffer is None:
-                                        live_buffer = GuardedLinkBuffer(known_ids, settings.link_guard_enabled)
+                                        live_buffer = GuardedLinkBuffer(output.known_ids, settings.link_guard_enabled)
                                         safe_text = live_buffer.push("".join(parts))
                                     else:
                                         safe_text = live_buffer.push(content)
@@ -320,8 +357,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                         elif kind == "on_tool_start":
                             if ev.get("name") in {"kb_search", "web_search"}:
                                 parts.clear()
-                            if ev.get("name") == "kb_search" and not rag_started:
-                                rag_started = True
+                            output.tool_started(ev["name"])
                             args = ev["data"].get("input")
                             # 可观测：工具开始
                             span = tool_span(ev["name"], input_data=_short(args, 300)) if traced else None
@@ -334,16 +370,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                                         {k: _short(v, 100) for k, v in args.items()},
                             })
                         elif kind == "on_tool_end":
-                            if ev.get("name") == "kb_search" and not rag_started:
+                            if ev.get("name") == "kb_search" and not output.rag_started:
                                 parts.clear()
-                                rag_started = True
-                            if ev.get("name") in {
-                                "order_create", "order_query", "order_cancel_prepare",
-                                "after_sale_prepare", "escalate_to_human", "web_search",
-                            }:
-                                product_links_needed = False
-                            if ev.get("name") == "web_search":
-                                web_search_used = True
                             out = ev["data"].get("output")
                             raw_result = getattr(out, "content", out)
                             if isinstance(raw_result, str):
@@ -351,9 +379,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                                     raw_result = json.loads(raw_result)
                                 except (ValueError, TypeError):
                                     raw_result = None
-                            if ev.get("name") == "product_search" and isinstance(raw_result, dict):
-                                product_result = raw_result
-                            known_ids.update(collect_known_ids(json.dumps(raw_result, ensure_ascii=False, default=str)))
+                            output.tool_completed(ev["name"], raw_result)
                             # 可观测：工具结束
                             if traced and ev.get("run_id") in tool_spans:
                                 span = tool_spans.pop(ev["run_id"])
@@ -369,9 +395,9 @@ async def chat_stream(req: ChatRequest, request: Request):
                                     tool_payload["eval"] = eval_data
                             yield sse("tool_result", tool_payload)
                         elif (kind == "on_chain_end" and ev.get("name") == "web_answer"
-                              and not policy_requires_kb and not rag_started and not ctx.get("rag_used")):
-                            output = ev["data"].get("output")
-                            messages = output.get("messages") if isinstance(output, dict) else None
+                              and not output.policy_required and not output.rag_started and not ctx.get("rag_used")):
+                            node_output = ev["data"].get("output")
+                            messages = node_output.get("messages") if isinstance(node_output, dict) else None
                             if messages:
                                 footer = (getattr(messages[-1], "additional_kwargs", {}) or {}).get("web_source_footer")
                                 if isinstance(footer, str):
@@ -388,6 +414,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                 for action in ctx.get("actions", []):
                     yield sse("action", action)
                 end_trace(output={"error": "timeout", "latencyMs": int((time.time() - start) * 1000)})
+                if record:
+                    yield sse("trace", record.snapshot("FAILED", error="request timeout"))
                 yield sse("error", {"code": 5002, "message": "回复等待超时"})
                 return
 
@@ -402,32 +430,12 @@ async def chat_stream(req: ChatRequest, request: Request):
                             final_text = content
                             break
             final_text = _timeout_fallback(final_text, timed_out)
-            if web_source_footer and final_text.endswith(web_source_footer):
-                # Non-streaming state already includes the program-owned footer. Guard only model text.
-                final_text = final_text[:-len(web_source_footer)]
-            citations: tuple[dict, ...] = ()
-            rag_used = bool(ctx.get("rag_used") or rag_started or policy_requires_kb)
-            citation_guard_required = rag_used and (policy_requires_kb or not web_search_used)
-            if ctx.get("policy_clarification"):
-                # Only the deterministic clarification may pass without policy evidence.
-                final_text = ctx["policy_clarification"]
-            elif citation_guard_required:
-                normalized_text = re.sub(r"[【（(](S[0-9]+)[】）)]", r"[\1]", final_text)
-                normalized_text = re.sub(r"\[s([0-9]+)\]", r"[S\1]", normalized_text)
-                validation = validate_citations(
-                    normalized_text,
-                    allowed=ctx.get("rag_allowed_citations") or {},
-                    answerable=bool(ctx.get("rag_answerable")),
-                    rag_reason=ctx.get("rag_reason"),
-                )
-                final_text = validation.content
-                citations = validation.citations
-            if not rag_used and not web_search_used and product_links_needed:
-                final_text = ensure_product_links(final_text, product_result)
-            guarded = guard_links(final_text, known_ids) if settings.link_guard_enabled else final_text
-            if web_source_footer:
-                # These verified links bypass inference, not model-output validation/early streaming.
-                guarded += web_source_footer
+            with trace_span("output.validate", kind="guard", input={"draft":final_text,
+                            "policyRequired":output.policy_required, "allowedCitations":ctx.get("rag_allowed_citations")}) as span:
+                answer = output.finalize(final_text, ctx, web_footer=web_source_footer)
+                span.complete({"content":answer.content, "citationRequired":answer.citation_required,
+                               "citations":answer.citations, "changed":answer.content != final_text})
+            guarded = answer.content
             end_trace(output={"content": _short(guarded, 300), "latencyMs": int((time.time() - start) * 1000),
                               "traceId": get_trace_id()})
             for action in ctx.get("actions", []):
@@ -437,7 +445,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 remainder = guarded[streamed_length:]
                 if remainder:
                     yield sse("token", {"content": remainder})
-            elif rag_used:
+            elif answer.rag_used:
                 yield sse("token", {"content": guarded})
             else:
                 streamed_parts = parts if "".join(parts) == guarded else [guarded]
@@ -451,22 +459,29 @@ async def chat_stream(req: ChatRequest, request: Request):
                 "timedOut": timed_out,
                 **_done_eval_metadata(final_state, eval_enabled),
             }
-            if citation_guard_required:
-                done["citations"] = list(citations)
+            if answer.citation_required:
+                done["citations"] = list(answer.citations)
+            with trace_span("memory.identity", kind="memory") as span:
+                memory_saved = await persist_naming_memory(req.user_id, req.message)
+                span.complete({"saved":memory_saved}, status="SKIPPED" if memory_saved is None else "SUCCESS" if memory_saved else "FAILED")
+            if memory_saved is not None:
+                done["memorySaved"] = memory_saved
+            elif req.user_id > 0 and should_extract_memory(req.message):
+                background.add_task(extract_preferences, guarded, "DEGRADED" if ctx.get("degraded") else "SUCCESS")
+            done["latencyMs"] = int((time.time() - start) * 1000)
+            if record:
+                yield sse("trace", record.snapshot("DEGRADED" if ctx.get("degraded") else "SUCCESS"))
             yield sse("done", done)
-            try:
-                user_id_int = int(req.user_id) if str(req.user_id).isdigit() else 0
-                if user_id_int > 0:
-                    asyncio.create_task(background_memory_extraction(user_id_int, req.message, guarded))
-            except Exception as e:
-                logger.warning("failed to dispatch background memory extraction: %s", e)
         except Exception as e:
             logger.exception("chat stream error: %s", e)
             end_trace(output={"error": str(e)})
+            if record:
+                yield sse("trace", record.snapshot("FAILED", error=type(e).__name__))
             yield sse("error", {"code": 5001, "message": "AI 服务内部错误，请稍后重试"})
 
     return StreamingResponse(
         gen(),
+        background=background,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

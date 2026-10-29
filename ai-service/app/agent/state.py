@@ -1,7 +1,10 @@
 """AgentState：请求级与会话级状态（支持 Checkpointer 持久化与跨轮次记忆）"""
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.graph import add_messages
+
+
+ReplyRoute = Literal["small_talk", "agent", "escalate_node"]
 
 
 class AgentState(TypedDict, total=False):
@@ -18,6 +21,7 @@ class AgentState(TypedDict, total=False):
 
     # ── 图运行时与会话记忆状态 ──
     messages: Annotated[list[Any], add_messages]   # 会话级消息通道（含工具调用与结果，自动追加）
+    reply_route: ReplyRoute | None  # router-owned; reset each turn
     intent: str | None
     web_query: str | None        # classifier-produced contextual query; reset each turn
     tool_loop_count: int

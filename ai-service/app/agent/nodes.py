@@ -6,9 +6,6 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-TIME_QUERY_RE = re.compile(
-    r"(?:(?P<day>今天|明天|后天|昨天|前天)(?:是)?(?:星期几|周几|礼拜几|几号|多少号|什么日子)|现在(?:是)?(?:几点|什么时间))[？?！!。\s]*"
-)
 
 
 def get_current_time_str() -> str:
@@ -29,12 +26,14 @@ from app.agent.prompts import (
     PRODUCT_SYSTEM_PROMPT,
 )
 from app.agent.state import AgentState
+from app.agent.routing import RequestPolicy, TIME_QUERY_RE, fallback_intent_by_rules
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
 from app.rag.citations import build_extractive_answer
 from app.agent.prompt_context import compact_prompt_messages, web_prompt_evidence
-from app.agent.memory import format_assistant_greeting, format_memory_prompt, parse_naming_command
+from app.agent.memory import format_assistant_greeting, format_memory_prompt
+from app.agent.identity import normalize_profile, parse_naming_command
 from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
 from app.observability.telemetry import generation
 from app.tools.tools import (
@@ -56,10 +55,6 @@ from app.tools.tools import (
 
 logger = logging.getLogger("ai-service.agent")
 
-KNOWN_INTENTS = {
-    "PRODUCT_CONSULT", "ORDER_QUERY", "ORDER_CREATE",
-    "AFTER_SALE_FAQ", "SMALL_TALK", "ASSISTANT_META", "HUMAN_REQUEST"
-}
 
 
 def parse_intent_json(content: str) -> dict:
@@ -86,73 +81,20 @@ def parse_intent_json(content: str) -> dict:
     return {}
 
 
-def fallback_intent_by_rules(user_text: str) -> str:
-    """当模型未能输出标准 JSON 时，基于规则启发式兜底，避免全部误判为 PRODUCT_CONSULT"""
-    t = (user_text or "").strip().lower()
-    if parse_naming_command(t):
-        return "SMALL_TALK"
-    if requests_human(t):
-        return "HUMAN_REQUEST"
-    if asks_assistant_identity(t):
-        return "ASSISTANT_META"
-    if asks_user_identity(t) or asks_mutual_identity(t) or asks_conversation_context(t) or TIME_QUERY_RE.fullmatch(t):
-        return "SMALL_TALK"
-    if is_negative_sentiment(t) or is_out_of_scope(t):
-        return "SMALL_TALK"
-    if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
-        return "AFTER_SALE_FAQ"
-    if any(w in t for w in ["订单", "物流", "发货没", "发货没有", "快递", "到哪了", "待支付"]):
-        return "ORDER_QUERY"
-    if any(w in t for w in ["退货", "退换", "退款", "保修", "售后", "运费", "三包", "坏了", "换货", "发票", "送货", "自提", "七天"]):
-        return "AFTER_SALE_FAQ"
-    # Buying an unspecified category is selection, not authorization to order.
-    if category_from_user_text(t) and not any(w in t for w in ["下单", "确认购买", "买这个", "买它", "买第"]):
-        return "PRODUCT_CONSULT"
-    if any(w in t for w in ["帮我买", "下单", "拍下", "立刻购买", "我要买", "买第", "买这个", "买它", "帮我下单", "确认购买"]):
-        return "ORDER_CREATE"
-    if any(w in t for w in ["你好", "您好", "早上好", "晚上好", "嗨", "hello", "谢谢", "多谢", "再见", "在吗"]):
-        return "SMALL_TALK"
-    if re.search(r"不(?:要|用|需要|想).*(?:人工|真人)|取消.*(?:人工|转接)", t):
-        return "SMALL_TALK"
-    return "PRODUCT_CONSULT"
-
-
 async def intent_router_node(state: AgentState) -> dict:
     """意图识别（结构化 JSON 输出，失败规则启发式兜底）"""
     last = state["messages"][-1] if state["messages"] else None
     user_text = getattr(last, "content", "") if last else ""
-    # These requests already override classifier output below; avoid paying for it.
-    greeting = re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见)[！!。.?？\s]*", user_text.strip(), re.IGNORECASE)
-    naming_command = bool(parse_naming_command(user_text))
-    # Only a standalone, explicit shopping request is safe to route without
-    # inference. Mixed requests, short follow-ups and order actions need context.
-    shopping_request = (
-        re.fullmatch(
-            r"(?:请(?:帮我)?|帮我|给我|我想|想)?(?:推荐|找|挑选|选购|看看|最新|最火)[^，,。！？!?；;\n]{0,80}[。！？!?]?",
-            user_text.strip(),
-        )
-        and category_from_user_text(user_text)
-        and fallback_intent_by_rules(user_text) == "PRODUCT_CONSULT"
-        and not re.search(r"退|换货|售后|保修|发货|配送|运费|发票|下单|订单|物流|取消|人工|七天|7天", user_text)
-    )
-    identity_query = asks_user_identity(user_text) or asks_mutual_identity(user_text) or asks_conversation_context(user_text)
-    time_query = bool(TIME_QUERY_RE.fullmatch(user_text.strip()))
-    negative_feedback = is_negative_sentiment(user_text)
-    out_of_scope = is_out_of_scope(user_text)
-    mixed_shopping_policy = bool(category_from_user_text(user_text)
-                                 and re.search(r"推荐|挑选|选购|想买|购买|找|看看", user_text))
-    if requires_kb(user_text) and not mixed_shopping_policy and not negative_feedback and not out_of_scope:
-        get_tool_ctx()["latest_user_text"] = user_text
-        return {"intent": "AFTER_SALE_FAQ", "web_query": None}
-    if (requests_human(user_text) or asks_assistant_identity(user_text) or identity_query or greeting
-            or naming_command or time_query or shopping_request or negative_feedback or out_of_scope):
-        intent = "SMALL_TALK" if (greeting or naming_command or identity_query or time_query or negative_feedback or out_of_scope) else fallback_intent_by_rules(user_text)
+    policy = RequestPolicy(user_text)
+    intent = policy.fast_intent()
+    if intent is not None:
         get_tool_ctx()["latest_user_text"] = user_text
         await generation(
             "intent", model="rules", input_data={"user_text": user_text},
             usage={"intent": intent, "confidence": 1.0}, tags=["intent", "fast-path"],
         )
-        return {"intent": intent, "web_query": None}
+        return {"intent": intent, "web_query": None,
+                "reply_route": policy.destination(intent, state.get("web_search_enabled", False))}
     llm = get_intent_llm()
     # Checkpoint messages are the source of truth; backend history may be empty.
     conversation = [m for m in state["messages"][:-1]
@@ -180,21 +122,7 @@ async def intent_router_node(state: AgentState) -> dict:
         result = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=prompt)])
         content = getattr(result, "content", "") or ""
         data = parse_intent_json(content)
-        intent = data.get("intent")
-        if intent not in KNOWN_INTENTS:
-            intent = fallback_intent_by_rules(user_text)
-        # Never let an erroneous classifier trigger a side effect the buyer did not request.
-        rule_intent = fallback_intent_by_rules(user_text)
-        if requests_human(user_text) or asks_assistant_identity(user_text) or intent == "HUMAN_REQUEST":
-            intent = rule_intent
-        elif is_negative_sentiment(user_text) or is_out_of_scope(user_text):
-            intent = "SMALL_TALK"
-        elif requires_kb(user_text) and intent in {"SMALL_TALK", "ASSISTANT_META"}:
-            intent = "AFTER_SALE_FAQ"
-        elif rule_intent == "ORDER_QUERY" and not category_from_user_text(user_text):
-            intent = "ORDER_QUERY"
-        elif intent == "ORDER_CREATE" and rule_intent == "PRODUCT_CONSULT" and (category_from_user_text(user_text) or budget_from_text(user_text)):
-            intent = rule_intent
+        intent = policy.constrain(data.get("intent"))
         query = data.get("web_query")
         if (intent == "SMALL_TALK" and state.get("web_search_enabled")
                 and isinstance(query, str) and 0 < len(query.strip()) <= 200):
@@ -208,7 +136,7 @@ async def intent_router_node(state: AgentState) -> dict:
             usage={"intent": intent, "confidence": confidence}, tags=["intent"],
         )
     except Exception as e:
-        intent = fallback_intent_by_rules(user_text)
+        intent = policy.fallback_intent
         logger.warning("intent parse failed, fallback by rules %s: %s", intent, e)
         await generation(
             "intent", model=settings.llm_intent_model,
@@ -216,31 +144,17 @@ async def intent_router_node(state: AgentState) -> dict:
             tags=["intent"],
         )
     get_tool_ctx()["latest_user_text"] = user_text
-    return {"intent": intent, "web_query": web_query}
+    return {"intent": intent, "web_query": web_query,
+            "reply_route": policy.destination(intent, state.get("web_search_enabled", False))}
 
 
 def route_by_intent(state: AgentState) -> str:
-    intent = state.get("intent")
-    if intent in {"SMALL_TALK", "ASSISTANT_META"}:
-        if state.get("web_search_enabled") and intent == "SMALL_TALK":
-            last = state["messages"][-1] if state["messages"] else None
-            user_text = getattr(last, "content", "") if last else ""
-            t = user_text.strip().lower()
-            is_fast_small_talk = (
-                bool(parse_naming_command(t))
-                or asks_assistant_identity(t)
-                or asks_user_identity(t)
-                or asks_mutual_identity(t)
-                or asks_conversation_context(t)
-                or bool(re.fullmatch(r"(?:你好(?:呀|啊)?|您好|嗨|hello|hi|谢谢(?:你|啦)?|感谢|再见|拜拜)[！!。.?？\s]*", t, re.IGNORECASE))
-                or bool(TIME_QUERY_RE.fullmatch(t))
-            )
-            if not is_fast_small_talk:
-                return "agent"
-        return "small_talk"
-    if intent == "HUMAN_REQUEST":
-        return "escalate_node"
-    return "agent"  # PRODUCT_CONSULT / ORDER_QUERY / ORDER_CREATE / AFTER_SALE_FAQ / 兜底
+    """Dispatch the router's decision; compatibility fallback for direct node callers."""
+    if state.get("reply_route"):
+        return state["reply_route"]
+    messages = state.get("messages") or []
+    text = str(messages[-1].content) if messages else ""
+    return RequestPolicy(text).destination(state.get("intent"), state.get("web_search_enabled", False))
 
 
 def get_trimmed_messages(messages: list, max_messages: int = 14) -> list:
@@ -252,31 +166,21 @@ def get_trimmed_messages(messages: list, max_messages: int = 14) -> list:
         window = window[1:]
     return window or messages[-4:]
 
+
+_TOOLS_BY_INTENT = {
+    "SMALL_TALK": (),
+    "ASSISTANT_META": (),
+    "ORDER_QUERY": (order_query, order_cancel_prepare, after_sale_prepare, escalate_to_human),
+    "ORDER_CREATE": (order_create, product_search, product_detail, escalate_to_human),
+    "AFTER_SALE_FAQ": (kb_search, escalate_to_human),
+    "PRODUCT_CONSULT": (product_search, product_detail, kb_search, escalate_to_human),
+}
+
+
 def get_tools_for_intent(intent: str | None, web_search_enabled: bool = False) -> list:
-    """根据意图精简绑定工具，降低模型干扰，提升工具调用准确率与速度"""
-    if intent in {"SMALL_TALK", "ASSISTANT_META"}:
-        return [web_search] if web_search_enabled else []
-    if intent == "ORDER_QUERY":
-        tools = [order_query, order_cancel_prepare, after_sale_prepare, escalate_to_human]
-        if web_search_enabled:
-            tools.append(web_search)
-        return tools
-    if intent == "ORDER_CREATE":
-        tools = [order_create, product_search, product_detail, escalate_to_human]
-        if web_search_enabled:
-            tools.append(web_search)
-        return tools
-    if intent == "AFTER_SALE_FAQ":
-        tools = [kb_search, escalate_to_human]
-        if web_search_enabled:
-            tools.append(web_search)
-        return tools
-    if intent == "PRODUCT_CONSULT":
-        tools = [product_search, product_detail, kb_search, escalate_to_human]
-        if web_search_enabled:
-            tools.append(web_search)
-        return tools
-    return ALL_TOOLS
+    """A single tool allowlist; web access is opt-in even for unknown intents."""
+    tools = [tool for tool in _TOOLS_BY_INTENT.get(intent, ALL_TOOLS) if tool.name != "web_search"]
+    return tools + ([web_search] if web_search_enabled else [])
 
 
 async def agent_node(state: AgentState) -> dict:
@@ -605,31 +509,15 @@ async def small_talk_node(state: AgentState) -> dict:
     """闲聊/欢迎语；独立的身份与能力问题或称呼设定直接回复，避免等待模型。"""
     user_text = next((str(m.content) for m in reversed(state["messages"])
                       if isinstance(m, HumanMessage)), "")
-    profile = dict(state.get("user_profile") or {})
+    profile = normalize_profile(state.get("user_profile"))
 
-    # 1. 命名/人设约定指令快速响应（零延迟，绝对避免小模型角色颠倒）
+    # 1. 命名/人设约定指令处理：实时更新画像，并在模型生成时流式自然确认
     naming = parse_naming_command(user_text)
     if naming:
         profile.update(naming)
-        assistant_name = (profile.get("assistant_name") or "").strip()
-        user_name = (profile.get("user_name") or "").strip()
-        if assistant_name and user_name:
-            content = f"记住了！我是「{assistant_name}」，你是「{user_name}」，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
-        elif assistant_name:
-            content = f"记住了！从现在开始我就叫「{assistant_name}」啦，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
-        elif user_name:
-            content = f"记住了！您是「{user_name}」，我是「AI Mall」智能购物助手，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
-        else:
-            content = "记住了！我是「AI Mall」智能购物助手，很高兴为您服务~ 有什么想了解的商品或需要帮忙的吗？"
-        resp = AIMessage(content=content)
-        await generation(
-            "generate", model="rules", input_data={"node": "small_talk", "naming": naming},
-            usage={"content": resp.content}, tags=["generate", "small_talk", "naming-fast-path"],
-        )
-        return {"messages": [resp], "user_profile": profile}
 
     # 2. 双方互问名字快速响应: "你叫什么名字，我叫什么名字" / "你是谁我是谁"
-    if asks_mutual_identity(user_text):
+    if not naming and asks_mutual_identity(user_text):
         assistant_name = (profile.get("assistant_name") or "").strip()
         user_name = (profile.get("user_name") or profile.get("nickname") or "").strip()
         if assistant_name and user_name:
@@ -645,10 +533,10 @@ async def small_talk_node(state: AgentState) -> dict:
             "generate", model="rules", input_data={"node": "small_talk", "type": "mutual_identity"},
             usage={"content": resp.content}, tags=["generate", "small_talk", "mutual-identity-fast-path"],
         )
-        return {"messages": [resp]}
+        return {"messages": [resp], "user_profile": profile}
 
     # 3. 询问用户自己名字/身份快速响应: "我叫什么名字" / "我是谁" / "你还记得我叫什么吗"
-    if asks_user_identity(user_text):
+    if not naming and asks_user_identity(user_text):
         user_name = (profile.get("user_name") or profile.get("nickname") or "").strip()
         if user_name:
             content = f"您好，您是「{user_name}」呀！请问有什么想了解的商品或需要帮忙的吗？"
@@ -659,11 +547,11 @@ async def small_talk_node(state: AgentState) -> dict:
             "generate", model="rules", input_data={"node": "small_talk", "type": "user_identity"},
             usage={"content": resp.content}, tags=["generate", "small_talk", "user-identity-fast-path"],
         )
-        return {"messages": [resp]}
+        return {"messages": [resp], "user_profile": profile}
 
     # 4. 独立的助手身份与能力问题直接回复（零延迟）
     if re.fullmatch(
-        r"(?:你是谁|你叫什么|介绍你自己|介绍下你自己|你能做什么|你能帮我做什么|"
+        r"(?:你是谁|你叫什么(?:名字)?|你叫啥|你的名字是什么|介绍你自己|介绍下你自己|你能做什么|你能帮我做什么|"
         r"你有什么功能|你是真人(?:还是机器人)?|你是机器人|你是人工)[？?！!。\s]*",
         user_text.strip(),
     ):
@@ -673,7 +561,7 @@ async def small_talk_node(state: AgentState) -> dict:
             "generate", model="rules", input_data={"node": "small_talk"},
             usage={"content": resp.content}, tags=["generate", "small_talk", "fast-path"],
         )
-        return {"messages": [resp]}
+        return {"messages": [resp], "user_profile": profile}
 
     # 5. 日期/时间快速响应（零延迟，实时准确）
     time_match = TIME_QUERY_RE.fullmatch(user_text.strip())
@@ -737,13 +625,25 @@ async def small_talk_node(state: AgentState) -> dict:
         if prev_user_msgs:
             prompt += f"\n\n## 会话上下文记忆提示：\n买家上一轮提出的问题是：「{prev_user_msgs[-1]}」。请结合对话历史准确告知买家上一轮的问题并热情询问后续需要。"
 
+    if naming:
+        new_assistant = profile.get("assistant_name")
+        new_user = profile.get("user_name")
+        prompt += (
+            f"\n\n## 刚刚确认的新称谓约定（本轮必须明确确认）：\n"
+            f"- 你的新名字是「{new_assistant or 'AI Mall'}」\n"
+            f"- 买家的新称呼是「{new_user or '朋友'}」\n"
+            f"请以新名字「{new_assistant or 'AI Mall'}」的身份，热情欣然地确认记住这一约定并亲切称呼对方为「{new_user or '朋友'}」，绝对不要将双方角色颠倒，语气活泼自然，并询问有什么想了解或需要帮助的。"
+        )
+
+    # Generation errors must reach SSE's terminal error path. Replacing a failed
+    # stream with template success would hide partial-output failures from retry.
     resp = await llm.ainvoke([SystemMessage(content=prompt)] + recent_msgs)
     await generation(
         "generate", model=settings.llm_chat_model,
-        input_data={"node": "small_talk"},
+        input_data={"node": "small_talk", "naming": naming},
         usage={"content": str(getattr(resp, "content", ""))[:500]}, tags=["generate", "small_talk"],
     )
-    return {"messages": [resp]}
+    return {"messages": [resp], "user_profile": profile}
 
 
 async def escalate_node(state: AgentState) -> dict:

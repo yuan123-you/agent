@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.config import settings
 from app.observability.telemetry import span_ctx
+from app.observability.execution_trace import trace_span
 
 if TYPE_CHECKING:
     from app.rag.reranker import Reranker
@@ -288,9 +289,14 @@ class RetrievalPipeline:
                 scope["doc_type"] = doc_type
             if product_id is not None:
                 scope["product_id"] = product_id
+            async def recall(name, search, limit):
+                with trace_span(name, kind="retrieval", input={"query":normalized, "scope":scope, "topK":limit}) as step:
+                    hits = await search(normalized, top_k=limit, **scope)
+                    step.complete(hits)
+                    return hits
             raw_results = await asyncio.gather(
-                self._vector_search(normalized, top_k=settings.rag_vector_recall_k, **scope),
-                self._bm25_search(normalized, top_k=settings.rag_bm25_recall_k, **scope),
+                recall("rag.dense", self._vector_search, settings.rag_vector_recall_k),
+                recall("rag.bm25", self._bm25_search, settings.rag_bm25_recall_k),
                 return_exceptions=True,
             )
             reasons: list[str] = []
@@ -316,32 +322,40 @@ class RetrievalPipeline:
                 })
                 return result
 
-            filtered = {
-                name: filter_metadata(candidates, doc_type, product_id)
-                for name, candidates in legs.items()
-            }
+            with trace_span("rag.metadata_filter", kind="retrieval", input={"scope":scope}) as step:
+                filtered = {name: filter_metadata(candidates, doc_type, product_id)
+                            for name, candidates in legs.items()}
+                step.complete(filtered)
             counts["vector_filtered_count"] = len(filtered["vector"])
             counts["bm25_filtered_count"] = len(filtered["bm25"])
-            fused = reciprocal_rank_fusion(
-                [("vector", filtered["vector"]), ("bm25", filtered["bm25"])],
-                limit=settings.rag_rrf_top_k,
-                rrf_k=settings.rag_rrf_k,
-            )
+            with trace_span("rag.rrf", kind="retrieval", input={"rrfK":settings.rag_rrf_k, "limit":settings.rag_rrf_top_k}) as step:
+                fused = reciprocal_rank_fusion(
+                    [("vector", filtered["vector"]), ("bm25", filtered["bm25"])],
+                    limit=settings.rag_rrf_top_k, rrf_k=settings.rag_rrf_k,
+                )
+                step.complete(fused)
             counts["rrf_count"] = len(fused)
 
             ranked = fused
             if self._reranker is not None and fused:
                 try:
-                    ranked = await self._reranker.rerank(normalized, fused)
+                    with trace_span("rag.rerank", kind="retrieval", input={"query":normalized, "candidates":fused}) as step:
+                        ranked = await self._reranker.rerank(normalized, fused)
+                        step.complete(ranked)
                     counts["rerank_count"] = min(len(ranked), settings.rag_final_top_k)
                 except Exception:
                     logger.warning("retrieval reranker unavailable; preserving RRF order")
                     reasons.append("reranker_unavailable")
                     ranked = fused
 
+            if self._reranker is None or not fused:
+                with trace_span("rag.rerank", kind="retrieval") as step:
+                    step.complete({"enabled":self._reranker is not None, "candidateCount":len(fused)}, status="SKIPPED")
             final = tuple(ranked[:settings.rag_final_top_k])
-            decision = assess_answerability(final)
-            source_context = build_source_context(final) if decision.answerable else SourceContext("", ())
+            with trace_span("rag.answerability", kind="retrieval", input={"candidates":final}) as step:
+                decision = assess_answerability(final)
+                source_context = build_source_context(final) if decision.answerable else SourceContext("", ())
+                step.complete({"decision":decision, "sources":source_context}, status="SUCCESS" if decision.answerable else "DEGRADED")
             result = RetrievalResult(
                 decision.answerable,
                 decision.reason,

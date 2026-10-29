@@ -2,10 +2,11 @@
 import json
 import logging
 import re
-from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.observability.execution_trace import trace_span
+from app.agent.identity import IDENTITY_KEYS, normalize_profile, parse_naming_command
 from app.agent.prompt_context import compact_prompt_messages
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_intent_llm
@@ -14,72 +15,19 @@ logger = logging.getLogger("ai-service.memory")
 
 MEMORY_EXTRACT_SYSTEM_PROMPT = """你是一个长期记忆提取器。分析用户与AI助手的最新一轮对话，提取关于用户的长期事实与画像偏好。
 只提取有长期价值的信息，分类如下：
-- IDENTITY: 称呼与人设（如用户名字 user_name、助手昵称 assistant_name）
 - PREFERENCE: 消费偏好（如 budget 预算、brand 品牌偏好、category 品类偏好、feature 特性偏好）
 - FACT: 用户长期背景事实（如 hobby 爱好、pet 宠物、family 家庭、habit 习惯等）
 
 如果本轮对话没有值得长期记忆的信息（如普通问候、单纯查询某订单状态、通用政策咨询），输出空数组 []。
-注意：提取出的值要简短准确，不要主观猜测。
+注意：只提取用户自己明确表达的偏好或事实，不要从 AI 回复推测。称呼由独立的显式命名规则处理，不要提取 user_name、assistant_name 或 IDENTITY。
 
 只输出严格的 JSON 数组（不要任何 markdown 或额外文字）：
-[{"category": "IDENTITY|PREFERENCE|FACT", "key": "键名", "value": "简明记忆值"}]"""
+[{"category": "PREFERENCE|FACT", "key": "键名", "value": "简明记忆值"}]"""
 
 
-def _is_valid_name(name: str) -> bool:
-    if not name:
-        return False
-    n = name.strip()
-    return not any(w in n for w in ["什么", "谁", "名字", "哪"])
-
-
-def parse_naming_command(text: str) -> dict[str, str]:
-    """快速规则提取用户明确发出的称呼/人设指令，保证本轮对话毫秒级实时生效"""
-    if not text:
-        return {}
-    t = re.sub(r"[，, ]*(?:记住了?吗|知道了吗|好吗|可以吗|行吗|ok吗)[？?！!。\s]*$", "", text.strip(), flags=re.IGNORECASE)
-    res: dict[str, str] = {}
-
-    # 1. 双方互定: "你叫大肥鱼，我叫派蒙" 或 "我叫派蒙，你叫大肥鱼"
-    m1 = re.search(
-        r"(?:你叫|叫你|称呼你为)\s*([A-Za-z0-9_一-龥]{1,16})"
-        r"[，, ；;和且]+(?:我叫|叫我|我是|称呼我为)\s*([A-Za-z0-9_一-龥]{1,16})",
-        t,
-    )
-    if m1 and _is_valid_name(m1.group(1)) and _is_valid_name(m1.group(2)):
-        res["assistant_name"] = m1.group(1).strip()
-        res["user_name"] = m1.group(2).strip()
-        return res
-
-    m2 = re.search(
-        r"(?:我叫|叫我|我是|称呼我为)\s*([A-Za-z0-9_一-龥]{1,16})"
-        r"[，, ；;和且]+(?:你叫|叫你|称呼你为)\s*([A-Za-z0-9_一-龥]{1,16})",
-        t,
-    )
-    if m2 and _is_valid_name(m2.group(1)) and _is_valid_name(m2.group(2)):
-        res["user_name"] = m2.group(1).strip()
-        res["assistant_name"] = m2.group(2).strip()
-        return res
-
-    # 2. 单独为助手起名: "从现在开始你叫大肥鱼" / "你叫大肥鱼，记住了吗"
-    m3 = re.search(
-        r"(?:从现在开始|以后|起)?\s*(?:你叫|叫你|称呼你为)\s*([A-Za-z0-9_一-龥]{1,16})",
-        t,
-    )
-    if m3 and _is_valid_name(m3.group(1)) and not re.search(r"(?:你叫|叫你|称呼你为)\s*[^，, ]+?[吗么呢？?]", t):
-        res["assistant_name"] = m3.group(1).strip()
-
-    # 3. 单独自我介绍: "我叫派蒙" / "叫我派蒙"
-    m4 = re.search(
-        r"(?:从现在开始|以后)?\s*(?:我叫|叫我|称呼我为)\s*([A-Za-z0-9_一-龥]{1,16})",
-        t,
-    )
-    if m4 and _is_valid_name(m4.group(1)) and not any(w in t for w in ["什么", "谁", "名字", "买", "要"]) and not re.search(r"(?:我叫|叫我|称呼我为)\s*[^，, ]+?[吗么呢？?]", t):
-        res["user_name"] = m4.group(1).strip()
-
-    return res
 def format_memory_prompt(user_profile: dict | None, long_term_memory: list[dict] | None = None) -> str:
     """将长期记忆与用户画像格式化为清晰的系统提示词片段"""
-    profile = user_profile or {}
+    profile = normalize_profile(user_profile)
     memories = long_term_memory or []
 
     lines = []
@@ -123,12 +71,12 @@ def format_memory_prompt(user_profile: dict | None, long_term_memory: list[dict]
 
 def format_assistant_greeting(user_profile: dict | None) -> str:
     """生成包含动态人设与用户称谓的快速身份介绍（保持与旧测试的兼容性）"""
-    profile = user_profile or {}
-    assistant_name = profile.get("assistant_name")
-    user_name = profile.get("user_name") or profile.get("nickname")
+    profile = normalize_profile(user_profile)
+    assistant_name = (profile.get("assistant_name") or "").strip()
+    user_name = (profile.get("user_name") or profile.get("nickname") or "").strip()
 
     prefix = "我是「AI Mall」的 AI 购物助手"
-    if assistant_name:
+    if assistant_name and assistant_name.casefold() != "ai mall":
         prefix = f"我是「AI Mall」的 AI 购物助手（也是您的专属伙伴「{assistant_name}」）"
 
     body = "可以帮您推荐商品、查询订单物流、解答售后退换政策。"
@@ -148,10 +96,12 @@ async def extract_memories_with_llm(user_text: str, ai_text: str) -> list[dict]:
     ai_context = compact_prompt_messages([AIMessage(content=ai_text)], question=user_text)[0].content
     prompt = f"用户说: {user_text}\nAI回复: {ai_context}"
     try:
-        resp = await llm.ainvoke([
-            SystemMessage(content=MEMORY_EXTRACT_SYSTEM_PROMPT),
-            HumanMessage(content=prompt),
-        ])
+        with trace_span("memory.extract", kind="model", input={"user":user_text}, model=getattr(llm, "model_name", None)) as span:
+            resp = await llm.ainvoke([
+                SystemMessage(content=MEMORY_EXTRACT_SYSTEM_PROMPT),
+                HumanMessage(content=prompt),
+            ])
+            span.complete({"content":getattr(resp, "content", ""), "usage":getattr(resp, "usage_metadata", None)})
         content = getattr(resp, "content", "") or ""
         # 提取 JSON 数组
         match = re.search(r"\[.*\]", content, re.DOTALL)
@@ -172,26 +122,64 @@ async def extract_memories_with_llm(user_text: str, ai_text: str) -> list[dict]:
     return []
 
 
-async def background_memory_extraction(user_id: int, user_text: str, ai_text: str):
-    """后台任务：结合规则与 LLM 提取记忆，并回写后端数据库持久化"""
+async def persist_naming_memory(user_id: int, user_text: str) -> bool | None:
+    """Commit explicit identity before done; None means this is not a naming turn.
+
+    Failure does not destroy the checkpoint/session answer, but is not reported
+    as a successful durable cross-session write either.
+    """
+    naming = parse_naming_command(user_text)
+    if not naming:
+        return None
+    if user_id <= 0:
+        return False
+    memories = [{"category": "IDENTITY", "key": key, "value": value}
+                for key, value in naming.items()]
     try:
-        memories = []
-        # 1. 规则提取即时命名指令
-        naming = parse_naming_command(user_text)
-        if "user_name" in naming:
-            memories.append({"category": "IDENTITY", "key": "user_name", "value": naming["user_name"]})
-        if "assistant_name" in naming:
-            memories.append({"category": "IDENTITY", "key": "assistant_name", "value": naming["assistant_name"]})
+        with trace_span("memory.persist_identity", kind="memory", input={"memories":memories}) as span:
+            result = await backend_client.upsert_user_memory(user_id, memories)
+            span.complete(result, status="FAILED" if "error" in result else "SUCCESS")
+        if "error" not in result:
+            return True
+        logger.warning("identity persistence unavailable for user %s", user_id)
+    except Exception:
+        logger.warning("identity persistence failed for user %s", user_id, exc_info=True)
+    return False
 
-        # 2. 如果不是简单的纯命名，尝试用 LLM 提取消费偏好/事实
-        if len(user_text) > 6 and not naming:
-            llm_memories = await extract_memories_with_llm(user_text, ai_text)
-            for m in llm_memories:
-                if not any(x["key"] == m["key"] for x in memories):
-                    memories.append(m)
 
-        if memories and user_id > 0:
-            logger.info("saving extracted memories for user %s: %s", user_id, memories)
-            await backend_client.upsert_user_memory(user_id, memories)
-    except Exception as e:
-        logger.warning("background_memory_extraction failed for user %s: %s", user_id, e)
+def should_extract_memory(user_text: str) -> bool:
+    """Conservative admission for optional inference, not an alternate fact parser.
+
+    Queries/orders do not need a second model call. Values are still extracted
+    by the LLM, and identity keys are rejected independently after extraction.
+    """
+    if re.search(r"[?？]|吗[。！!\s]*$", user_text):
+        return False
+    return bool(re.search(
+        r"我(?:更|比较|一直|平时|通常|特别|最)?(?:喜欢|偏好|习惯|不喜欢|讨厌|养了|家里|家有)"
+        r"|我的(?:预算|尺码|职业|工作|爱好)|预算(?:是|为|大概|大约|在|[：:\d])",
+        user_text,
+    ))
+
+
+async def background_memory_extraction(user_id: int, user_text: str, ai_text: str):
+    """Best-effort preference/fact extraction, owned by the streaming response."""
+    if user_id <= 0:
+        return
+    try:
+        if await persist_naming_memory(user_id, user_text) is not None:
+            return
+        if not should_extract_memory(user_text):
+            return
+        # Inference cannot overwrite explicit identity, even under a FACT key.
+        memories = [item for item in await extract_memories_with_llm(user_text, ai_text)
+                    if item.get("key") not in IDENTITY_KEYS
+                    and item.get("category") in {"PREFERENCE", "FACT"}]
+        if memories:
+            with trace_span("memory.persist_preferences", kind="memory", input={"memories":memories}) as span:
+                result = await backend_client.upsert_user_memory(user_id, memories)
+                span.complete(result, status="FAILED" if "error" in result else "SUCCESS")
+            if "error" in result:
+                logger.warning("preference persistence unavailable for user %s", user_id)
+    except Exception:
+        logger.warning("background memory extraction failed for user %s", user_id, exc_info=True)

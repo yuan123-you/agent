@@ -55,6 +55,8 @@ AI Mall 是面向购物与客服场景的智能电商平台，由 **Vue 3 前端
 
 ## 技术架构
 
+当前 AI 主链路、调用预算与设计边界见 [Agent + RAG 链路架构](docs/architecture/ai-chain.md)。管理员可通过 [AI 链路观测](docs/architecture/ai-observability.md) 查看每轮对话的执行步骤与输入输出。
+
 | 层次 | 技术与职责 |
 | --- | --- |
 | Web 前端 | Vue 3、TypeScript、Vite、Pinia、Element Plus；多角色页面与流式交互 |
