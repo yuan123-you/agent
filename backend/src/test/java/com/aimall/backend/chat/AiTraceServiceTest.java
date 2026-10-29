@@ -55,5 +55,10 @@ class AiTraceServiceTest {
         verify(mapper).selectPage(any(),query.capture());
         assertThat(query.getValue().getSqlSelect()).doesNotContain("detail_json");
     }
+    @Test void benchmarkReportIsLoadedFromClasspathOrFallback() {
+        var report = service.getLatestBenchmark();
+        assertThat(report).isNotEmpty();
+        assertThat(report.get("overall_score")).isNotNull();
+    }
 
 }

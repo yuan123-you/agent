@@ -94,7 +94,19 @@ public class AiTraceService {
     }
 
     public Map<String, Object> getLatestBenchmark() {
+        try (var in = getClass().getClassLoader().getResourceAsStream("eval/benchmark_report.json")) {
+            if (in != null) {
+                String content = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                JsonNode node = JsonUtil.parse(content);
+                if (node != null && node.isObject()) {
+                    return JsonUtil.toMap(content);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("failed to read bundled benchmark report from classpath: {}", e.getMessage());
+        }
         for (java.nio.file.Path path : List.of(
+                java.nio.file.Path.of("/srv/aimall/repo/eval/results/benchmark_report.json"),
                 java.nio.file.Path.of("..", "eval", "results", "benchmark_report.json"),
                 java.nio.file.Path.of("eval", "results", "benchmark_report.json"),
                 java.nio.file.Path.of("D:", "studyAgent", "AI Mall", "eval", "results", "benchmark_report.json"))) {
