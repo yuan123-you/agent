@@ -1,196 +1,105 @@
 <template>
   <el-scrollbar class="cart-scroll-container">
     <div class="page cart-page">
-      <!-- 1. 顶部操作栏：半透明圆形返回按钮 + 购物车标题 + 管理/完成切换 -->
-      <div class="cart-header-bar">
-        <div class="chb-left">
-          <button class="translucent-circle-back" title="返回" @click="goBack">
-            <el-icon :size="16"><ArrowLeft /></el-icon>
-          </button>
-          <h2 class="cart-main-title">购物车 <span v-if="items.length" class="cart-count">({{ items.length }})</span></h2>
-        </div>
-        <div class="chb-right">
-          <button v-if="items.length > 0" class="manage-toggle-btn" @click="isManageMode = !isManageMode">
-            {{ isManageMode ? '完成' : '管理' }}
-          </button>
-        </div>
-      </div>
+      <header class="cart-header-bar">
+        <button class="cart-back-btn" aria-label="返回" @click="goBack">
+          <el-icon :size="22"><ArrowLeft /></el-icon>
+        </button>
+        <h1 class="cart-main-title">购物车<span v-if="items.length" class="cart-count">（{{ items.length }}）</span></h1>
+        <button v-if="items.length" class="manage-toggle-btn" @click="isManageMode = !isManageMode">
+          {{ isManageMode ? '完成' : '管理' }}
+        </button>
+        <span v-else aria-hidden="true" />
+      </header>
 
       <LoadingState v-if="loading && !items.length" variant="list" :count="3" label="正在加载购物车" />
 
-      <!-- 2. 包邮与权益提示条 (对标拼多多/京东满减包邮提醒) -->
-      <div v-if="items.length > 0" class="shipping-benefit-bar mall-card">
-        <div class="sbb-left">
-          <span class="sbb-badge">售后服务</span>
-          <span class="sbb-text">退款、退换货可在订单中申请并查看处理进度</span>
+      <template v-if="items.length">
+        <div class="cart-section-bar">
+          <h2 class="cart-section-title">全部商品（{{ items.length }}）</h2>
+          <span class="cart-selection-hint">{{ isManageMode ? '选择要删除的商品' : '好物一起买' }}</span>
         </div>
-        <span class="sbb-more" @click="$router.push('/coupons')">领券 ›</span>
-      </div>
+        <div class="shipping-benefit-bar">
+          <span class="sbb-text">已选 <strong>{{ checkedCount }}</strong> 件商品</span>
+          <button class="sbb-more" @click="$router.push('/coupons')">领券中心 <el-icon><ArrowRight /></el-icon></button>
+        </div>
 
-      <!-- 3. 店铺与商品卡片组 (三大电商经典卡片结构) -->
-      <div v-if="items.length > 0" class="shop-group-card mall-card">
-        <div class="shop-group-head">
-          <el-checkbox
-            :model-value="allChecked"
-            class="shop-checkbox"
-            @change="checkAll"
-          >
+        <section class="shop-group-card" aria-label="购物车商品">
+          <div class="shop-group-head">
+            <el-checkbox :model-value="allChecked" :indeterminate="checkedCount > 0 && !allChecked" class="shop-checkbox" aria-label="选择店铺全部商品" @change="checkAll"><span class="sr-only">选择店铺全部商品</span></el-checkbox>
             <div class="shop-title-box">
               <el-icon class="shop-icon"><Shop /></el-icon>
               <span class="shop-name">官方自营旗舰店</span>
-              <el-icon class="shop-arrow"><ArrowRight /></el-icon>
-            </div>
-          </el-checkbox>
-          <span class="shop-tag">官方自营</span>
-        </div>
-
-        <div class="cart-items-list">
-          <div
-            v-for="row in items"
-            :key="row.cartItemId"
-            class="cart-goods-row"
-            :class="{ selected: row.checked === 1 }"
-          >
-            <!-- 勾选框 -->
-            <el-checkbox
-              :model-value="row.checked === 1"
-              class="goods-checkbox"
-              @change="toggleCheck(row)"
-            />
-
-            <!-- 商品主图 -->
-            <div class="goods-img-box" @click="goDetail(row.productId)">
-              <el-image :src="row.imageUrl" fit="cover" class="goods-img" lazy decoding="async">
-                <template #error>
-                  <div class="img-fallback">🛍️</div>
-                </template>
-              </el-image>
-            </div>
-
-            <!-- 商品信息与操作 -->
-            <div class="goods-content">
-              <div class="goods-name" @click="goDetail(row.productId)">
-                {{ row.name }}
-              </div>
-              <div class="goods-sku-pill" @click="goDetail(row.productId)">
-                <span>{{ row.skuSp ? spText(row.skuSp) : '官方正品 · 标配' }}</span>
-                <el-icon :size="10"><ArrowRight /></el-icon>
-              </div>
-
-              <div class="goods-price-row">
-                <div class="price-box">
-                  <span class="symbol">￥</span>
-                  <span class="num">{{ row.price }}</span>
-                </div>
-
-                <!-- 步进器与删除 -->
-                <div class="stepper-box">
-                  <el-input-number
-                    :model-value="row.quantity"
-                    :min="1"
-                    :max="row.stock || 99"
-                    size="small"
-                    class="custom-stepper"
-                    @change="(v: number) => changeQty(row, v)"
-                  />
-                  <button v-if="isManageMode" class="row-delete-btn" title="删除" @click.stop="remove(row)">
-                    <el-icon :size="14"><Delete /></el-icon>
-                  </button>
-                </div>
-              </div>
+              <span class="shop-tag">自营</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 4. 空购物车缺省页 -->
-      <div v-if="!loading && items.length === 0" class="empty-cart-card mall-card">
-        <div class="ecc-icon">🛒</div>
-        <div class="ecc-title">购物车空空如也</div>
-        <p class="ecc-sub">精选好物正在热卖中，去挑一件心仪的商品吧</p>
-        <el-button type="danger" round class="ecc-btn" @click="$router.push('/')">
-          去逛逛爆款好物
-        </el-button>
-      </div>
+          <div class="cart-items-list">
+            <article v-for="row in items" :key="row.cartItemId" class="cart-goods-row" :class="{ selected: row.checked === 1 }">
+              <el-checkbox :model-value="row.checked === 1" class="goods-checkbox" :aria-label="'选择' + row.name" @change="toggleCheck(row)"><span class="sr-only">选择{{ row.name }}</span></el-checkbox>
+              <button class="goods-img-box" :aria-label="'查看' + row.name" @click="goDetail(row.productId)">
+                <el-image :src="row.imageUrl" :alt="row.name" fit="cover" class="goods-img" lazy decoding="async">
+                  <template #error><div class="img-fallback"><el-icon :size="28"><Picture /></el-icon></div></template>
+                </el-image>
+              </button>
+              <div class="goods-content">
+                <button class="goods-name" @click="goDetail(row.productId)">{{ row.name }}</button>
+                <button class="goods-sku-pill" title="查看商品规格" @click="goDetail(row.productId)">
+                  <span>{{ spText(row.skuSp) }}</span><el-icon :size="11"><ArrowRight /></el-icon>
+                </button>
+                <div class="goods-price-row">
+                  <div class="price-box"><span class="symbol">¥</span><span class="num">{{ Number(row.price).toFixed(2) }}</span></div>
+                  <div class="stepper-box">
+                    <el-input-number :model-value="row.quantity" :min="1" :max="row.stock || 99" size="small" class="custom-stepper" :aria-label="row.name + '数量'" @change="(v: number) => changeQty(row, v)" />
+                    <button v-if="isManageMode" class="row-delete-btn" :aria-label="'删除' + row.name" @click.stop="remove(row)"><el-icon :size="16"><Delete /></el-icon></button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </template>
 
-      <!-- 5. 猜你喜欢推荐瀑布流 (拼多多/京东/淘宝购物车底栏标配) -->
-      <section class="cart-recommend-section">
-        <div class="crs-header">
-          <span class="crs-line" />
-          <span class="crs-title">🔥 猜你喜欢 · 精选推荐</span>
-          <span class="crs-line" />
-        </div>
+      <section v-if="!loading && !items.length" class="empty-cart-card">
+        <div class="ecc-icon"><el-icon :size="48"><ShoppingCart /></el-icon></div>
+        <h2 class="ecc-title">购物车空空如也</h2>
+        <p class="ecc-sub">去逛逛，把喜欢的好物带回来</p>
+        <button class="ecc-btn" @click="$router.push('/')">去逛逛</button>
+      </section>
 
-        <p v-if="recommendError" role="alert">推荐商品加载失败 <button @click="loadRecommendations">重试</button></p>
+      <section class="cart-recommend-section" aria-labelledby="cart-recommend-title">
+        <div class="crs-header"><span class="crs-line" /><h2 id="cart-recommend-title" class="crs-title">猜你喜欢</h2><span class="crs-line" /></div>
+        <p v-if="recommendError" class="recommend-error" role="alert">推荐商品加载失败 <button @click="loadRecommendations">重试</button></p>
         <LoadingState v-if="recommendLoading" variant="cards" :count="4" label="正在加载推荐商品" />
         <div class="recommend-grid">
-          <div
-            v-for="p in recommendProducts"
-            :key="p.id"
-            class="rec-card mall-card"
-            @click="$router.push(`/products/${p.id}`)"
-          >
+          <a v-for="p in recommendProducts" :key="p.id" class="rec-card" :href="'/products/' + p.id" @click.prevent="goDetail(p.id)">
             <div class="rec-img-box">
-              <el-image :src="p.imageUrl" fit="cover" class="rec-img" lazy decoding="async">
-                <template #error><div class="rec-fb">🛍️</div></template>
+              <el-image :src="p.imageUrl" :alt="p.name" fit="cover" class="rec-img" lazy decoding="async">
+                <template #error><div class="img-fallback"><el-icon :size="28"><Picture /></el-icon></div></template>
               </el-image>
             </div>
             <div class="rec-info">
               <div class="rec-name">{{ p.name }}</div>
-              <div class="rec-points">{{ p.sellingPoints || '品质认证 · 顺丰直达' }}</div>
-              <div class="rec-foot">
-                <span class="rec-price">￥{{ p.price }}</span>
-                <span class="rec-sales">已拼 {{ formatSales(p.sales) }}</span>
-              </div>
+              <div v-if="p.sellingPoints" class="rec-points">{{ p.sellingPoints }}</div>
+              <div class="rec-foot"><span class="rec-price"><small>¥</small>{{ Number(p.price).toFixed(2) }}</span><span v-if="p.sales != null" class="rec-sales">已售 {{ formatSales(p.sales) }}</span></div>
             </div>
-          </div>
+          </a>
         </div>
       </section>
 
-      <!-- 6. 底部固定吸底结算栏 (对标三大电商悬浮吸底标准) -->
-      <div v-if="items.length > 0" class="fixed-checkout-bar">
+      <footer v-if="items.length" class="fixed-checkout-bar" aria-label="购物车结算">
         <div class="fcb-inner">
-          <el-checkbox
-            :model-value="allChecked"
-            class="fcb-checkbox"
-            @change="checkAll"
-          >
-            全选
-          </el-checkbox>
-
+          <el-checkbox :model-value="allChecked" :indeterminate="checkedCount > 0 && !allChecked" class="fcb-checkbox" @change="checkAll">全选</el-checkbox>
           <div v-if="!isManageMode" class="fcb-summary">
-            <div class="fcb-total-line">
-              <span class="fcb-label">合计:</span>
-              <span class="fcb-symbol">￥</span>
-              <span class="fcb-price">{{ totalAmount.toFixed(2) }}</span>
-            </div>
-            <span class="fcb-sub">顺丰速运免运费</span>
+            <div class="fcb-total-line"><span class="fcb-label">合计</span><span class="fcb-symbol">¥</span><span class="fcb-price">{{ totalAmount.toFixed(2) }}</span></div>
+            <span class="fcb-sub">优惠及运费以结算页为准</span>
           </div>
-
           <div class="fcb-action-btns">
-            <template v-if="!isManageMode">
-              <button
-                class="checkout-submit-btn"
-                :disabled="checkedCount === 0"
-                @click="openCheckout"
-              >
-                结算 ({{ checkedCount }})
-              </button>
-            </template>
-            <template v-else>
-              <button
-                class="batch-delete-btn"
-                :disabled="checkedCount === 0"
-                @click="batchRemoveChecked"
-              >
-                删除选中的商品 ({{ checkedCount }})
-              </button>
-            </template>
+            <button v-if="!isManageMode" class="checkout-submit-btn" :disabled="checkedCount === 0" @click="openCheckout">去结算<span>（{{ checkedCount }}）</span></button>
+            <button v-else class="batch-delete-btn" :disabled="checkedCount === 0" @click="batchRemoveChecked">删除<span>（{{ checkedCount }}）</span></button>
           </div>
         </div>
-      </div>
-
-
+      </footer>
     </div>
   </el-scrollbar>
 </template>
@@ -200,12 +109,9 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Delete, Shop } from '@element-plus/icons-vue'
-import CheckoutAddressPicker from '@/components/address/CheckoutAddressPicker.vue'
-import CouponPicker from '@/components/mall/CouponPicker.vue'
+import { ArrowLeft, ArrowRight, Delete, Picture, Shop, ShoppingCart } from '@element-plus/icons-vue'
 import {
-  apiCartCheckAll, apiCartCheckout, apiCartList, apiCartRemove, apiCartUpdate,
-  apiPayOrder, apiProducts, type CartRow,
+  apiCartCheckAll, apiCartList, apiCartRemove, apiCartUpdate, apiProducts, type CartRow,
 } from '@/api'
 import type { ProductVO } from '@/types/api'
 
@@ -216,17 +122,7 @@ const items = ref<CartRow[]>([])
 const loading = ref(false)
 const totalAmount = ref(0)
 const checkedCount = ref(0)
-const showCheckout = ref(false)
-const submitting = ref(false)
 const isManageMode = ref(false)
-const selectedAddressId = ref<number>()
-const selectedCouponId = ref<number>()
-const couponDiscountValue = ref(0)
-
-const payableAmount = computed(() =>
-  Math.max(0, Number((totalAmount.value - couponDiscountValue.value).toFixed(2))),
-)
-
 const allChecked = computed(
   () => items.value.length > 0 && items.value.every((i) => i.checked === 1),
 )
@@ -308,34 +204,9 @@ async function batchRemoveChecked() {
   await load()
 }
 
-async function openCheckout() {
-  showCheckout.value = true
-  selectedAddressId.value = undefined
-  selectedCouponId.value = undefined
-  couponDiscountValue.value = 0
-}
-
-async function submit() {
-  if (!selectedAddressId.value) {
-    ElMessage.warning('请先选择或新增收货地址')
-    return
-  }
-  submitting.value = true
-  try {
-    const order = await apiCartCheckout({
-      addressId: selectedAddressId.value,
-      couponUserId: selectedCouponId.value,
-    })
-    // 结算后直接完成模拟支付
-    await apiPayOrder(order.orderId)
-    ElMessage.success(`下单并模拟支付成功：${order.orderNo}`)
-    showCheckout.value = false
-    router.push(`/orders/${order.orderId}`)
-  } catch {
-    // 拦截器已处理
-  } finally {
-    submitting.value = false
-  }
+function openCheckout() {
+  if (checkedCount.value === 0) return
+  router.push('/order/confirm')
 }
 
 function goDetail(id: number) {
@@ -361,566 +232,175 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* Hallmark · commerce / compact · Pinduoduo-inspired · red anchor
+ * Structure: centered utility header → product list → recommendations → fixed checkout.
+ * Scoped to the cart; existing brand, APIs and navigation remain unchanged. */
 .cart-scroll-container {
+  --cart-accent: #e02e24;
+  --cart-accent-hover: #c8251c;
+  --cart-on-accent: #fff;
+  --cart-canvas: var(--mall-surface-2, #f4f4f5);
+  --cart-surface: var(--mall-surface, #fff);
+  --cart-ink: var(--el-text-color-primary, #303133);
+  --cart-muted: var(--el-text-color-secondary, #909399);
+  --cart-border: var(--mall-border-light, #f4f4f5);
+  --el-color-primary: var(--cart-accent);
+  --el-color-primary-light-9: var(--mall-price-bg, #fff1f2);
   height: 100%;
-  background: var(--mall-page-bg, #f8fafc);
+  background: var(--cart-canvas);
+  color: var(--cart-ink);
 }
-
 .cart-page {
-  max-width: 760px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 12px 14px 100px; /* 留出底部吸底结算栏高度 */
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 0 20px 100px;
 }
-
-/* 顶部操作条 */
+.cart-page button { font-family: inherit; cursor: pointer; }
+.cart-page button:focus-visible, .rec-card:focus-visible {
+  outline: 2px solid var(--cart-accent);
+  outline-offset: 3px;
+}
 .cart-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 2px;
-}
-
-.chb-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cart-main-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #18181b;
-  margin: 0;
-}
-
-html.dark .cart-main-title {
-  color: #f4f4f5;
-}
-
-.cart-count {
-  font-size: 13px;
-  font-weight: 600;
-  color: #71717a;
-}
-
-.manage-toggle-btn {
-  border: none;
-  background: transparent;
-  color: #71717a;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: color 0.15s ease;
-}
-
-.manage-toggle-btn:hover {
-  color: var(--mall-price, #e11d48);
-}
-
-/* 包邮福利条 */
-.shipping-benefit-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--mall-surface, #ffffff);
-  border-radius: var(--mall-radius, 10px);
-  font-size: 11px;
-}
-
-.sbb-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sbb-badge {
-  background: #ecfdf5;
-  color: #059669;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.sbb-text {
-  color: #52525b;
-}
-
-html.dark .sbb-text {
-  color: #a1a1aa;
-}
-
-.sbb-more {
-  color: var(--mall-price, #e11d48);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* 店铺卡片 */
-.shop-group-card {
-  background: var(--mall-surface, #ffffff);
-  border-radius: var(--mall-radius, 10px);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-}
-
-.shop-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
-}
-
-.shop-title-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 6px;
-}
-
-.shop-icon {
-  font-size: 14px;
-  color: #18181b;
-}
-
-html.dark .shop-icon {
-  color: #f4f4f5;
-}
-
-.shop-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #18181b;
-}
-
-html.dark .shop-name {
-  color: #f4f4f5;
-}
-
-.shop-arrow {
-  font-size: 11px;
-  color: #a1a1aa;
-}
-
-.shop-tag {
-  font-size: 10px;
-  font-weight: 600;
-  color: #fff;
-  background: #18181b;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-html.dark .shop-tag {
-  background: #ffffff;
-  color: #18181b;
-}
-
-.cart-items-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.cart-goods-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--mall-border-light, #f4f4f5);
-}
-
-.cart-goods-row:last-child {
-  border-bottom: none;
-}
-
-.goods-checkbox {
-  margin-right: 0;
-}
-
-.goods-img-box {
-  width: 76px;
-  height: 76px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--mall-surface-2, #f4f4f5);
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.goods-img {
-  width: 100%;
-  height: 100%;
-}
-
-.img-fallback {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.goods-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.goods-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #18181b;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-html.dark .goods-name {
-  color: #f4f4f5;
-}
-
-.goods-sku-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--mall-surface-2, #f4f4f5);
-  color: #71717a;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  align-self: flex-start;
-  cursor: pointer;
-}
-
-html.dark .goods-sku-pill {
-  background: #27272a;
-  color: #a1a1aa;
-}
-
-.goods-price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 2px;
-}
-
-.price-box {
-  display: flex;
-  align-items: baseline;
-  color: var(--mall-price, #e11d48);
-}
-
-.price-box .symbol {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.price-box .num {
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.stepper-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.custom-stepper {
-  width: 90px;
-}
-
-.row-delete-btn {
-  border: none;
-  background: transparent;
-  color: #ef4444;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-}
-
-/* 空购物车 */
-.empty-cart-card {
-  padding: 40px 20px;
-  background: var(--mall-surface, #ffffff);
-  border-radius: var(--mall-radius, 10px);
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ecc-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.ecc-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #18181b;
-}
-
-html.dark .ecc-title {
-  color: #f4f4f5;
-}
-
-.ecc-sub {
-  font-size: 12px;
-  color: #71717a;
-  margin: 6px 0 16px;
-}
-
-.ecc-btn {
-  font-weight: 700;
-  padding: 8px 24px;
-}
-
-/* 猜你喜欢瀑布流 */
-.cart-recommend-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.crs-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 6px 0;
-}
-
-.crs-line {
-  height: 1px;
-  width: 40px;
-  background: var(--mall-border, #e4e4e7);
-}
-
-.crs-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #71717a;
-}
-
-.recommend-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 64px 1fr 64px;
+  align-items: center;
+  min-height: 64px;
+  margin: 0 -20px;
+  padding: 0 20px;
+  background: var(--cart-surface);
 }
-
-.rec-card {
-  background: var(--mall-surface, #ffffff);
-  border-radius: var(--mall-radius, 10px);
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.2s ease;
-}
-
-.rec-card:hover {
-  transform: translateY(-2px);
-}
-
-.rec-img-box {
-  width: 100%;
-  aspect-ratio: 1;
-  background: #f4f4f5;
-}
-
-.rec-img {
-  width: 100%;
-  height: 100%;
-}
-
-.rec-fb {
-  width: 100%;
-  height: 100%;
+.cart-main-title { margin: 0; text-align: center; font-size: 20px; font-weight: 600; }
+.cart-count { font-size: 16px; font-weight: 400; }
+.cart-back-btn, .manage-toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  color: var(--cart-ink);
+  background: none;
 }
-
-.rec-info {
-  padding: 8px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.cart-back-btn { justify-self: start; width: 40px; }
+.manage-toggle-btn { justify-self: end; min-width: 44px; font-size: 14px; }
+.manage-toggle-btn:hover, .goods-name:hover { color: var(--cart-accent); }
+.cart-section-bar { display: flex; align-items: center; justify-content: space-between; padding: 20px 0 12px; }
+.cart-section-title { position: relative; margin: 0; padding-bottom: 8px; color: var(--cart-accent); font-size: 16px; font-weight: 600; }
+.cart-section-title::after { position: absolute; bottom: 0; left: 0; width: 28px; height: 3px; background: var(--cart-accent); content: ''; }
+.cart-selection-hint { color: var(--cart-muted); font-size: 12px; }
+.shipping-benefit-bar { display: flex; align-items: center; justify-content: space-between; min-height: 40px; margin-bottom: 10px; padding: 0 16px; border-radius: 6px; background: var(--mall-price-bg, #fff1f2); font-size: 12px; }
+.sbb-text strong { color: var(--cart-accent); font-weight: 500; }
+.sbb-more { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0; border: 0; background: none; color: var(--cart-accent); font-size: 12px; }
+.shop-group-card { padding: 0 20px; border-radius: 8px; background: var(--cart-surface); }
+.shop-group-head { display: flex; align-items: center; gap: 14px; min-height: 56px; border-bottom: 1px solid var(--cart-border); }
+.shop-title-box { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.shop-icon { font-size: 18px; }
+.shop-name { font-size: 14px; font-weight: 600; }
+.shop-tag { padding: 1px 4px; border: 1px solid var(--cart-accent); border-radius: 3px; color: var(--cart-accent); font-size: 10px; line-height: 1.3; }
+.cart-goods-row { display: flex; align-items: center; gap: 14px; padding: 20px 0; }
+.cart-goods-row + .cart-goods-row { border-top: 1px solid var(--cart-border); }
+.cart-page :deep(.el-checkbox) { margin-right: 0; --el-checkbox-checked-bg-color: var(--cart-accent); --el-checkbox-checked-input-border-color: var(--cart-accent); --el-checkbox-checked-text-color: var(--cart-ink); --el-checkbox-checked-icon-color: var(--cart-on-accent); }
+.cart-page :deep(.el-checkbox__inner) { width: 20px; height: 20px; border-radius: 50%; }
+.cart-page :deep(.el-checkbox__inner::after) { height: 9px; }
+.cart-page :deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner::before) { top: 8px; }
+.cart-page :deep(.el-checkbox__label) { padding-left: 8px; font-size: 13px; }
+.goods-checkbox :deep(.el-checkbox__label), .shop-checkbox :deep(.el-checkbox__label) { position: absolute; width: 1px; height: 1px; overflow: hidden; padding: 0; clip-path: inset(50%); }
+.goods-img-box { width: 112px; height: 112px; flex-shrink: 0; overflow: hidden; padding: 0; border: 0; border-radius: 5px; background: var(--cart-canvas); }
+.goods-img, .rec-img { display: block; width: 100%; height: 100%; }
+.img-fallback { display: grid; place-items: center; width: 100%; height: 100%; color: var(--cart-muted); background: var(--cart-canvas); }
+.goods-content { display: flex; flex: 1; flex-direction: column; align-items: flex-start; min-width: 0; align-self: stretch; gap: 8px; }
+.goods-name { display: -webkit-box; overflow: hidden; padding: 0; border: 0; color: var(--cart-ink); background: none; font-size: 15px; font-weight: 400; line-height: 1.5; text-align: left; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.goods-sku-pill { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 7px; border: 0; border-radius: 3px; background: var(--cart-canvas); color: var(--cart-muted); font-size: 12px; }
+.goods-sku-pill span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.goods-sku-pill .el-icon { flex-shrink: 0; }
+.goods-price-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; width: 100%; margin-top: auto; }
+.price-box { flex-shrink: 0; color: var(--cart-accent); white-space: nowrap; }
+.symbol { margin-right: 2px; font-size: 13px; }
+.num { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stepper-box { display: flex; align-items: center; gap: 8px; }
+.custom-stepper { width: 100px; }
+.custom-stepper :deep(.el-input__wrapper) { border-radius: 3px; padding-right: 28px; padding-left: 28px; box-shadow: 0 0 0 1px var(--mall-border, #e4e4e7) inset; }
+.custom-stepper :deep(.el-input-number__increase), .custom-stepper :deep(.el-input-number__decrease) { width: 27px; background: var(--cart-surface); }
+.row-delete-btn { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; color: var(--cart-muted); background: none; }
+.row-delete-btn:hover { color: var(--cart-accent); }
+.empty-cart-card { display: flex; flex-direction: column; align-items: center; margin-top: 12px; padding: 42px 16px; border-radius: 8px; background: var(--cart-surface); text-align: center; }
+.ecc-icon { display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 18px; border-radius: 50%; background: var(--cart-canvas); color: var(--cart-muted); }
+.ecc-title { margin: 0; font-size: 18px; font-weight: 500; }
+.ecc-sub { margin: 10px 0 22px; color: var(--cart-muted); font-size: 13px; }
+.ecc-btn { min-width: 132px; height: 40px; border: 0; border-radius: 5px; background: var(--cart-accent); color: var(--cart-on-accent); font-size: 14px; }
+.cart-recommend-section { padding-top: 26px; }
+.crs-header { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 18px; }
+.crs-title { margin: 0; color: var(--cart-accent); font-size: 16px; font-weight: 600; }
+.crs-line { width: 28px; height: 1px; background: var(--cart-accent); opacity: .25; }
+.recommend-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rec-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border-radius: 6px; background: var(--cart-surface); color: inherit; text-decoration: none; }
+.rec-img-box { width: 100%; aspect-ratio: 1; overflow: hidden; background: var(--cart-canvas); }
+.rec-info { display: flex; flex: 1; flex-direction: column; gap: 6px; padding: 10px; }
+.rec-name { display: -webkit-box; overflow: hidden; font-size: 13px; line-height: 1.5; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.rec-points { overflow: hidden; color: var(--cart-muted); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.rec-foot { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: auto; padding-top: 3px; }
+.rec-price { color: var(--cart-accent); font-size: 20px; font-weight: 600; }
+.rec-price small { margin-right: 2px; font-size: 12px; font-weight: 400; }
+.rec-sales { color: var(--cart-muted); font-size: 11px; }
+.recommend-error { color: var(--cart-muted); font-size: 13px; text-align: center; }
+.recommend-error button { padding: 6px; border: 0; color: var(--cart-accent); background: none; }
+.fixed-checkout-bar { position: fixed; z-index: 80; right: 0; bottom: 0; left: 0; border-top: 1px solid var(--cart-border); background: var(--cart-surface); }
+.fcb-inner { display: flex; align-items: center; gap: 18px; min-height: 72px; max-width: 1040px; margin: 0 auto; padding: 10px 20px; }
+.fcb-summary { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; min-width: 0; margin-left: auto; }
+.fcb-total-line { display: flex; align-items: baseline; white-space: nowrap; }
+.fcb-label { margin-right: 6px; font-size: 13px; }
+.fcb-symbol { color: var(--cart-accent); font-size: 13px; }
+.fcb-price { color: var(--cart-accent); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fcb-sub { color: var(--cart-muted); font-size: 11px; white-space: nowrap; }
+.fcb-action-btns { flex-shrink: 0; margin-left: auto; }
+.fcb-summary + .fcb-action-btns { margin-left: 0; }
+.checkout-submit-btn, .batch-delete-btn { min-width: 156px; height: 46px; padding: 0 18px; border: 0; border-radius: 5px; background: var(--cart-accent); color: var(--cart-on-accent); font-size: 16px; font-weight: 500; }
+.checkout-submit-btn:not(:disabled):hover, .ecc-btn:hover { background: var(--cart-accent-hover); }
+.checkout-submit-btn:disabled, .batch-delete-btn:disabled { opacity: .45; cursor: not-allowed; }
+.batch-delete-btn { border: 1px solid var(--cart-accent); background: var(--cart-surface); color: var(--cart-accent); }
+html.dark .cart-scroll-container { --cart-accent: var(--mall-price, #fb7185); --cart-accent-hover: #f58e9c; --cart-on-accent: #18181b; }
+@media (max-width: 768px) {
+  .cart-page { padding: 0 10px 90px; }
+  .cart-header-bar { min-height: 52px; margin: 0 -10px; padding: 0 10px; }
+  .cart-main-title { font-size: 18px; }
+  .cart-count { font-size: 15px; }
+  .cart-section-bar { padding: 16px 4px 8px; }
+  .cart-section-title { font-size: 15px; }
+  .cart-selection-hint { font-size: 11px; }
+  .shipping-benefit-bar { min-height: 36px; padding: 0 12px; margin-bottom: 8px; }
+  .sbb-more { min-height: 36px; }
+  .shop-group-card { padding: 0 12px; }
+  .shop-group-head { min-height: 48px; gap: 10px; }
+  .shop-name { font-size: 13px; }
+  .cart-goods-row { gap: 10px; padding: 15px 0; }
+  .goods-img-box { width: 96px; height: 96px; }
+  .goods-content { gap: 6px; }
+  .goods-name { font-size: 13px; line-height: 1.45; }
+  .goods-sku-pill { padding: 3px 6px; font-size: 11px; }
+  .num { font-size: 20px; }
+  .custom-stepper { width: 88px; }
+  .custom-stepper :deep(.el-input__wrapper) { padding-right: 23px; padding-left: 23px; }
+  .custom-stepper :deep(.el-input-number__increase), .custom-stepper :deep(.el-input-number__decrease) { width: 22px; }
+  .goods-price-row { flex-wrap: wrap; row-gap: 4px; }
+  .stepper-box { gap: 2px; margin-left: auto; }
+  .row-delete-btn { width: 24px; }
+  .recommend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cart-recommend-section { padding-top: 24px; }
+  .crs-header { margin-bottom: 14px; }
+  .fixed-checkout-bar { bottom: calc(56px + env(safe-area-inset-bottom)); }
+  .fcb-inner { min-height: 62px; gap: 10px; padding: 8px 12px; }
+  .fcb-price { font-size: 22px; }
+  .fcb-sub { font-size: 10px; }
+  .checkout-submit-btn, .batch-delete-btn { min-width: 116px; height: 42px; padding: 0 12px; font-size: 15px; }
 }
-
-.rec-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #18181b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+@media (max-width: 374px) {
+  .goods-img-box { width: 80px; height: 80px; }
+  .cart-goods-row { gap: 8px; }
+  .goods-price-row { flex-wrap: wrap; gap: 4px; }
+  .stepper-box { margin-left: auto; }
+  .fcb-inner { gap: 6px; padding-right: 8px; padding-left: 8px; }
+  .fcb-label { margin-right: 2px; font-size: 12px; }
+  .fcb-price { font-size: 19px; }
+  .checkout-submit-btn, .batch-delete-btn { min-width: 100px; padding: 0 8px; font-size: 14px; }
 }
-
-html.dark .rec-name {
-  color: #f4f4f5;
-}
-
-.rec-points {
-  font-size: 10px;
-  color: #71717a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.rec-foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-top: 4px;
-}
-
-.rec-price {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--mall-price, #e11d48);
-}
-
-.rec-sales {
-  font-size: 10px;
-  color: #a1a1aa;
-}
-
-/* ================= 底部固定吸底结算栏 (大厂标配) ================= */
-.fixed-checkout-bar {
-  position: fixed;
-  bottom: calc(56px + env(safe-area-inset-bottom));
-  left: 0;
-  right: 0;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--mall-border-light, #f4f4f5);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
-  z-index: 80;
-}
-
-html.dark .fixed-checkout-bar {
-  background: rgba(18, 18, 21, 0.98);
-  border-top-color: var(--mall-border, #27272a);
-}
-
-.fcb-inner {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.fcb-checkbox {
-  margin-right: 0;
-}
-
-.fcb-summary {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  margin-left: auto;
-}
-
-.fcb-total-line {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.fcb-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #71717a;
-}
-
-.fcb-symbol {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mall-price, #e11d48);
-  margin-left: 2px;
-}
-
-.fcb-price {
-  font-size: 19px;
-  font-weight: 800;
-  color: var(--mall-price, #e11d48);
-  letter-spacing: -0.02em;
-}
-
-.fcb-sub {
-  font-size: 10px;
-  color: #059669;
-}
-
-.checkout-submit-btn {
-  height: 40px;
-  padding: 0 24px;
-  border-radius: 9999px;
-  border: none;
-  background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.checkout-submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.checkout-submit-btn:not(:disabled):active {
-  transform: scale(0.97);
-}
-
-.batch-delete-btn {
-  height: 40px;
-  padding: 0 20px;
-  border-radius: 9999px;
-  border: 1px solid #ef4444;
-  background: #fef2f2;
-  color: #ef4444;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.batch-delete-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@media (min-width: 769px) {
-  .fixed-checkout-bar {
-    bottom: 0;
-  }
-}
-
 </style>
-
