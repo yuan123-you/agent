@@ -80,8 +80,9 @@ class Settings(BaseSettings):
 
     # Legacy extractive values are accepted for migration; all modes synthesize answers.
     kb_response_mode: Literal["generate", "extractive"] = "generate"
-    kb_answer_timeout_s: float = Field(default=30, gt=0)
+    kb_answer_timeout_s: float = Field(default=60, gt=0)
     kb_answer_max_tokens: int = Field(default=512, ge=128, le=2048)
+    kb_legacy_max_tokens: bool = False
     kb_context_max_chars: int = Field(default=3600, ge=600, le=12000)
 
     # T10 RAG 检索与回答置信度

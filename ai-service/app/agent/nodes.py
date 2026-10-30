@@ -315,6 +315,7 @@ async def agent_node(state: AgentState) -> dict:
             previous_questions=previous, llm_factory=get_chat_llm,
             timeout_s=settings.kb_answer_timeout_s, max_tokens=settings.kb_answer_max_tokens,
             context_max_chars=settings.kb_context_max_chars,
+            legacy_max_tokens=settings.kb_legacy_max_tokens,
         )
         if not answer.valid:
             ctx["rag_reason"] = answer.reason

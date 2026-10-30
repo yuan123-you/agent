@@ -224,3 +224,65 @@ def test_per_paragraph_citations_cannot_disguise_a_document_dump():
                "rag_source_contents": {"S1": source}}
     final = OutputPolicy(QUESTION).finalize(dump, context)
     assert "第0项条款" not in final.content and final.citations == ()
+
+@pytest.mark.asyncio
+async def test_structured_answer_gets_program_owned_per_point_citations(monkeypatch):
+    model, state = setup(monkeypatch)
+    model.ainvoke.return_value = AIMessage(content=json.dumps({"points":[
+        {"text":"商品完好时，可在签收之日起7自然日内申请无理由退货；定制商品不适用。", "sources":["S1"]}]}))
+    result = await nodes.agent_node(state)
+    assert result["messages"][0].content == ANSWER
+    assert "response_format" not in model.ainvoke.call_args.kwargs
+    assert model.ainvoke.call_args.kwargs["temperature"] == 0
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("structured", [
+    {"points":[]}, {"points":[{"text":"支持退货", "sources":["S9"]}]},
+    {"points":[{"text":"支持退货", "sources":[]}]}, {"points":[{"text":"支持退货", "sources":"S1"}]},
+    {"points":[{"text":42, "sources":["S1"]}]}, {"points":[None]}, {"points":"规则"}, {}])
+async def test_malformed_structured_answer_cannot_bypass_citation_guard(monkeypatch, structured):
+    model, state = setup(monkeypatch)
+    model.ainvoke.return_value = AIMessage(content=json.dumps(structured))
+    result = await nodes.agent_node(state)
+    final = OutputPolicy(QUESTION).finalize(result["messages"][0].content,get_tool_ctx())
+    assert final.citations == () and "支持退货" not in final.content
+
+@pytest.mark.asyncio
+async def test_structured_source_body_still_cannot_be_dumped(monkeypatch):
+    model, state = setup(monkeypatch)
+    model.ainvoke.return_value = AIMessage(content=json.dumps({"points":[{"text":SOURCE, "sources":["S1"]}]}))
+    result = await nodes.agent_node(state)
+    assert SOURCE not in result["messages"][0].content
+    assert get_tool_ctx()["rag_reason"] == "generation_invalid"
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [True, False])
+async def test_legacy_ollama_receives_real_wire_output_budget(monkeypatch, legacy):
+    import httpx
+    from langchain_openai import ChatOpenAI
+    seen=[]
+    def handle(request):
+        seen.append(json.loads(request.content))
+        content=json.dumps({"points":[{"text":ANSWER.removesuffix("[S1]"),"sources":["S1"]}]})
+        return httpx.Response(200,json={"id":"qa","object":"chat.completion","created":0,"model":"existing-model",
+            "choices":[{"index":0,"message":{"role":"assistant","content":content},"finish_reason":"stop"}]})
+    _,state=setup(monkeypatch)
+    nodes.settings.kb_answer_timeout_s=2
+    nodes.settings.kb_legacy_max_tokens=legacy
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        model=ChatOpenAI(api_key="test-only",base_url="http://ollama.test/v1",model="existing-model",
+                        streaming=False,http_async_client=client)
+        monkeypatch.setattr(nodes,"get_chat_llm",lambda:model)
+        result=await nodes.agent_node(state)
+    assert seen and seen[0].get("max_completion_tokens")==512
+    assert seen[0].get("max_tokens")==512 if legacy else "max_tokens" not in seen[0]
+    assert result["messages"][0].content==ANSWER
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ['{"points":[{"text":"支持退货。[S1]"', '```json\n{"text":"支持退货。[S1]"}\n```'])
+async def test_malformed_or_fenced_structures_never_leak_as_plaintext(monkeypatch, text):
+    model, state=setup(monkeypatch)
+    model.ainvoke.return_value=AIMessage(content=text)
+    result=await nodes.agent_node(state)
+    assert '"text"' not in result["messages"][0].content
+    assert get_tool_ctx()["rag_reason"]=="generation_invalid"
