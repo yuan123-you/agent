@@ -125,7 +125,7 @@ def needs_after_sale_clarification(text: str) -> bool:
     t = (text or "").strip()
     return bool(
         re.search(r"不满意|不合适|不喜欢", t)
-        and re.search(r"商品|产品|东西|买|收到|收货", t)
+        and re.search(r"商品|产品|东西|买|收到|收货|到货|货到|到手|签收", t)
         and not re.search(r"退|换|退款|质量|坏|破损|保修|运费|规则|政策|投诉|人工|推荐|选购|想买|购买前|不想买", t)
         and not requests_human(t)
     )

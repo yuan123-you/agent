@@ -102,7 +102,8 @@ def test_shared_boundary_rejects_dump_with_valid_citation():
     assert source not in answer.content and answer.citations == ()
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("question", ["商品购买后不满意怎么办", "买到的东西不合适怎么办", "收到商品不喜欢怎么办"])
+@pytest.mark.parametrize("question", ["商品购买后不满意怎么办", "买到的东西不合适怎么办", "收到商品不喜欢怎么办",
+    "到货后不满意怎么办", "货到了不满意怎么办", "签收后不满意怎么办", "拿到手不满意怎么办"])
 async def test_vague_dissatisfaction_asks_one_safe_question(monkeypatch, question):
     assert RequestPolicy(question).fast_intent() == "AFTER_SALE_FAQ"
     monkeypatch.setattr(nodes, "get_chat_llm", lambda: pytest.fail("Clarification needs no model"))
@@ -126,13 +127,14 @@ async def test_cancellation_is_not_swallowed_as_provider_failure(monkeypatch):
 
 @pytest.mark.parametrize("question", [
     "商品不满意，想退货怎么办", "收到商品不满意，有质量问题", "买的东西不合适，我要换货",
-    "购买前不喜欢这个商品", "商品不满意，请转人工", "不满意你的回复", "帮我推荐不合适就能退的衣服"])
+    "购买前不喜欢这个商品", "商品不满意，请转人工", "不满意你的回复", "帮我推荐不合适就能退的衣服",
+    "到货后不满意想退货", "到货后不满意，请转人工", "还没买，到货后不满意能不能退"])
 def test_clarification_does_not_override_explicit_intent(question):
     from app.request_policy import needs_after_sale_clarification
     assert not needs_after_sale_clarification(question)
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["answer", "dump", "timeout", "clarification"])
+@pytest.mark.parametrize("kind", ["answer", "dump", "timeout", "clarification", "clarification-arrival"])
 async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind):
     from langgraph.checkpoint.memory import MemorySaver
     from app.agent.graph import build_graph
@@ -159,7 +161,7 @@ async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind
     class Request:
         async def is_disconnected(self):
             return False
-    question = "商品购买后不满意怎么办" if kind == "clarification" else QUESTION
+    question = "到货后不满意怎么办" if kind == "clarification-arrival" else ("商品购买后不满意怎么办" if kind == "clarification" else QUESTION)
     response = await chat.chat_stream(chat.ChatRequest(user_id=1, conversation_id=1, message=question), Request())
     events = []
     async for raw in response.body_iterator:
@@ -174,7 +176,7 @@ async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind
         assert done["content"] == ANSWER and done["citations"][0]["chunk_id"] == 7
     else:
         assert done["citations"] == []
-    if kind == "clarification":
+    if kind.startswith("clarification"):
         assert "退换货" in rendered and "质量" in rendered
         search.assert_not_awaited()
         model.ainvoke.assert_not_awaited()
