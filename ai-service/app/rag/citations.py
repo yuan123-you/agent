@@ -9,6 +9,7 @@ _CANONICAL_SOURCE_RE = re.compile(r"S[1-9][0-9]*")
 _EVIDENCE_INSUFFICIENT = "暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。"
 _RETRIEVAL_UNAVAILABLE = "暂时无法查询相关规则，请稍后再试。"
 _ANSWER_FAILURES = {
+    "generation_conflict": "为避免误判，请补充商品名称和拆封后的使用情况，我再帮您核实。",
     "generation_timeout": "答复整理超时了，请稍后重试。",
     "generation_failed": "暂时没能生成可靠的答复，请稍后重试。",
     "generation_invalid": "暂时没能整理出可靠的答复，请补充您关心的具体问题，或稍后重试。",
@@ -26,6 +27,21 @@ def is_document_dump(content: str, sources: Mapping[str, str]) -> bool:
         if len(original) >= (40 if has_heading else 180) and original in body:
             return True
         if any(original[start:start + 180] in body for start in range(0, len(original) - 179, 90)):
+            return True
+    return False
+
+
+def reverses_opening_exception(content: str, sources: Mapping[str, str]) -> bool:
+    """Fail closed on a known small-model reversal of an explicit source limitation."""
+    evidence = re.sub(r"[\s#>*_`]+", "", "\n".join(sources.values()))
+    if not re.search(r"不能把拆封一概(?:作为拒绝理由|视为丧失权利)", evidence):
+        return False
+    for clause in re.split(r"[。！？；;\n]", content):
+        if re.search(r"不代表|并非|不是必须|不要求|不能一概|不应一概", clause):
+            continue
+        if re.search(r"(?:必须|只能|仅限|只有).{0,12}未拆封", clause):
+            return True
+        if re.search(r"拆封.*(?:不支持|不适用|不能|无法|不得).*(?:退货|无理由|退换)", clause):
             return True
     return False
 
@@ -67,6 +83,8 @@ def validate_citations(
     ):
         return CitationValidation(_EVIDENCE_INSUFFICIENT, (), False, "unknown_citation")
 
+    if sources and reverses_opening_exception(content, sources):
+        return CitationValidation(_ANSWER_FAILURES["generation_conflict"], (), False, "generation_conflict")
     if sources and is_document_dump(content, sources):
         return CitationValidation(_ANSWER_FAILURES["generation_invalid"], (), False, "generation_invalid")
 

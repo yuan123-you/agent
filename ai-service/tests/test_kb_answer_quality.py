@@ -47,7 +47,7 @@ async def test_current_and_legacy_modes_synthesize_not_dump(monkeypatch, mode):
     model.ainvoke.assert_awaited_once()
     prompt = "\n".join(str(m.content) for m in model.ainvoke.call_args.args[0])
     assert "定制商品不适用" in prompt
-    assert "DO_NOT_DUPLICATE_CONTEXT" not in prompt and "[Sx]" in prompt
+    assert "DO_NOT_DUPLICATE_CONTEXT" not in prompt and "sources" in prompt and "JSON" in prompt
     assert model.ainvoke.call_args.kwargs["max_tokens"] == 512
 
 @pytest.mark.asyncio
@@ -286,3 +286,27 @@ async def test_malformed_or_fenced_structures_never_leak_as_plaintext(monkeypatc
     result=await nodes.agent_node(state)
     assert '"text"' not in result["messages"][0].content
     assert get_tool_ctx()["rag_reason"]=="generation_invalid"
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("claim", ["商品拆封后不支持7天无理由退货。[S1]", "必须是未拆封且未使用过的商品才能退货。[S1]"])
+async def test_generated_blanket_refusal_cannot_reverse_explicit_source_exception(monkeypatch, claim):
+    source="需核实商品性质、完好和合理查验情况，不能把拆封一概作为拒绝理由。"
+    payload={"answerable":True,"citations":list(ALLOWED.values()),"hits":[{"chunk_id":7,"content":source}]}
+    model,state=setup(monkeypatch,payload=payload)
+    get_tool_ctx()["rag_source_contents"]={"S1":source}
+    model.ainvoke.return_value=AIMessage(content=claim)
+    result=await nodes.agent_node(state)
+    final=OutputPolicy(QUESTION).finalize(result["messages"][0].content,get_tool_ctx())
+    assert final.citations==() and "商品名称" in final.content
+    assert get_tool_ctx()["rag_reason"]=="generation_conflict"
+
+@pytest.mark.asyncio
+async def test_conditional_opened_product_explanation_remains_allowed(monkeypatch):
+    source="需核实商品性质、完好和合理查验情况，不能把拆封一概作为拒绝理由。"
+    payload={"answerable":True,"citations":list(ALLOWED.values()),"hits":[{"chunk_id":7,"content":source}]}
+    model,state=setup(monkeypatch,payload=payload)
+    get_tool_ctx()["rag_source_contents"]={"S1":source}
+    text="不能把拆封一概作为拒绝理由，需要结合商品性质和合理查验情况核实。[S1]"
+    model.ainvoke.return_value=AIMessage(content=text)
+    result=await nodes.agent_node(state)
+    assert result["messages"][0].content==text

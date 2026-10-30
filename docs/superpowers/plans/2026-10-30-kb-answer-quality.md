@@ -44,3 +44,7 @@
 - Generation timeout adjusted to 60 seconds, still below the 180-second request deadline. Input completeness and truncation rejection are unchanged.
 
 - Runtime follow-up regression: **567 AI tests passed**, plus **32 evaluation/hygiene tests**. New cases inspect the actual OpenAI-compatible HTTP request body, structured sources, malformed JSON, and both legacy/normal provider behavior. Independent review found no further actionable issues.
+
+- Further candidate evidence: verbose structured output could exhaust the real cap and leave incomplete JSON; tightened to the simpler two-scenario tested prompt. A real opened-product probe also exposed a small-model reversal of the source's explicit exception. Added a conservative shared output guard for that known contradiction: request product details instead of issuing a blanket refusal. This is not a general semantic-entailment guarantee.
+
+- Final runtime follow-up regression: **570 AI tests passed**, **32 evaluation/hygiene tests passed**; scoped diff check clean.
