@@ -419,15 +419,19 @@ async def chat_stream(req: ChatRequest, request: Request):
                 yield sse("error", {"code": 5002, "message": "回复等待超时"})
                 return
 
-            # 非流式节点兜底：token 流为空时取最终 state 的最后一条 AI 消息
+            # 知识节点使用整理后的终稿；其他非流式节点仅在无 token 时兜底。
             final_text = "".join(parts)
-            if not final_text and final_state:
+            if final_state:
                 msgs = final_state.get("messages") if isinstance(final_state, dict) else None
                 if msgs:
                     for m in reversed(msgs):
                         content = getattr(m, "content", "")
                         if getattr(m, "type", "") == "ai" and isinstance(content, str) and content:
-                            final_text = content
+                            # A knowledge node renders structured model output and owns its
+                            # citations. Never substitute its internal streamed JSON draft.
+                            rendered = (getattr(m, "additional_kwargs", {}) or {}).get("knowledge_answer_final")
+                            if not final_text or rendered is True:
+                                final_text = content
                             break
             final_text = _timeout_fallback(final_text, timed_out)
             with trace_span("output.validate", kind="guard", input={"draft":final_text,

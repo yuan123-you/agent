@@ -48,3 +48,5 @@
 - Further candidate evidence: verbose structured output could exhaust the real cap and leave incomplete JSON; tightened to the simpler two-scenario tested prompt. A real opened-product probe also exposed a small-model reversal of the source's explicit exception. Added a conservative shared output guard for that known contradiction: request product details instead of issuing a blanket refusal. This is not a general semantic-entailment guarantee.
 
 - Final runtime follow-up regression: **570 AI tests passed**, **32 evaluation/hygiene tests passed**; scoped diff check clean.
+
+- Real BFF SSE exposed a finalization bug absent from non-streaming model mocks: buffered internal JSON displaced the node-rendered answer, triggering missing-citation fallback. Added a red regression replaying actual model-stream events; terminal knowledge messages are now marked and preferred over buffered internal drafts before the shared output gate. No internal JSON is published.

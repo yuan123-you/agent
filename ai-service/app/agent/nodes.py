@@ -319,7 +319,8 @@ async def agent_node(state: AgentState) -> dict:
         )
         if not answer.valid:
             ctx["rag_reason"] = answer.reason
-        return {"messages": [AIMessage(content=answer.content)], "active_entities": entities}
+        return {"messages": [AIMessage(content=answer.content,
+                additional_kwargs={"knowledge_answer_final": True})], "active_entities": entities}
     if intent == "PRODUCT_CONSULT":
         recent_questions = [str(m.content) for m in state["messages"] if isinstance(m, HumanMessage)][-3:]
         recent_evidence = get_trimmed_messages(state["messages"], max_messages=14)

@@ -232,6 +232,7 @@ async def test_structured_answer_gets_program_owned_per_point_citations(monkeypa
         {"text":"商品完好时，可在签收之日起7自然日内申请无理由退货；定制商品不适用。", "sources":["S1"]}]}))
     result = await nodes.agent_node(state)
     assert result["messages"][0].content == ANSWER
+    assert result["messages"][0].additional_kwargs["knowledge_answer_final"] is True
     assert "response_format" not in model.ainvoke.call_args.kwargs
     assert model.ainvoke.call_args.kwargs["temperature"] == 0
 
@@ -310,3 +311,36 @@ async def test_conditional_opened_product_explanation_remains_allowed(monkeypatc
     model.ainvoke.return_value=AIMessage(content=text)
     result=await nodes.agent_node(state)
     assert result["messages"][0].content==text
+
+@pytest.mark.asyncio
+async def test_streamed_internal_json_is_replaced_by_rendered_terminal_answer(monkeypatch):
+    from app.api import chat
+    from langchain_core.messages import AIMessageChunk
+    class Graph:
+        async def astream_events(self,*args,**kwargs):
+            get_tool_ctx().update(rag_used=True,rag_answerable=True,rag_reason="high_confidence",
+                rag_allowed_citations=ALLOWED,rag_source_contents={"S1":SOURCE})
+            raw=json.dumps({"points":[{"text":ANSWER.removesuffix("[S1]"),"sources":["S1"]}]})
+            for part in (raw[:30],raw[30:]):
+                yield {"event":"on_chat_model_stream","metadata":{"langgraph_node":"agent"},
+                       "data":{"chunk":AIMessageChunk(content=part)}}
+            yield {"event":"on_chain_end","name":"LangGraph","data":{"output":{"messages":[
+                AIMessage(content=ANSWER,additional_kwargs={"knowledge_answer_final":True})]}}}
+    class Request:
+        async def is_disconnected(self):return False
+    monkeypatch.setattr(chat,"graph",Graph())
+    monkeypatch.setattr(chat,"checkpointer",None)
+    monkeypatch.setattr(chat,"start_trace",lambda **k:False)
+    monkeypatch.setattr(chat,"end_trace",lambda **k:None)
+    monkeypatch.setattr(chat,"background_memory_extraction",AsyncMock())
+    response=await chat.chat_stream(chat.ChatRequest(user_id=1,conversation_id=1,message=QUESTION),Request())
+    events=[]
+    async for raw in response.body_iterator:
+        if isinstance(raw,bytes):raw=raw.decode()
+        lines=raw.strip().splitlines()
+        events.append((lines[0][7:],json.loads(lines[1][6:])))
+    done=next(data for event,data in events if event=="done")
+    tokens="".join(data["content"] for event,data in events if event=="token")
+    assert tokens==done["content"]==ANSWER
+    assert done["citations"][0]["chunk_id"]==7
+    assert '"points"' not in tokens
