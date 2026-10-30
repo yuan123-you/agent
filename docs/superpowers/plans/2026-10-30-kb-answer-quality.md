@@ -50,3 +50,7 @@
 - Final runtime follow-up regression: **570 AI tests passed**, **32 evaluation/hygiene tests passed**; scoped diff check clean.
 
 - Real BFF SSE exposed a finalization bug absent from non-streaming model mocks: buffered internal JSON displaced the node-rendered answer, triggering missing-citation fallback. Added a red regression replaying actual model-stream events; terminal knowledge messages are now marked and preferred over buffered internal drafts before the shared output gate. No internal JSON is published.
+
+## Production acceptance
+
+Application `84cf0c636623d401353bce88efbf94cd5f00b5cd` deployed successfully. **38 real production checks passed**, all nine services healthy; only the AI container replaced. Final local suite: **571 AI + 32 evaluation/hygiene tests passed**. See `docs/qa/2026-10-30-kb-answer-quality-release.md` for measured latency, verification scope and retained rollback artifacts.
