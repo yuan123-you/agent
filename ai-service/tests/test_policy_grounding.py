@@ -43,12 +43,14 @@ async def test_policy_agent_schedules_real_lookup_before_a_tool_ignoring_model(m
 
 @pytest.mark.asyncio
 async def test_policy_lookup_is_not_rescheduled_after_tool_result(monkeypatch):
+    from app.tools.tools import get_tool_ctx
+    get_tool_ctx()['rag_allowed_citations']={'S1':{'id':'S1','chunk_id':7,'title':'平台规则'}}
     model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='依据资料。[S1]')))
     model.bind_tools=lambda *a,**k:model
     monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
     result=await nodes.agent_node({'intent':'AFTER_SALE_FAQ','messages':[HumanMessage(content=QUESTION),
         AIMessage(content='',tool_calls=[{'name':'kb_search','args':{'query':QUESTION},'id':'k1'}]),
-        ToolMessage(content='verified source',name='kb_search',tool_call_id='k1')], 'tool_loop_count':1})
+        ToolMessage(content=json.dumps({'answerable':True,'citations':[{'id':'S1','chunk_id':7}], 'hits':[{'chunk_id':7,'content':'真实规则。'}]}),name='kb_search',tool_call_id='k1')], 'tool_loop_count':1})
     assert result['messages'][0].content=='依据资料。[S1]'
 
 @pytest.mark.asyncio
@@ -73,7 +75,7 @@ async def test_policy_stream_never_leaks_unsourced_claim_even_if_graph_skips_kb(
     rendered=''.join(data['content'] for event,data in events if event=='token')
     done=next(data for event,data in events if event=='done')
     assert 'UNVERIFIED' not in rendered and '14天' not in rendered
-    assert done['content']=='当前知识库证据不足，暂时无法可靠回答该问题。'
+    assert done['content']=='暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。'
     assert done['citations']==[]
 
 @pytest.mark.asyncio
@@ -85,10 +87,10 @@ async def test_mixed_shopping_and_policy_schedules_both_grounding_tools(monkeypa
     assert {x['name'] for x in result['messages'][0].tool_calls}=={'product_search','kb_search'}
 
 @pytest.mark.asyncio
-async def test_extractive_policy_mode_returns_only_verified_source_without_llm(monkeypatch):
+async def test_legacy_extractive_mode_now_synthesizes_verified_answer(monkeypatch):
     from app.tools.tools import get_tool_ctx
     monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
-    model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='unverified 14天')))
+    model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='商品完好时，可在签收之日起7自然日内申请无理由退货。[S1]')))
     model.bind_tools=lambda *a,**k:model
     monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
     get_tool_ctx().update({'rag_answerable':True,'rag_allowed_citations':{'S1':{'id':'S1','chunk_id':7,'title':'平台规则'}}})
@@ -97,9 +99,9 @@ async def test_extractive_policy_mode_returns_only_verified_source_without_llm(m
     result=await nodes.agent_node({'intent':'AFTER_SALE_FAQ','tool_loop_count':1,'messages':[
         HumanMessage(content=QUESTION),ToolMessage(name='kb_search',tool_call_id='kb',content=json.dumps(payload,ensure_ascii=False))]})
     text=result['messages'][0].content
-    assert '签收之日起7自然日内，商品完好可申请无理由退货。' in text
-    assert '[S1]' in text and '原文' in text and 'unverified' not in text and '14天' not in text
-    model.ainvoke.assert_not_awaited()
+    assert '商品完好' in text and '签收之日起7自然日内' in text
+    assert '[S1]' in text and '原文' not in text and 'unverified' not in text and '14天' not in text
+    model.ainvoke.assert_awaited_once()
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('answerable,chunk,source',[(False,7,'S1'),(True,8,'S1'),(True,7,'S9')])
@@ -118,14 +120,14 @@ async def test_extractive_policy_mode_does_not_trust_unapproved_tool_evidence(mo
     model.ainvoke.assert_not_awaited()
 
 @pytest.mark.asyncio
-async def test_extractive_policy_full_graph_emits_grounded_sse_without_any_model(monkeypatch):
+async def test_policy_full_graph_emits_synthesized_grounded_sse(monkeypatch):
     from langgraph.checkpoint.memory import MemorySaver
     from app.agent.graph import build_graph
     from app.rag import retrieval
     monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
-    def unavailable_model():raise AssertionError('CPU policy mode must not invoke an LLM')
-    monkeypatch.setattr(nodes,'get_chat_llm',unavailable_model)
-    monkeypatch.setattr(nodes,'get_intent_llm',unavailable_model)
+    model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='签收之日起7自然日内可申请退货。[S1]')))
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
+    monkeypatch.setattr(nodes,'get_intent_llm',lambda:pytest.fail('Explicit policy needs no intent model'))
     hit=retrieval.RetrievalCandidate(7,1,None,'POLICY','签收之日起7自然日内可申请退货。','平台规则',vector_score=.95)
     sources=retrieval.build_source_context([hit])
     result=retrieval.RetrievalResult(True,'high_confidence',(hit,),sources.context,sources.citations,False,())
@@ -146,3 +148,6 @@ async def test_extractive_policy_full_graph_emits_grounded_sse_without_any_model
     assert done['citations'][0]['chunk_id']==7
     assert '签收之日起7自然日内可申请退货。' in done['content'] and '[S1]' in done['content']
     assert ''.join(d['content'] for e,d in events if e=='token')==done['content']
+
+    model.ainvoke.assert_awaited_once()
+    assert '原文片段' not in done['content']

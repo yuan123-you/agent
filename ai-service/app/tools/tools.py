@@ -409,11 +409,15 @@ async def kb_search(query: str, doc_type: str = "ALL", product_id: int | None = 
         citation["chunk_id"]: citation["title"] for citation in citations
     }
     hits = []
+    source_contents = ctx.setdefault("rag_source_contents", {})
     for hit in result.hits if result.answerable else ():
         serialized = asdict(hit)
         serialized["matched_by"] = sorted(serialized["matched_by"])
         serialized["source"] = citation_titles.get(hit.chunk_id, "知识库资料")
         hits.append(serialized)
+        source_id = chunk_sources.get(hit.chunk_id)
+        if source_id is not None:
+            source_contents[source_id] = hit.content
 
     previous_answerable = bool(ctx.get("rag_answerable"))
     if result.answerable or not previous_answerable:

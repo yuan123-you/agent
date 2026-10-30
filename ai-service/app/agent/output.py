@@ -72,6 +72,7 @@ class OutputPolicy:
             validation = validate_citations(
                 normalized, allowed=context.get("rag_allowed_citations") or {},
                 answerable=bool(context.get("rag_answerable")), rag_reason=context.get("rag_reason"),
+                sources=context.get("rag_source_contents") or {},
             )
             text, citations = validation.content, validation.citations
         if not rag_used and not self.web_used and self.product_links_needed:

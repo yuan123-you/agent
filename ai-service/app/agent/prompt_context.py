@@ -83,10 +83,27 @@ def _without_source_destinations(content: str) -> str:
 def compact_prompt_messages(messages: list, *, question: str = "") -> list:
     """Return inference-only copies. Explicit media/link questions retain requested transport facts."""
     questions = [str(m.content) for m in messages if isinstance(m, HumanMessage)][-3:]
-    if any(_needs_link_details(text) for text in [*questions, question]):
-        return list(messages)
+    preserve_transport = any(_needs_link_details(text) for text in [*questions, question])
     compact = []
     for message in messages:
+        if isinstance(message, ToolMessage) and message.name == "kb_search":
+            try:
+                payload = json.loads(message.content)
+                if (isinstance(payload, dict) and type(payload.get("answerable")) is bool
+                        and isinstance(payload.get("context"), str)
+                        and isinstance(payload.get("hits"), list)):
+                    # context already carries complete source text; hits duplicates it with scores.
+                    projected = {key: payload[key] for key in
+                                 ("answerable", "reason", "context", "citations", "degraded") if key in payload}
+                    message = message.model_copy(update={
+                        "content": json.dumps(projected, ensure_ascii=False, separators=(",", ":"))})
+            except (TypeError, ValueError):
+                pass
+            compact.append(message)
+            continue
+        if preserve_transport:
+            compact.append(message)
+            continue
         if isinstance(message, AIMessage) and isinstance(message.content, str):
             content = _without_source_destinations(str(message.content))
             compact.append(message.model_copy(update={"content": content}) if content != message.content else message)

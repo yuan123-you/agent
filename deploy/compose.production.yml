@@ -126,7 +126,10 @@ services:
       RERANKER_ENABLED: 'false'
       PRODUCT_SYNC_ENABLED: 'true'
       PRODUCT_SYNC_INTERVAL_S: '3600'
-      KB_RESPONSE_MODE: extractive
+      KB_RESPONSE_MODE: generate
+      KB_ANSWER_TIMEOUT_S: '30'
+      KB_ANSWER_MAX_TOKENS: '512'
+      KB_CONTEXT_MAX_CHARS: '3600'
       LANGFUSE_ENABLED: 'false'
       CHAT_TIMEOUT_S: '180'
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}

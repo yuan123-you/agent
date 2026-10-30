@@ -153,7 +153,7 @@ async def test_unknown_citation_never_leaks_invalid_model_text(monkeypatch):
     events = [_decode(item) async for item in response.body_iterator]
     token_events = [data for event, data in events if event == "token"]
     done = next(data for event, data in events if event == "done")
-    fallback = "当前知识库证据不足，暂时无法可靠回答该问题。"
+    fallback = "暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。"
 
     assert graph.calls == 1
     assert token_events == [{"content": fallback}]
@@ -177,7 +177,7 @@ async def test_retrieval_unavailable_keeps_distinct_stream_message(monkeypatch):
     done = next(data for event, data in events if event == "done")
 
     assert graph.calls == 1
-    assert tokens == ["知识库暂时不可用，请稍后再试。"]
+    assert tokens == ["暂时无法查询相关规则，请稍后再试。"]
     assert done["content"] == tokens[0]
     assert done["citations"] == []
 
@@ -254,7 +254,7 @@ async def test_finalization_keeps_rag_citations_buffered(monkeypatch):
     response = await chat.chat_stream(_request(), _Request())
     events = [_decode(item) async for item in response.body_iterator]
     assert graph.completed
-    assert [data["content"] for event, data in events if event == "token"] == ["当前知识库证据不足，暂时无法可靠回答该问题。"]
+    assert [data["content"] for event, data in events if event == "token"] == ["暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。"]
 
 @pytest.mark.asyncio
 async def test_web_terminal_stream_labels_real_output_once_without_waiting_for_completion(monkeypatch):

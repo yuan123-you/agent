@@ -120,16 +120,29 @@ def budget_from_text(text: str) -> dict:
     return {"min_price": None, "max_price": float(match.group(1))} if match else {}
 
 
+def needs_after_sale_clarification(text: str) -> bool:
+    """Vague post-purchase dissatisfaction is not consent to return or complain."""
+    t = (text or "").strip()
+    return bool(
+        re.search(r"不满意|不合适|不喜欢", t)
+        and re.search(r"商品|产品|东西|买|收到|收货", t)
+        and not re.search(r"退|换|退款|质量|坏|破损|保修|运费|规则|政策|投诉|人工|推荐|选购|想买|购买前|不想买", t)
+        and not requests_human(t)
+    )
+
+
 def requires_kb(text: str) -> bool:
     """Explicit service-policy questions need evidence even if a model ignores tools."""
     t = (text or "").strip()
     if requests_human(t) or asks_assistant_identity(t):
         return False
+    if needs_after_sale_clarification(t):
+        return True
     topic = re.search(r"退货|退换|退款|保修|售后|运费|三包|发票|开票|配送|送货|人工客服", t)
     if not topic:
         return False
     if re.search(r"规则|政策|条件|标准|期限|规定|流程|要求", t):
         return True
-    if re.search(r"(?:帮我|我要|我想|请)(?:申请|发起|提交|办|办理)?(?:退款|退货|售后)", t):
+    if re.search(r"(?:^|[，。；！？,;!?\s])(?:帮我|我要|我想|请)(?:申请|发起|提交|办|办理)?(?:退款|退货|售后)", t):
         return False
     return bool(re.search(r"几天|多久|谁|怎么|如何|能否|是否|支持|几点|上班|[?？吗]", t))

@@ -30,11 +30,11 @@ from app.agent.routing import RequestPolicy, TIME_QUERY_RE, fallback_intent_by_r
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
-from app.rag.citations import build_extractive_answer
+from app.agent.knowledge_answer import synthesize_knowledge_answer
 from app.agent.prompt_context import compact_prompt_messages, web_prompt_evidence
 from app.agent.memory import format_assistant_greeting, format_memory_prompt
 from app.agent.identity import normalize_profile, parse_naming_command
-from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
+from app.request_policy import needs_after_sale_clarification, asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
@@ -201,6 +201,10 @@ async def agent_node(state: AgentState) -> dict:
     ctx["requested_category"] = requested_category
     latest_text = next((str(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
     ctx["latest_user_text"] = latest_text
+    if intent == "AFTER_SALE_FAQ" and needs_after_sale_clarification(latest_text):
+        clarification = "您是想退换货，还是商品存在质量问题？"
+        ctx["policy_clarification"] = clarification
+        return {"messages": [AIMessage(content=clarification)], "active_entities": entities}
     budget = budget_from_text(latest_text)
     if requested_category:
         if entities.get("last_category") != requested_category:
@@ -296,15 +300,25 @@ async def agent_node(state: AgentState) -> dict:
             calls.append({"name": "kb_search", "id": f"kb_{uuid4().hex}", "args": kb_args})
         return {"messages": [AIMessage(content="", tool_calls=calls)],
                 "tool_loop_count": state.get("tool_loop_count", 0) + 1, "active_entities": entities}
-    if intent == "AFTER_SALE_FAQ" and kb_searched and settings.kb_response_mode == "extractive":
+    if intent == "AFTER_SALE_FAQ" and kb_searched:
         result = next(m for m in reversed(state["messages"][latest_user + 1:])
                       if getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "kb_search")
         try:
             payload = json.loads(result.content)
         except (TypeError, ValueError):
             payload = {}
-        text = build_extractive_answer(payload, ctx.get("rag_allowed_citations") or {})
-        return {"messages": [AIMessage(content=text)], "active_entities": entities}
+        previous = [str(m.content)[:300] for m in state["messages"][:latest_user]
+                    if isinstance(m, HumanMessage)][-2:]
+        answer = await synthesize_knowledge_answer(
+            payload, allowed=ctx.get("rag_allowed_citations") or {},
+            source_contents=ctx.get("rag_source_contents") or {}, question=latest_text,
+            previous_questions=previous, llm_factory=get_chat_llm,
+            timeout_s=settings.kb_answer_timeout_s, max_tokens=settings.kb_answer_max_tokens,
+            context_max_chars=settings.kb_context_max_chars,
+        )
+        if not answer.valid:
+            ctx["rag_reason"] = answer.reason
+        return {"messages": [AIMessage(content=answer.content)], "active_entities": entities}
     if intent == "PRODUCT_CONSULT":
         recent_questions = [str(m.content) for m in state["messages"] if isinstance(m, HumanMessage)][-3:]
         recent_evidence = get_trimmed_messages(state["messages"], max_messages=14)

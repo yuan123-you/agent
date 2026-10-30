@@ -41,7 +41,7 @@ def test_unanswerable_cannot_emit_substantive_answer():
     result = validate_citations("我认为可以退货。", allowed={}, answerable=False)
 
     assert result.valid is False
-    assert result.content == "当前知识库证据不足，暂时无法可靠回答该问题。"
+    assert result.content == "暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。"
     assert result.citations == ()
 
 
@@ -55,7 +55,7 @@ def test_retrieval_unavailable_keeps_separate_wording():
 
     assert result.valid is False
     assert result.reason == "retrieval_unavailable"
-    assert result.content == "知识库暂时不可用，请稍后再试。"
+    assert result.content == "暂时无法查询相关规则，请稍后再试。"
     assert result.citations == ()
 
 

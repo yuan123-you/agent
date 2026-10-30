@@ -6,8 +6,28 @@ from typing import Mapping
 
 _SOURCE_MARKER_RE = re.compile(r"\[(S[0-9]+)\]")
 _CANONICAL_SOURCE_RE = re.compile(r"S[1-9][0-9]*")
-_EVIDENCE_INSUFFICIENT = "当前知识库证据不足，暂时无法可靠回答该问题。"
-_RETRIEVAL_UNAVAILABLE = "知识库暂时不可用，请稍后再试。"
+_EVIDENCE_INSUFFICIENT = "暂时没有找到足够依据，无法确认这项规则。您可以补充商品名称或具体情况，我再帮您核实。"
+_RETRIEVAL_UNAVAILABLE = "暂时无法查询相关规则，请稍后再试。"
+_ANSWER_FAILURES = {
+    "generation_timeout": "答复整理超时了，请稍后重试。",
+    "generation_failed": "暂时没能生成可靠的答复，请稍后重试。",
+    "generation_invalid": "暂时没能整理出可靠的答复，请补充您关心的具体问题，或稍后重试。",
+}
+
+
+def is_document_dump(content: str, sources: Mapping[str, str]) -> bool:
+    """Reject full documents/long verbatim passages, not short factual quotations."""
+    def normalize(text: str) -> str:
+        return re.sub(r"[\s#>*_`]+", "", _SOURCE_MARKER_RE.sub("", text))
+    body = normalize(content)
+    for source in sources.values():
+        original = normalize(source)
+        has_heading = bool(re.search(r"(?m)^\s*#{1,6}\s+", source))
+        if len(original) >= (40 if has_heading else 180) and original in body:
+            return True
+        if any(original[start:start + 180] in body for start in range(0, len(original) - 179, 90)):
+            return True
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,8 +44,11 @@ def validate_citations(
     allowed: Mapping[str, Mapping],
     answerable: bool,
     rag_reason: str | None = None,
+    sources: Mapping[str, str] | None = None,
 ) -> CitationValidation:
     """Validate source IDs and expose only approved public citation metadata."""
+    if rag_reason in _ANSWER_FAILURES:
+        return CitationValidation(_ANSWER_FAILURES[rag_reason], (), False, rag_reason)
     if not answerable:
         unavailable = rag_reason == "retrieval_unavailable"
         return CitationValidation(
@@ -44,35 +67,11 @@ def validate_citations(
     ):
         return CitationValidation(_EVIDENCE_INSUFFICIENT, (), False, "unknown_citation")
 
+    if sources and is_document_dump(content, sources):
+        return CitationValidation(_ANSWER_FAILURES["generation_invalid"], (), False, "generation_invalid")
+
     citations = tuple(
         {key: allowed[source_id][key] for key in ("id", "chunk_id", "title")}
         for source_id in referenced
     )
     return CitationValidation(content, citations, True, "valid")
-
-
-def build_extractive_answer(payload: object, allowed: Mapping[str, Mapping]) -> str:
-    """Render approved source text, not unverified generated claims, on CPU deployments."""
-    if not isinstance(payload, dict) or payload.get("answerable") is not True:
-        unavailable = isinstance(payload, dict) and payload.get("reason") == "retrieval_unavailable"
-        return _RETRIEVAL_UNAVAILABLE if unavailable else _EVIDENCE_INSUFFICIENT
-    hits = {hit.get("chunk_id"): hit for hit in payload.get("hits", []) if isinstance(hit, dict)}
-    blocks = []
-    seen = set()
-    for citation in payload.get("citations", []):
-        if not isinstance(citation, dict):
-            continue
-        source_id, chunk_id = citation.get("id"), citation.get("chunk_id")
-        if (not isinstance(source_id, str) or _CANONICAL_SOURCE_RE.fullmatch(source_id) is None
-                or isinstance(chunk_id, bool) or not isinstance(chunk_id, int)):
-            continue
-        approved = allowed.get(source_id)
-        content = hits.get(chunk_id, {}).get("content")
-        if (not approved or approved.get("chunk_id") != chunk_id or source_id in seen
-                or not isinstance(content, str) or not content.strip()):
-            continue
-        seen.add(source_id)
-        blocks.append("\n".join("> " + line for line in content.strip().splitlines()) + f"\n\n[{source_id}]")
-    if not blocks:
-        return _EVIDENCE_INSUFFICIENT
-    return "以下是检索到的相关知识库原文片段（请注意片段中的适用条件）：\n\n" + "\n\n".join(blocks)

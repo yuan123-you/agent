@@ -71,6 +71,16 @@ async def test_ambiguous_product_policy_asks_for_clarification_without_unscoped_
 
 @pytest.mark.asyncio
 async def test_selected_product_policy_answer_excludes_other_product_evidence(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from langchain_core.messages import AIMessage
+
+    async def synthesize(messages, **kwargs):
+        evidence = json.loads(messages[-1].content)["sources"]
+        assert all("乙凭证" not in source["text"] for source in evidence)
+        return AIMessage(content="\n".join(source["text"] + f'[{source["id"]}]' for source in evidence))
+
+    monkeypatch.setattr(nodes, "get_chat_llm", lambda: SimpleNamespace(ainvoke=AsyncMock(side_effect=synthesize)))
     records = [
         {"chunk_id": 2, "doc_id": 2, "product_id": 202, "docType": "POLICY",
          "content": "商品乙专属规则：乙凭证。", "source": "乙政策", "score": 100.0},

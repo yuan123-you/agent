@@ -66,6 +66,7 @@ async def test_kb_search_returns_context_and_records_allowed_ids(monkeypatch):
         "rag_answerable": True,
         "rag_reason": "answerable",
         "rag_allowed_citations": {"S1": result["citations"][0]},
+        "rag_source_contents": {"S1": "七天退货"},
         "degraded": False,
     }
 

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str | None = None
     llm_chat_timeout_s: float = Field(default=60, gt=0)
     llm_intent_timeout_s: float = Field(default=20, gt=0)
-    # Only classification JSON is bounded; customer-facing answers remain uncapped.
+    # Classification JSON is bounded separately from the dedicated knowledge-answer budget.
     llm_intent_max_tokens: int = Field(default=64, ge=32, le=256)
     # Opt in only for an Ollama-compatible LLM endpoint; no model download/provider migration.
     llm_warmup_enabled: bool = False
@@ -78,8 +78,11 @@ class Settings(BaseSettings):
     rag_chunk_size: int = Field(default=600, ge=200)
     rag_chunk_overlap: int = Field(default=90, ge=0)
 
-    # Generate normally; CPU deployments can return explicitly labelled verified excerpts.
+    # Legacy extractive values are accepted for migration; all modes synthesize answers.
     kb_response_mode: Literal["generate", "extractive"] = "generate"
+    kb_answer_timeout_s: float = Field(default=30, gt=0)
+    kb_answer_max_tokens: int = Field(default=512, ge=128, le=2048)
+    kb_context_max_chars: int = Field(default=3600, ge=600, le=12000)
 
     # T10 RAG 检索与回答置信度
     rag_vector_recall_k: int = Field(default=20, gt=0)
