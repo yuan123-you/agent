@@ -46,7 +46,7 @@ def test_program_clarification_is_allowed_without_fabricated_policy_evidence():
     policy = OutputPolicy("这款商品的退货规则呢")
     answer = policy.finalize("模型忽略问题", {"policy_clarification": "请明确商品名称。"})
     assert answer.content == "请明确商品名称。"
-    assert answer.citation_required and not answer.citations
+    assert not answer.citation_required and not answer.rag_used and not answer.citations
 
 
 def test_web_footer_is_appended_once_and_only_after_model_links_are_guarded():

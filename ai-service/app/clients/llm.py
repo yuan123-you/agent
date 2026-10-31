@@ -24,6 +24,7 @@ def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
         api_key=settings.llm_api_key,
         model=settings.llm_chat_model,
         temperature=settings.temperature,
+        presence_penalty=0, frequency_penalty=0,
         streaming=streaming,
         timeout=settings.llm_chat_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
@@ -38,6 +39,7 @@ def get_intent_llm(*, classification: bool = True) -> ChatOpenAI:
         api_key=getattr(settings, "llm_intent_api_key", "") or settings.llm_api_key,
         model=settings.llm_intent_model,
         temperature=0,
+        presence_penalty=0, frequency_penalty=0,
         streaming=False,
         timeout=settings.llm_intent_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
@@ -52,11 +54,12 @@ async def warm_local_models() -> None:
     """Prime existing model weights and static prompt prefixes before accepting user traffic."""
     if not settings.llm_warmup_enabled:
         return
-    from app.agent.prompts import INTENT_SYSTEM_PROMPT, WEB_SYSTEM_PROMPT
+    from app.agent.prompts import INTENT_SYSTEM_PROMPT
+    from app.agent.knowledge_answer import KNOWLEDGE_ANSWER_PROMPT
 
     intent_base = getattr(settings, "llm_intent_api_base", "") or settings.llm_api_base
     jobs = [(intent_base, settings.llm_intent_model, INTENT_SYSTEM_PROMPT),
-            (settings.llm_api_base, settings.llm_chat_model, WEB_SYSTEM_PROMPT)]
+            (settings.llm_api_base, settings.llm_chat_model, KNOWLEDGE_ANSWER_PROMPT)]
     async def preload(endpoint: str, model: str, prompt: str) -> None:
         try:
             async with asyncio.timeout(settings.llm_warmup_timeout_s):
@@ -73,8 +76,20 @@ async def warm_local_models() -> None:
         except Exception as exc:
             logger.warning("local LLM preload unavailable: %s (%s)", model, type(exc).__name__)
 
-    # Each provider gets its own bounded opportunity; one failure must not skip the other.
-    await asyncio.gather(*(preload(*job) for job in jobs))
+    async def preload_embeddings() -> None:
+        try:
+            async with asyncio.timeout(settings.llm_warmup_timeout_s):
+                # Load the same query encoder only; no index or document writes.
+                await get_embeddings().aembed_query("模型预热")
+                logger.info("local embedding weights preloaded")
+        except Exception as exc:
+            logger.warning("local embedding preload unavailable (%s)", type(exc).__name__)
+
+    # Each local provider gets an independent, concurrent bounded opportunity.
+    pending = [preload(*job) for job in jobs]
+    if getattr(settings, "embedding_provider", "").lower() == "ollama":
+        pending.append(preload_embeddings())
+    await asyncio.gather(*pending)
 
 
 class MaaSEmbeddings(Embeddings):

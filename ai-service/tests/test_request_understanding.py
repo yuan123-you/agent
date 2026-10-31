@@ -179,3 +179,34 @@ async def test_budget_reply_is_not_purchase_authorization(monkeypatch):
     result = await nodes.intent_router_node({'messages': [HumanMessage(content='拍照手机'),
         AIMessage(content='您预算多少？'), HumanMessage(content='3000左右')]})
     assert result['intent'] == 'PRODUCT_CONSULT'
+
+@pytest.mark.parametrize('text,expected',[
+ ('最多三千五百',{'min_price':None,'max_price':3500}),
+ ('两千五上下',{'min_price':None,'max_price':2500}),
+ ('预算三千到四千',{'min_price':3000,'max_price':4000}),
+ ('一百零五元',{'min_price':None,'max_price':105}),
+ ('预算一万二',{'min_price':None,'max_price':12000}),
+ ('最多三千台',{}),('几千元',{}),('第二款',{}),
+])
+def test_explicit_chinese_yuan_budgets_are_literal_not_model_guesses(text,expected):
+    assert nodes.budget_from_text(text)==expected
+
+
+@pytest.mark.asyncio
+async def test_chinese_budget_continuation_reaches_the_actual_read_only_filter(monkeypatch):
+    monkeypatch.setattr(nodes,'get_chat_llm',lambda:pytest.fail('Explicit budget filtering must not wait for model tool selection'))
+    state={'intent':'PRODUCT_CONSULT','request_decision':{'intent':'PRODUCT_CONSULT','next_step':'assist'},
+        'messages':[HumanMessage(content='想挑电脑'),AIMessage(content='您的预算多少？'),HumanMessage(content='最多三千五百')],
+        'active_entities':{'last_category':'COMPUTER','last_products':[{'id':1,'name':'电脑','price':5000}]},'tool_loop_count':0}
+    result=await nodes.agent_node(state)
+    call=result['messages'][0].tool_calls[0]
+    assert call['name']=='product_search' and call['args']['max_price']==3500
+
+@pytest.mark.asyncio
+async def test_order_amount_is_not_a_new_shopping_budget():
+    state={'intent':'ORDER_QUERY','request_decision':{'intent':'ORDER_QUERY','next_step':'assist'},
+        'messages':[HumanMessage(content='请查我那笔两千元的订单')],
+        'active_entities':{'last_category':'COMPUTER','budget':{'max_price':3500}},'tool_loop_count':0}
+    result=await nodes.agent_node(state)
+    assert result['messages'][0].tool_calls[0]['name']=='order_query'
+    assert result['active_entities']['budget']=={'max_price':3500}

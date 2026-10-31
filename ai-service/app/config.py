@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Classification JSON is bounded separately from the dedicated knowledge-answer budget.
     llm_intent_max_tokens: int = Field(default=128, ge=32, le=256)
     llm_legacy_max_tokens: bool = False
+    llm_intent_structured_output: bool = False
+    knowledge_query_rewrite_first_turn: bool = False
+    knowledge_query_timeout_s: float = Field(default=5, gt=0)
     # Opt in only for an Ollama-compatible LLM endpoint; no model download/provider migration.
     llm_warmup_enabled: bool = False
     llm_warmup_timeout_s: float = Field(default=45, gt=0)
@@ -93,6 +96,8 @@ class Settings(BaseSettings):
     kb_answer_timeout_s: float = Field(default=60, gt=0)
     kb_answer_max_tokens: int = Field(default=512, ge=128, le=2048)
     kb_legacy_max_tokens: bool = False
+    # Opt in only after verifying provider JSON-schema support; other providers stay unchanged.
+    kb_structured_output: bool = False
     kb_context_max_chars: int = Field(default=3600, ge=600, le=12000)
 
     # T10 RAG 检索与回答置信度
@@ -101,6 +106,8 @@ class Settings(BaseSettings):
     rag_rrf_k: int = Field(default=60, gt=0)
     rag_rrf_top_k: int = Field(default=10, gt=0, le=20)
     rag_final_top_k: int = Field(default=4, gt=0)
+    # Optional named current-version policy section, not an input-word routing rule.
+    rag_policy_context_queries: list[str] = Field(default_factory=list)
     rag_answer_min_score: float = Field(default=0.45, ge=0, le=1)
     rag_answer_high_confidence_score: float = Field(default=0.65, ge=0, le=1)
     rag_answer_min_margin: float = Field(default=0.05, ge=0, le=1)

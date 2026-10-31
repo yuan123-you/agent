@@ -256,10 +256,12 @@ class RetrievalPipeline:
         vector_search: SearchAdapter,
         bm25_search: SearchAdapter,
         reranker: Reranker | None,
+        policy_context_search: Callable[[], Awaitable[list[RetrievalCandidate]]] | None = None,
     ) -> None:
         self._vector_search = vector_search
         self._bm25_search = bm25_search
         self._reranker = reranker
+        self._policy_context_search = policy_context_search
 
     async def search(
         self, query: str, doc_type: str = "ALL", product_id: int | None = None
@@ -354,6 +356,25 @@ class RetrievalPipeline:
             final = tuple(ranked[:settings.rag_final_top_k])
             with trace_span("rag.answerability", kind="retrieval", input={"candidates":final}) as step:
                 decision = assess_answerability(final)
+                if (decision.answerable and self._policy_context_search is not None
+                        and any(hit.doc_type == "POLICY" for hit in final)):
+                    try:
+                        # Context cannot create query relevance. Reserve its slot BEFORE
+                        # citation approval; all subsequently approved blocks stay complete.
+                        async with asyncio.timeout(5):
+                            context_hits = filter_metadata(await self._policy_context_search(), "POLICY", -1)
+                        context_by_id = {hit.chunk_id: hit for hit in context_hits}
+                        limit = min(settings.rag_final_top_k, 4)
+                        relevant = [hit for hit in ranked if hit.chunk_id not in context_by_id]
+                        if (not context_by_id or len(context_by_id) > limit
+                                or (len(context_by_id) == limit and relevant)):
+                            raise ValueError("required policy context unavailable or oversized")
+                        priority = [replace(hit, matched_by={*hit.matched_by, "policy_context"})
+                                    for hit in context_by_id.values()]
+                        final = tuple(priority + relevant[:limit - len(priority)])
+                    except Exception:
+                        reasons.append("policy_context_unavailable")
+                        decision = AnswerabilityDecision(False, "retrieval_unavailable", decision.top1, decision.margin)
                 source_context = build_source_context(final) if decision.answerable else SourceContext("", ())
                 step.complete({"decision":decision, "sources":source_context}, status="SUCCESS" if decision.answerable else "DEGRADED")
             result = RetrievalResult(
@@ -386,8 +407,30 @@ def get_retrieval_pipeline() -> RetrievalPipeline:
     async def vector_search(query: str, *, top_k: int, **scope):
         return await get_vectorstore().search(query, top_k=top_k, **scope)
 
+    policy_queries = tuple(query.strip() for query in getattr(settings, "rag_policy_context_queries", ())
+                           if query.strip())
+
+    async def policy_context_search():
+        # Resolve named sections through the backend's current-version index.
+        # These are document dependencies, not user-intent keyword patterns.
+        async def section(query):
+            raw = await backend_client.kb_keyword_search(query, doc_type="POLICY", product_id=-1, top_k=4)
+            heading = re.compile(r"(?m)^#{1,6}[ \t]+" + re.escape(query)
+                                 + r"[ \t]*(?:[（(][^()（）\r\n]*[）)][ \t]*)?$" )
+            eligible = filter_metadata(_parse_hits(raw, "bm25"), "POLICY", -1)
+            matches = [hit for hit in eligible if heading.search(hit.content)]
+            if not matches or len({hit.doc_id for hit in matches}) != 1:
+                raise ValueError("required current policy section missing or ambiguous")
+            return matches
+
+        # A failure cancels sibling lookups; never leave request-context tasks behind.
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(section(query)) for query in policy_queries]
+        return [hit for task in tasks for hit in task.result()]
+
     return RetrievalPipeline(
         vector_search=vector_search,
         bm25_search=backend_client.kb_keyword_search,
         reranker=get_reranker() if settings.rag_reranker_enabled else None,
+        policy_context_search=policy_context_search if policy_queries else None,
     )

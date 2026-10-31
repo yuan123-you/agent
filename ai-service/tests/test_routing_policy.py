@@ -27,9 +27,9 @@ def isolated_context():
 async def test_semantic_or_local_decision_has_one_dispatch(monkeypatch, semantic_route, text, web, intent, route):
     semantic_route(intent)
     from types import SimpleNamespace
-    needs_confirmation = RequestPolicy(text).fast_intent() is None and (intent == "HUMAN_REQUEST" or (intent == "SMALL_TALK" and web))
+    needs_confirmation = RequestPolicy(text).fast_intent() is None and (intent in {"HUMAN_REQUEST", "AFTER_SALE_FAQ"} or (intent == "SMALL_TALK" and web))
     if needs_confirmation:
-        factory = MagicMock(return_value=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='{"route":"HUMAN"}' if intent=="HUMAN_REQUEST" else '{"route":"CHAT"}'))))
+        factory = MagicMock(return_value=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='{"route":"HUMAN"}' if intent=="HUMAN_REQUEST" else ('{"route":"RULE"}' if intent=="AFTER_SALE_FAQ" else '{"route":"CHAT"}')))))
     else:
         factory = MagicMock(side_effect=AssertionError("Confident semantic/local decision needs no fallback"))
     monkeypatch.setattr(nodes, "get_intent_llm", factory)

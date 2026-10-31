@@ -37,11 +37,11 @@ def reverses_opening_exception(content: str, sources: Mapping[str, str]) -> bool
     if not re.search(r"不能把拆封一概(?:作为拒绝理由|视为丧失权利)", evidence):
         return False
     for clause in re.split(r"[。！？；;\n]", content):
-        if re.search(r"不代表|并非|不是必须|不要求|不能一概|不应一概", clause):
+        if re.search(r"不代表|并非|不是必须|不要求|不能一概|不应一概|不一概|并不意味着", clause):
             continue
-        if re.search(r"(?:必须|只能|仅限|只有).{0,12}未拆封", clause):
+        if re.search(r"(?:必须|只能|仅限|仅|只有).{0,12}未拆封", clause):
             return True
-        if re.search(r"拆封.*(?:不支持|不适用|不能|无法|不得).*(?:退货|无理由|退换)", clause):
+        if re.search(r"拆封.*(?:不支持|不适用|不能|不可|无法|不得).*(?:退货|无理由|退换|退)", clause):
             return True
     return False
 

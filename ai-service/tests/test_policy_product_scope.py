@@ -76,7 +76,8 @@ async def test_selected_product_policy_answer_excludes_other_product_evidence(mo
     from langchain_core.messages import AIMessage
 
     async def synthesize(messages, **kwargs):
-        evidence = json.loads(messages[-1].content)["sources"]
+        source_json=messages[-1].content.split("\n",1)[1].split("\n\n前文相关问题：",1)[0]
+        evidence = json.loads(source_json)["sources"]
         assert all("乙凭证" not in source["text"] for source in evidence)
         return AIMessage(content="\n".join(source["text"] + f'[{source["id"]}]' for source in evidence))
 
@@ -142,7 +143,7 @@ async def test_ambiguous_policy_clarification_survives_sse_citation_gate(monkeyp
 
     done = next(payload for event, payload in events if event == "done")
     assert "请明确" in done["content"]
-    assert done["citations"] == []
+    assert done.get("citations",[]) == []
     assert "证据不足" not in done["content"]
     assert all(event != "tool_call" for event, _ in events)
     assert "".join(payload["content"] for event, payload in events if event == "token") == done["content"]

@@ -61,8 +61,9 @@ class OutputPolicy:
         # Verified provider links are program-owned; do not treat them as model links.
         if web_footer and text.endswith(web_footer):
             text = text[:-len(web_footer)]
-        rag_used = bool(context.get("rag_used") or self.rag_started or self.policy_required)
-        citation_required = rag_used and (self.policy_required or not self.web_used)
+        clarification = bool(context.get("policy_clarification"))
+        rag_used = bool(context.get("rag_used") or self.rag_started or (self.policy_required and not clarification))
+        citation_required = not clarification and rag_used and (self.policy_required or not self.web_used)
         citations: tuple[dict, ...] = ()
         if context.get("policy_clarification"):
             text = context["policy_clarification"]

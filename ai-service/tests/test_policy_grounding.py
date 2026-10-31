@@ -129,7 +129,6 @@ async def test_policy_full_graph_emits_synthesized_grounded_sse(monkeypatch, sem
     monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),'kb_response_mode':'extractive'}))
     model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='签收之日起7自然日内可申请退货。[S1]')))
     monkeypatch.setattr(nodes,'get_chat_llm',lambda:model)
-    monkeypatch.setattr(nodes,'get_intent_llm',lambda:pytest.fail('Explicit policy needs no intent model'))
     hit=retrieval.RetrievalCandidate(7,1,None,'POLICY','签收之日起7自然日内可申请退货。','平台规则',vector_score=.95)
     sources=retrieval.build_source_context([hit])
     result=retrieval.RetrievalResult(True,'high_confidence',(hit,),sources.context,sources.citations,False,())

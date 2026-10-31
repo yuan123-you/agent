@@ -111,5 +111,10 @@ def semantic_route(monkeypatch):
                                  missing, source="embedding",score=.95,margin=.2)
         router=SimpleNamespace(classify=AsyncMock(return_value=decision))
         monkeypatch.setattr(nodes,"get_semantic_router",lambda:router)
+        from langchain_core.messages import AIMessage
+        import json
+        model=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content=json.dumps({
+            "intent":intent,"next_step":decision.next_step,"missing":missing}))))
+        monkeypatch.setattr(nodes,"get_intent_llm",lambda:model)
         return router
     return choose

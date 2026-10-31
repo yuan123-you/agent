@@ -164,7 +164,9 @@ async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind
     monkeypatch.setattr(chat, "background_memory_extraction", AsyncMock())
     semantic = RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_goal", source="embedding") if kind.startswith("clarification") else RequestDecision("AFTER_SALE_FAQ", "retrieve", source="embedding")
     monkeypatch.setattr(nodes, "get_semantic_router", lambda: SimpleNamespace(classify=AsyncMock(return_value=semantic)))
-    monkeypatch.setattr(nodes, "get_intent_llm", lambda: pytest.fail("Confident semantic route needs no fallback"))
+    verdict=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content=json.dumps({
+        "intent":"AFTER_SALE_FAQ","next_step":semantic.next_step,"missing":semantic.missing}))))
+    monkeypatch.setattr(nodes,"get_intent_llm",lambda:verdict)
     class Request:
         async def is_disconnected(self):
             return False
@@ -267,7 +269,8 @@ async def test_structured_source_body_still_cannot_be_dumped(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("legacy", [True, False])
-async def test_legacy_ollama_receives_real_wire_output_budget(monkeypatch, legacy):
+@pytest.mark.parametrize("structured", [True, False])
+async def test_legacy_ollama_receives_real_wire_output_budget(monkeypatch, legacy, structured):
     import httpx
     from langchain_openai import ChatOpenAI
     seen=[]
@@ -279,6 +282,7 @@ async def test_legacy_ollama_receives_real_wire_output_budget(monkeypatch, legac
     _,state=setup(monkeypatch)
     nodes.settings.kb_answer_timeout_s=2
     nodes.settings.kb_legacy_max_tokens=legacy
+    nodes.settings.kb_structured_output=structured
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         model=ChatOpenAI(api_key="test-only",base_url="http://ollama.test/v1",model="existing-model",
                         streaming=False,http_async_client=client)
@@ -286,6 +290,9 @@ async def test_legacy_ollama_receives_real_wire_output_budget(monkeypatch, legac
         result=await nodes.agent_node(state)
     assert seen and seen[0].get("max_completion_tokens")==512
     assert seen[0].get("max_tokens")==512 if legacy else "max_tokens" not in seen[0]
+    assert ("response_format" in seen[0]) is structured
+    if structured:
+        assert seen[0]["response_format"]["type"] == "json_schema"
     assert result["messages"][0].content==ANSWER
 
 @pytest.mark.asyncio
@@ -330,7 +337,7 @@ async def test_streamed_internal_json_is_replaced_by_rendered_terminal_answer(mo
             get_tool_ctx().update(rag_used=True,rag_answerable=True,rag_reason="high_confidence",
                 rag_allowed_citations=ALLOWED,rag_source_contents={"S1":SOURCE})
             raw=json.dumps({"points":[{"text":ANSWER.removesuffix("[S1]"),"sources":["S1"]}]})
-            for part in (raw[:30],raw[30:]):
+            for part in (raw[:30],raw[30:],'{"scope":"qualified"}'):
                 yield {"event":"on_chat_model_stream","metadata":{"langgraph_node":"agent"},
                        "data":{"chunk":AIMessageChunk(content=part)}}
             yield {"event":"on_chain_end","name":"LangGraph","data":{"output":{"messages":[
@@ -363,3 +370,143 @@ async def test_real_missing_source_array_output_never_infers_citations(monkeypat
     assert not final.citations
     assert '使用过的商品可以退货' not in final.content
     assert 'generation_' in get_tool_ctx()['rag_reason']
+
+@pytest.mark.asyncio
+async def test_latest_question_follows_complete_evidence_and_stays_out_of_system(monkeypatch):
+    model, state = setup(monkeypatch)
+    await nodes.agent_node(state)
+    messages = model.ainvoke.call_args.args[0]
+    body = messages[-1].content
+    assert isinstance(messages[-1], HumanMessage)
+    assert body.rstrip().endswith(QUESTION)
+    assert body.count(json.dumps(SOURCE, ensure_ascii=False)) == 1
+    assert body.index(json.dumps(SOURCE, ensure_ascii=False)) < body.rindex(QUESTION)
+    assert QUESTION not in messages[0].content and SOURCE not in messages[0].content
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('enabled', [True, False])
+async def test_structured_provider_mode_uses_only_request_approved_source_ids(monkeypatch, enabled):
+    payload = {'answerable': True, 'citations': [*ALLOWED.values(), {'id':'S9','chunk_id':9}],
+               'hits':[{'chunk_id':7,'content':SOURCE},{'chunk_id':9,'content':'UNAPPROVED'}]}
+    model, state = setup(monkeypatch, payload=payload)
+    nodes.settings.kb_structured_output = enabled
+    await nodes.agent_node(state)
+    options = model.ainvoke.call_args.kwargs
+    if enabled:
+        request_format = options['response_format']
+        assert request_format['type'] == 'json_schema'
+        assert request_format['json_schema']['strict'] is True
+        schema = request_format['json_schema']['schema']
+        points = schema['properties']['points']
+        assert points['maxItems'] == 2
+        assert points['items']['required'] == ['text','sources']
+        source_list = points['items']['properties']['sources']
+        assert source_list['items']['enum'] == ['S1'] and source_list['minItems'] == 1
+        assert 'UNAPPROVED' not in str(request_format)
+    else:
+        assert 'response_format' not in options
+
+
+@pytest.mark.asyncio
+async def test_structured_provider_failure_does_not_retry_without_constraints(monkeypatch):
+    model, state = setup(monkeypatch)
+    nodes.settings.kb_structured_output = True
+    model.ainvoke.side_effect = RuntimeError('unsupported output schema')
+    result = await nodes.agent_node(state)
+    model.ainvoke.assert_awaited_once()
+    assert model.ainvoke.call_args.kwargs['response_format']['type'] == 'json_schema'
+    assert get_tool_ctx()['rag_reason'] == 'generation_failed'
+    assert SOURCE not in result['messages'][0].content
+
+@pytest.mark.asyncio
+async def test_explicit_empty_points_mean_insufficient_evidence_not_malformed_output(monkeypatch):
+    model,state=setup(monkeypatch)
+    model.ainvoke.return_value=AIMessage(content='{"points":[]}')
+    result=await nodes.agent_node(state)
+    assert get_tool_ctx()['rag_reason']=='insufficient_evidence'
+    assert '足够依据' in result['messages'][0].content
+    assert not get_tool_ctx().get('rag_answerable')
+
+@pytest.mark.parametrize('reply',[
+    '仅未拆封商品支持无理由退货。[S1]',
+    '已拆封（含清洗）通常不可退，除非存在质量问题。[S1]',
+])
+def test_real_blanket_opening_reversals_remain_rejected(reply):
+    source=SOURCE+'\n不能把拆封一概作为拒绝理由。'
+    from app.rag.citations import validate_citations
+    result=validate_citations(reply,allowed=ALLOWED,answerable=True,sources={'S1':source})
+    assert not result.valid and result.reason=='generation_conflict'
+
+@pytest.mark.asyncio
+async def test_factual_synthesis_does_not_inherit_provider_topic_diversity_penalties(monkeypatch):
+    model,state=setup(monkeypatch)
+    await nodes.agent_node(state)
+    options=model.ainvoke.call_args.kwargs
+    assert options['presence_penalty']==0 and options['frequency_penalty']==0
+
+@pytest.mark.parametrize('reply,expected',[
+    ('洗过一次能否退需结合品类（如贴身衣物拆封后通常不可无理由退）及质量情况，由人工核实。[S1]', False),
+    ('（商品拆封后不可退货。）[S1]', False),
+    ('（例如所有商品必须未拆封才能退货。）[S1]', False),
+])
+def test_blanket_guard_distinguishes_scoped_examples_from_universal_refusal(reply,expected):
+    from app.rag.citations import validate_citations
+    source='不能把拆封一概作为拒绝理由。贴身私人物品无理由退货仅限未拆封；质量问题例外。'
+    result=validate_citations(reply,allowed=ALLOWED,answerable=True,sources={'S1':source})
+    assert result.valid is expected
+
+@pytest.mark.asyncio
+async def test_rejected_generation_is_reported_as_degraded_not_success(monkeypatch):
+    model,state=setup(monkeypatch)
+    model.ainvoke.return_value=AIMessage(content='{"points":[{"text":"unsupported"}]')
+    await nodes.agent_node(state)
+    assert get_tool_ctx()['rag_reason']=='generation_invalid'
+    assert get_tool_ctx().get('degraded') is True
+
+@pytest.mark.asyncio
+async def test_source_roles_do_not_turn_supporting_context_into_question_evidence(monkeypatch):
+    model,state=setup(monkeypatch)
+    payload=json.loads(state['messages'][-1].content)
+    payload['hits'][0]['matched_by']=['policy_context']
+    state['messages'][-1]=state['messages'][-1].model_copy(update={'content':json.dumps(payload)})
+    await nodes.agent_node(state)
+    body=model.ainvoke.call_args.args[0][1].content
+    source_json=body.split('\n',1)[1].split('\n\n前文相关问题：',1)[0]
+    assert json.loads(source_json)['sources'][0]['role']=='supporting_context'
+
+@pytest.mark.asyncio
+async def test_synthesis_receives_resolved_topic_but_preserves_latest_user_words(monkeypatch):
+    model,state=setup(monkeypatch)
+    latest='那超出期限之后呢'
+    state['messages'][0]=HumanMessage(content=latest)
+    state['knowledge_query']='保修期外返修检测的寄送运费由谁承担'
+    await nodes.agent_node(state)
+    body=model.ainvoke.call_args.args[0][1].content
+    assert state['knowledge_query'] in body
+    assert body.rstrip().endswith(latest)
+    assert state['knowledge_query'] not in model.ainvoke.call_args.args[0][0].content
+
+@pytest.mark.parametrize('answer',[
+ '拆封不一概丧失资格，特殊商品拆封后通常不支持7天无理由退货，但质量问题仍可售后。[S1]',
+ '拆封并不意味着不能退货，需要结合具体商品和完好状态核实。[S1]',
+])
+def test_explicit_negation_of_blanket_refusal_is_not_the_blanket_refusal(answer):
+    from app.rag.citations import validate_citations
+    source='不能把拆封一概作为拒绝理由，需要按商品性质和适用条件核实。'
+    result=validate_citations(answer,allowed=ALLOWED,answerable=True,sources={'S1':source})
+    assert result.valid
+
+@pytest.mark.asyncio
+async def test_structured_insufficient_outcome_never_publishes_attached_irrelevant_citations(monkeypatch):
+    model,state=setup(monkeypatch)
+    model.ainvoke.return_value=AIMessage(content=json.dumps({'outcome':'insufficient','points':[
+        {'text':'资料未提供相关信息，无法回答','sources':['S1']}]}))
+    result=await nodes.agent_node(state)
+    assert get_tool_ctx()['rag_reason']=='insufficient_evidence'
+    final=OutputPolicy(QUESTION).finalize(result['messages'][0].content,get_tool_ctx())
+    assert not final.citations and '足够依据' in final.content
+
+def test_synthesis_distinguishes_negative_rules_from_absent_evidence_and_forbids_scope_extension():
+    from app.agent.knowledge_answer import KNOWLEDGE_ANSWER_PROMPT
+    assert "明确未配置也是有依据的回答" in KNOWLEDGE_ANSWER_PROMPT
+    assert "期内的规则不能外推到期外" in KNOWLEDGE_ANSWER_PROMPT

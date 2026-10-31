@@ -358,7 +358,7 @@ async def test_resolved_contextual_policy_query_reaches_lookup_without_losing_sc
     state={"messages":[HumanMessage(content="退货运费谁负责"),AIMessage(content="要根据原因核实。"),
         HumanMessage(content="那商家会承担吗")],"tool_loop_count":0}
     result=await nodes.intent_router_node(state)
-    assert result["knowledge_query"]=="平台退货运费的承担规则"
+    assert result["knowledge_query"].startswith("那商家会承担吗") and "平台退货运费的承担规则" in result["knowledge_query"]
     answer=await nodes.agent_node({**state,**result})
     call=answer["messages"][0].tool_calls[0]
     assert call["name"]=="kb_search" and call["args"]["query"]==result["knowledge_query"]
@@ -419,3 +419,81 @@ def test_regeneration_does_not_reuse_focus_from_the_failed_turn():
         "intent":"ORDER_QUERY","next_step":"assist","topic":"wrong failed-turn interpretation"}}})
     state=build_state(ChatRequest(user_id=1,conversation_id=1,message="original message",options={"regenerate":True}),cp)
     assert state["conversation_focus"] is None
+
+@pytest.mark.asyncio
+async def test_model_resolved_query_keeps_the_original_user_constraints(monkeypatch):
+    question='不是现在办理，只想确认试穿后的申请资格'
+    planner(monkeypatch,{'route':'RULE','kb_query':'商品试穿后申请退换货的条件'})
+    result=await nodes.intent_router_node({'messages':[HumanMessage(content=question)]})
+    assert result['request_decision']['next_step']=='retrieve'
+    assert result['knowledge_query'].startswith(question)
+    assert '商品试穿后申请退换货的条件' in result['knowledge_query']
+
+
+@pytest.mark.asyncio
+async def test_first_turn_query_resolution_does_not_redecide_the_embedding_route(monkeypatch):
+    from app.agent.request_decision import RequestDecision
+    model,router=planner(monkeypatch,{'route':'RULE'})
+    model.ainvoke.side_effect=[AIMessage(content='{"route":"RULE"}'),AIMessage(content='{"query":"商品拆封与合理查验的无理由退货条件","route":"BUY"}')]
+    router.classify.return_value=RequestDecision('AFTER_SALE_FAQ','retrieve',source='embedding',score=.95,margin=.2)
+    monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),
+        'knowledge_query_rewrite_first_turn':True,'knowledge_query_timeout_s':.1}))
+    result=await nodes.intent_router_node({'messages':[HumanMessage(content='拆了包装还可以退吗')]})
+    assert result['request_decision']['source']=='model' and result['intent']=='AFTER_SALE_FAQ'
+    assert result['knowledge_query'] and '合理查验' in result['knowledge_query']
+    assert result['knowledge_query'].startswith('拆了包装还可以退吗')
+    assert json.loads(model.ainvoke.call_args.args[0][1].content)['intent']=='AFTER_SALE_FAQ'
+    assert model.ainvoke.await_count==2
+
+@pytest.mark.parametrize('card,missing', [('INFO','after_sale_product'),('FEE','postage_context')])
+def test_semantic_information_gaps_have_distinct_controlled_slots(card,missing):
+    from app.agent.request_decision import RequestDecision
+    result=RequestDecision.from_model({'route':card})
+    assert result and result.intent=='AFTER_SALE_FAQ' and result.next_step=='clarify' and result.missing==missing
+
+
+@pytest.mark.asyncio
+async def test_high_vector_topic_match_is_not_proof_that_case_information_is_complete(monkeypatch):
+    from app.agent.request_decision import RequestDecision
+    model,router=planner(monkeypatch,{'route':'INFO'})
+    router.classify.return_value=RequestDecision('AFTER_SALE_FAQ','retrieve',source='embedding',score=.99,margin=.3)
+    result=await nodes.intent_router_node({'messages':[HumanMessage(content='我这件洗过后还符合申请条件吗')]})
+    assert result['request_decision']['missing']=='after_sale_product'
+    assert result['request_decision']['next_step']=='clarify'
+    model.ainvoke.assert_awaited_once()
+    answer=await nodes.agent_node({'messages':[HumanMessage(content='我这件洗过后还符合申请条件吗')],**result})
+    assert not answer['messages'][0].tool_calls
+
+
+def test_after_sale_information_clarification_preserves_only_a_read_only_focus():
+    from app.agent.request_decision import RequestDecision,next_focus,validated_focus
+    decision=RequestDecision.from_model({'route':'FEE'})
+    focus=next_focus(None,decision,'在保内寄送费用由谁承担')
+    assert validated_focus(focus) and focus['intent']=='AFTER_SALE_FAQ' and focus['next_step']=='retrieve'
+
+
+@pytest.mark.asyncio
+async def test_fee_context_clarification_does_not_claim_a_knowledge_search(monkeypatch):
+    from app.agent.output import OutputPolicy
+    planner(monkeypatch,{'route':'FEE'})
+    question='商品保修期内寄送费用谁承担'
+    result=await nodes.intent_router_node({'messages':[HumanMessage(content=question)]})
+    answer=await nodes.agent_node({'messages':[HumanMessage(content=question)],**result})
+    final=OutputPolicy(question).finalize(answer['messages'][0].content,get_tool_ctx())
+    assert not final.rag_used and not final.citation_required and not final.citations
+    assert '检修' in final.content and not answer['messages'][0].tool_calls
+
+@pytest.mark.asyncio
+async def test_native_intent_format_is_request_specific_and_not_reused_for_query_rewriting(monkeypatch):
+    model,_=planner(monkeypatch,{'route':'RULE'})
+    model.ainvoke.side_effect=[AIMessage(content='{"route":"RULE"}'),AIMessage(content='{"query":"平台一般退货规则"}')]
+    monkeypatch.setattr(nodes,'settings',SimpleNamespace(**{**nodes.settings.model_dump(),
+        'llm_intent_structured_output':True,'knowledge_query_rewrite_first_turn':True}))
+    await nodes.intent_router_node({'messages':[HumanMessage(content='解释平台的一般退货规则')]})
+    first,second=model.ainvoke.call_args_list
+    schema=first.kwargs['response_format']['json_schema']['schema']
+    labels=schema['properties']['route']['enum']
+    assert 'ASK_PRODUCT' in labels and 'ASK_SHIPPING' in labels
+    assert 'CONTINUE' not in labels and 'WEB' not in labels
+    assert schema['required']==['route'] and schema['additionalProperties'] is False
+    assert 'response_format' not in second.kwargs

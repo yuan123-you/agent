@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, RemoveMessage
 from pydantic import BaseModel
 
+from app.api.streaming import ClosingStreamingResponse, with_heartbeats
 from app.agent.graph import checkpointer, graph
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from app.agent.memory import background_memory_extraction, persist_naming_memory, should_extract_memory
@@ -264,8 +265,9 @@ async def chat_stream(req: ChatRequest, request: Request):
     async def gen():
         with activate_trace(record):
             try:
-                async for item in generate():
-                    yield item
+                async with aclosing(generate()) as events:
+                    async for item in events:
+                        yield item
             except Exception as exc:
                 # Initialization can fail before the graph's own error handler starts.
                 logger.warning("chat initialization failed: %s", type(exc).__name__)
@@ -488,8 +490,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                 yield sse("trace", record.snapshot("FAILED", error=type(e).__name__))
             yield sse("error", {"code": 5001, "message": "AI 服务内部错误，请稍后重试"})
 
-    return StreamingResponse(
-        gen(),
+    return ClosingStreamingResponse(
+        with_heartbeats(gen()),
         background=background,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

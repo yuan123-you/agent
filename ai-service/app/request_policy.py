@@ -100,8 +100,45 @@ def is_out_of_scope(text: str) -> bool:
     return False
 
 
+def _normalize_yuan_numerals(text: str) -> str:
+    """Common literal Chinese amounts; ambiguous counts/numerals are not guessed."""
+    digits = dict(zip("零〇一二两三四五六七八九", (0,0,1,2,2,3,4,5,6,7,8,9)))
+    units = {"十":10,"百":100,"千":1000,"万":10000}
+
+    def convert(match):
+        word = match.group()
+        tail = text[match.end():].lstrip()
+        if match.start() and text[match.start()-1] in "几数每第":
+            return word
+        if tail and not re.match(r"^(?:元|块|以内|以下|左右|上下|以上|起|到|至|[-~～，。,.?!！？的])", tail):
+            return word
+        if not any(char in units for char in word):
+            if not re.search(r"预算|价格|元|块", text):
+                return word
+            return str(int("".join(str(digits[char]) for char in word)))
+        total, number, last_unit, previous = 0, 0, 100000, ""
+        for char in word:
+            if char in digits:
+                if previous in digits and digits[previous] != 0:
+                    return word
+                number = digits[char]
+            else:
+                unit = units[char]
+                if unit >= last_unit:  # Do not reinterpret malformed or unsupported forms.
+                    return word
+                total += (number or 1) * unit
+                number, last_unit = 0, unit
+            previous = char
+        if number and re.search(r"[百千万][一二两三四五六七八九]$", word):
+            number *= last_unit // 10  # 两千五 = 2500, but 两千零五 = 2005.
+        return str(total + number)
+
+    return re.sub(r"[零〇一二两三四五六七八九十百千万]+", convert, text)
+
+
 def budget_from_text(text: str) -> dict:
     """Extract explicit yuan budgets only; never treat model numbers as budget."""
+    text = _normalize_yuan_numerals(text)
     number = r'(\d+(?:\.\d+)?)'
     range_pattern = number + r"\s*(?:元|块)?\s*(?:到|至|[-~～])\s*" + number + r"\s*(?:元|块)?"
     match = re.search(range_pattern, text)

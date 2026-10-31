@@ -27,7 +27,7 @@ from app.agent.prompts import (
     WEB_SYSTEM_PROMPT,
     PRODUCT_SYSTEM_PROMPT,
 )
-from app.agent.request_decision import CLARIFICATIONS, RequestDecision, get_semantic_router, next_focus, validated_focus, continuation_decision
+from app.agent.request_decision import CLARIFICATIONS, RequestDecision, get_semantic_router, next_focus, validated_focus, continuation_decision, route_response_format
 from app.agent.state import AgentState
 from app.agent.routing import RequestPolicy, TIME_QUERY_RE
 from app.clients.backend_client import backend_client
@@ -104,10 +104,14 @@ async def intent_router_node(state: AgentState) -> dict:
     web_query = None
     knowledge_query = None
     continued = False
+    policy_topic = None
     focus = validated_focus(state.get("conversation_focus"))
     decision = RequestDecision(explicit, "assist", source="local") if explicit else None
     if decision is None:
         decision = await get_semantic_router().classify(user_text, contextual=bool(history_text))
+        if decision and decision.intent == "AFTER_SALE_FAQ" and decision.next_step == "retrieve":
+            policy_topic = decision
+            decision = None  # Topic similarity cannot establish missing case information.
         if decision and (decision.intent == "HUMAN_REQUEST"
                          or (decision.intent == "SMALL_TALK" and state.get("web_search_enabled"))):
             decision = None  # Resolve consent and external-vs-local conversation with context.
@@ -119,20 +123,25 @@ async def intent_router_node(state: AgentState) -> dict:
             system_prompt += '\n例如：当前ORDER且用户只是补充商品不合脚的原因，返回 {"route":"CONTINUE"}。当前SHOP且补充预算，也用CONTINUE。'
         if state.get("web_search_enabled"):
             system_prompt += '\n联网已开启：天气、新闻等外部资料请求用WEB卡，并给出结合历史的web_query。示例 {"route":"WEB","web_query":"北京明天天气"}。批评助手或闲聊仍用CHAT，不给web_query。'
+        intent_options = ({"response_format": route_response_format(continuing=bool(focus),
+            web_enabled=bool(state.get("web_search_enabled")))}
+            if getattr(settings, "llm_intent_structured_output", False) else {})
         prompt = f"历史对话:\n{history_text or '(无)'}\n\n用户最新消息: {user_text}"
         try:
             async with asyncio.timeout(settings.llm_intent_timeout_s):
                 result = await get_intent_llm().ainvoke([
-                    SystemMessage(content=system_prompt), HumanMessage(content=prompt)])
+                    SystemMessage(content=system_prompt), HumanMessage(content=prompt)], **intent_options)
             data = parse_intent_json(getattr(result, "content", "") or "")
             decision = RequestDecision.from_model(data)
+            if policy_topic and decision and decision.intent != "AFTER_SALE_FAQ":
+                decision = RequestDecision("AFTER_SALE_FAQ", "clarify", "policy_scope", source="disagreement")
             continuation = continuation_decision(data, focus)
             if continuation:
                 decision = continuation
                 continued = True
             query = data.get("kb_query")
             if decision and decision.next_step == "retrieve" and isinstance(query, str) and 0 < len(query.strip()) <= 500:
-                knowledge_query = query.strip()
+                knowledge_query = user_text + "\n规则主题：" + query.strip()
             query = data.get("web_query")
             if decision and decision.intent == "SMALL_TALK" and state.get("web_search_enabled") and isinstance(query, str) and 0 < len(query.strip()) <= 200:
                 web_query = query.strip()
@@ -148,12 +157,13 @@ async def intent_router_node(state: AgentState) -> dict:
     entities = state.get("active_entities") or {}
     if decision.intent == "ORDER_CREATE" and decision.next_step == "assist" and not entities.get("last_products"):
         decision = RequestDecision("PRODUCT_CONSULT", "assist", source=decision.source)
-    if decision.next_step == "retrieve" and history_text and not knowledge_query:
+    if (decision.next_step == "retrieve" and not knowledge_query
+            and (history_text or getattr(settings, "knowledge_query_rewrite_first_turn", False))):
         # Query rewriting is a separate, single-output task; never let it change the decided route.
-        data = {"history": history_text, "latest": user_text,
+        data = {"intent": decision.intent, "history": history_text, "latest": user_text,
                 "focus": focus["topic"] if focus else None}
         try:
-            async with asyncio.timeout(min(5, settings.llm_intent_timeout_s)):
+            async with asyncio.timeout(min(getattr(settings, "knowledge_query_timeout_s", 5), settings.llm_intent_timeout_s)):
                 rewritten = await get_intent_llm().ainvoke([
                     SystemMessage(content=KNOWLEDGE_QUERY_PROMPT),
                     HumanMessage(content=json.dumps(data, ensure_ascii=False)),
@@ -242,7 +252,7 @@ async def agent_node(state: AgentState) -> dict:
         clarification = CLARIFICATIONS.get(decision.get("missing"), CLARIFICATIONS["request"])
         ctx["policy_clarification"] = clarification
         return {"messages": [AIMessage(content=clarification)], "active_entities": entities}
-    budget = budget_from_text(latest_text)
+    budget = budget_from_text(latest_text) if intent in {"PRODUCT_CONSULT", "ORDER_CREATE"} else {}
     if requested_category:
         if entities.get("last_category") != requested_category:
             entities.pop("last_products", None)
@@ -354,9 +364,15 @@ async def agent_node(state: AgentState) -> dict:
             timeout_s=settings.kb_answer_timeout_s, max_tokens=settings.kb_answer_max_tokens,
             context_max_chars=settings.kb_context_max_chars,
             legacy_max_tokens=settings.kb_legacy_max_tokens,
+            structured_output=getattr(settings, "kb_structured_output", False),
+            resolved_question=state.get("knowledge_query"),
         )
         if not answer.valid:
             ctx["rag_reason"] = answer.reason
+            if answer.reason.startswith("generation_"):
+                ctx["degraded"] = True
+            if answer.reason == "insufficient_evidence":
+                ctx["rag_answerable"] = False
         return {"messages": [AIMessage(content=answer.content,
                 additional_kwargs={"knowledge_answer_final": True})], "active_entities": entities}
     if intent == "PRODUCT_CONSULT":

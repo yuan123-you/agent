@@ -17,6 +17,9 @@ INTENTS = frozenset({"PRODUCT_CONSULT", "ORDER_QUERY", "ORDER_CREATE", "AFTER_SA
 CLARIFICATIONS = {
     "after_sale_goal": "您是想退换货，还是商品存在质量问题？",
     "product": "您咨询的是哪款商品？",
+    "after_sale_product": "您咨询的是哪件或哪类商品？请补充商品名称或类型及目前的使用情况，我再核实适用条件。",
+    "policy_scope": "您想了解通用规则，还是核实某件商品的具体适用条件？",
+    "postage_context": "您指的是退换货寄送，还是寄回检修的运费？请说明场景，我再核实费用责任。",
     "issue": "商品具体出现了什么问题？",
     "request": "您希望咨询商品或规则、查询订单，还是办理售后？",
 }
@@ -67,7 +70,7 @@ class RequestDecision:
             return None
         if step == "assist" and intent == "AFTER_SALE_FAQ":
             return None
-        if missing == "after_sale_goal" and intent != "AFTER_SALE_FAQ":
+        if missing in {"after_sale_goal", "after_sale_product", "postage_context", "policy_scope"} and intent != "AFTER_SALE_FAQ":
             return None
         return cls(intent, step, missing)
 
@@ -76,6 +79,10 @@ class RequestDecision:
 _MODEL_CARDS = {
     "HELP": RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_goal"),
     "RULE": RequestDecision("AFTER_SALE_FAQ", "retrieve"),
+    "INFO": RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_product"),
+    "ASK_PRODUCT": RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_product"),
+    "FEE": RequestDecision("AFTER_SALE_FAQ", "clarify", "postage_context"),
+    "ASK_SHIPPING": RequestDecision("AFTER_SALE_FAQ", "clarify", "postage_context"),
     "ORDER": RequestDecision("ORDER_QUERY", "assist"),
     "SHOP": RequestDecision("PRODUCT_CONSULT", "assist"),
     "MIXED": RequestDecision("PRODUCT_CONSULT", "retrieve"),
@@ -86,6 +93,22 @@ _MODEL_CARDS = {
     "HUMAN": RequestDecision("HUMAN_REQUEST", "assist"),
     "UNKNOWN": RequestDecision("SMALL_TALK", "clarify", "request"),
 }
+
+
+def route_response_format(*, continuing: bool, web_enabled: bool) -> dict:
+    """Machine syntax only; the model still must choose the right semantic action."""
+    labels = [name for name in _MODEL_CARDS if name not in {"INFO", "FEE", "WEB"}]
+    if continuing:
+        labels.append("CONTINUE")
+    properties = {"route": {"type": "string", "enum": labels}}
+    if web_enabled:
+        labels.append("WEB")
+        properties["web_query"] = {"type": "string", "maxLength": 200}
+    return {"type": "json_schema", "json_schema": {
+        "name": "request_route", "strict": True, "schema": {
+            "type": "object", "additionalProperties": False,
+            "required": ["route"], "properties": properties,
+        }}}
 
 
 def validated_focus(payload: object) -> dict | None:
@@ -107,6 +130,13 @@ def continuation_decision(data: object, current: object) -> RequestDecision | No
 
 def next_focus(current: object, decision: RequestDecision, topic: str, *, continued: bool = False) -> dict | None:
     focus = validated_focus(current)
+    if (decision.intent == "AFTER_SALE_FAQ" and decision.next_step == "clarify"
+            and decision.missing in {"after_sale_product", "postage_context", "policy_scope"}):
+        if focus and focus["intent"] == "ORDER_QUERY":
+            return focus
+        # The topic is established, not a transaction authorization. A supplied
+        # detail can continue only with read-only evidence, never a purchase/transfer.
+        return {"intent": "AFTER_SALE_FAQ", "next_step": "retrieve", "topic": topic}
     if continued or (focus and focus["intent"] == "ORDER_QUERY" and decision.intent == "AFTER_SALE_FAQ" and decision.next_step == "retrieve"):
         return focus
     if decision.intent in {"SMALL_TALK", "ASSISTANT_META"} and decision.next_step == "assist":

@@ -68,7 +68,7 @@ services:
       OLLAMA_NUM_PARALLEL: '1'
       OLLAMA_MAX_LOADED_MODELS: '1'
       OLLAMA_CONTEXT_LENGTH: '4096'
-      # Keep the existing chat/classification model resident; embeddings have a separate service.
+      # Keep the selected generation weights resident; intent/embeddings are isolated.
       OLLAMA_KEEP_ALIVE: '-1'
     volumes: [ollama-data:/root/.ollama]
     healthcheck:
@@ -79,8 +79,8 @@ services:
   intent:
     image: ollama/ollama:0.40.1
     restart: unless-stopped
-    mem_limit: 7g
-    cpus: 2.0
+    mem_limit: 5g
+    cpus: 3.0
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NUM_PARALLEL: '1'
@@ -120,14 +120,18 @@ services:
     environment:
       LLM_API_BASE: http://ollama:11434/v1
       LLM_API_KEY: ollama
-      LLM_CHAT_MODEL: qwen2.5:1.5b
+      # Unreleased candidate: factual acceptance is blocked; see docs/qa/2026-10-31-semantic-routing.md.
+      LLM_CHAT_MODEL: qwen3.5:4b
       LLM_INTENT_API_BASE: http://intent:11434/v1
       LLM_INTENT_MODEL: qwen3:4b-instruct
       LLM_REASONING_EFFORT: none
-      LLM_CHAT_TIMEOUT_S: '60'
-      LLM_INTENT_TIMEOUT_S: '45'
+      LLM_CHAT_TIMEOUT_S: '150'
+      LLM_INTENT_TIMEOUT_S: '60'
       LLM_INTENT_MAX_TOKENS: '128'
       LLM_LEGACY_MAX_TOKENS: 'true'
+      LLM_INTENT_STRUCTURED_OUTPUT: 'true'
+      KNOWLEDGE_QUERY_REWRITE_FIRST_TURN: 'true'
+      KNOWLEDGE_QUERY_TIMEOUT_S: '30'
       SEMANTIC_ROUTE_ENABLED: 'true'
       SEMANTIC_ROUTE_MIN_SCORE: '0.78'
       SEMANTIC_ROUTE_MIN_MARGIN: '0.06'
@@ -140,7 +144,7 @@ services:
       EMBEDDING_DIM: '768'
       OLLAMA_BASE_URL: http://embeddings:11434
       OLLAMA_NUM_GPU: '0'
-      OLLAMA_KEEP_ALIVE: 2m
+      OLLAMA_KEEP_ALIVE: 24h
       OLLAMA_NUM_CTX: '2048'
       MILVUS_URI: http://milvus:19530
       MILVUS_COLLECTION: kb_chunks_dmeta_zh_768
@@ -151,12 +155,14 @@ services:
       PRODUCT_SYNC_ENABLED: 'true'
       PRODUCT_SYNC_INTERVAL_S: '3600'
       KB_RESPONSE_MODE: generate
-      KB_ANSWER_TIMEOUT_S: '60'
+      KB_ANSWER_TIMEOUT_S: '150'
       KB_ANSWER_MAX_TOKENS: '512'
       KB_LEGACY_MAX_TOKENS: 'true'
+      KB_STRUCTURED_OUTPUT: 'true'
+      RAG_POLICY_CONTEXT_QUERIES: '["当前演示操作边界","5.1 七天无理由退货的条件性说明"]'
       KB_CONTEXT_MAX_CHARS: '3600'
       LANGFUSE_ENABLED: 'false'
-      CHAT_TIMEOUT_S: '180'
+      CHAT_TIMEOUT_S: '230'
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
     volumes: [ai-service-data:/app/data]
     depends_on:
