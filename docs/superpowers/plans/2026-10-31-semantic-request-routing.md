@@ -55,3 +55,8 @@ Final local checkpoint before model-provisioning decision: **653 AI-service test
 
 ## Qualified candidate checkpoint
 The isolated `qwen3:4b-instruct` rerun at cosine 0.78 / margin 0.06 passed **45/45** real semantic/controller/tool-planning scenarios, with no changes to prompt or examples. Model ID `0edcdef34593`; 2.5 GB weights; about 3.59 GiB resident memory. Scenario times 0.06–19.53 s (median 3.82 s, includes prior-focus construction, not full HTTP). Production cutover and actual SSE checks remain required. See `docs/qa/2026-10-31-semantic-routing.md`.
+
+## Production gate failed; rollback verified
+Application `10fa39b` was pushed. The exact candidate image passed 45/45 real preflight scenarios, but HTTP SSE failed on policy synthesis after two valid clarifications: unchanged 1.5B generator omitted citations and produced malformed/off-topic output despite four approved retrieval chunks. The release automatically rolled back to source `323b1ac` and original AI image; eight other container IDs, nine healthy services, disabled QA actor and private backup were independently verified. No new model is left serving production.
+
+Short-cited-prose prompting did not solve the generator failure and was reverted. A read-only native schema experiment fixed formatting but not relevance; it was not adopted. Added a regression to continue rejecting the real malformed uncited output without inferring citations. Do not weaken this gate or claim semantic-routing scores prove answer quality. Further full-release work needs agreement to include answer-generation model evaluation, not just intent-model provisioning. See the QA report for exact boundary.

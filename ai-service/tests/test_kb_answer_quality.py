@@ -353,3 +353,13 @@ async def test_streamed_internal_json_is_replaced_by_rendered_terminal_answer(mo
     assert tokens==done["content"]==ANSWER
     assert done["citations"][0]["chunk_id"]==7
     assert '"points"' not in tokens
+
+@pytest.mark.asyncio
+async def test_real_missing_source_array_output_never_infers_citations(monkeypatch):
+    model, state = setup(monkeypatch)
+    model.ainvoke.return_value = AIMessage(content='{"points": [{"text":"使用过的商品可以退货。"}]')
+    result = await nodes.agent_node(state)
+    final = OutputPolicy(QUESTION).finalize(result['messages'][0].content, get_tool_ctx())
+    assert not final.citations
+    assert '使用过的商品可以退货' not in final.content
+    assert 'generation_' in get_tool_ctx()['rag_reason']
