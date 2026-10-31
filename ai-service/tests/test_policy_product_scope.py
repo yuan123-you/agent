@@ -114,7 +114,8 @@ async def test_selected_product_policy_answer_excludes_other_product_evidence(mo
 
 
 @pytest.mark.asyncio
-async def test_ambiguous_policy_clarification_survives_sse_citation_gate(monkeypatch):
+async def test_ambiguous_policy_clarification_survives_sse_citation_gate(monkeypatch, semantic_route):
+    semantic_route("AFTER_SALE_FAQ")
     from unittest.mock import AsyncMock
     from langgraph.checkpoint.memory import MemorySaver
     from app.agent.graph import build_graph

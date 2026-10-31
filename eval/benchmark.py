@@ -21,7 +21,7 @@ AI_SERVICE_DIR = ROOT_DIR / "ai-service"
 if str(AI_SERVICE_DIR) not in sys.path:
     sys.path.insert(0, str(AI_SERVICE_DIR))
 
-from app.agent.routing import RequestPolicy
+from app.agent.routing import RequestPolicy, TIME_QUERY_RE
 from app.agent.identity import parse_naming_command, resolve_profile
 from app.request_policy import (
     asks_assistant_identity, asks_conversation_context, asks_mutual_identity,
@@ -35,6 +35,40 @@ logger = logging.getLogger("eval.benchmark")
 DEFAULT_BENCHMARK_PATH = ROOT_DIR / "eval" / "dataset" / "customer_service_benchmark.jsonl"
 RESULTS_DIR = ROOT_DIR / "eval" / "results"
 
+
+def _offline_legacy_intent(user_text: str) -> str:
+    """Historical lexical comparator only; never imported by production routing."""
+    t = (user_text or "").strip().lower()
+    if requests_human(t):
+        return "HUMAN_REQUEST"
+    if parse_naming_command(t):
+        return "SMALL_TALK"
+    if asks_mutual_identity(t) or asks_user_identity(t) or asks_conversation_context(t):
+        return "SMALL_TALK"
+    if asks_assistant_identity(t):
+        return "ASSISTANT_META"
+    if is_negative_sentiment(t) or is_out_of_scope(t):
+        return "SMALL_TALK"
+    if TIME_QUERY_RE.search(t):
+        return "SMALL_TALK"
+    if "人工客服" in t and any(w in t for w in ["几点", "上班", "时间"]):
+        return "AFTER_SALE_FAQ"
+    if re.search(r"(?:帮我|我要|我想|请)(?:申请|发起|提交|办|办理)?(?:退款|退货|售后)", t):
+        return "ORDER_QUERY"
+    if any(w in t for w in ["订单", "物流", "发货", "快递", "到哪了", "待支付"]):
+        return "ORDER_QUERY"
+    if any(w in t for w in ["退货", "退换", "退款", "保修", "售后", "运费", "三包", "坏了", "换货", "发票", "送货", "自提", "七天"]):
+        return "AFTER_SALE_FAQ"
+    # Buying an unspecified category is selection, not authorization to order.
+    if category_from_user_text(t) and not any(w in t for w in ["下单", "确认购买", "买这个", "买它", "买第"]):
+        return "PRODUCT_CONSULT"
+    if any(w in t for w in ["帮我买", "下单", "拍下", "立刻购买", "我要买", "买第", "买这个", "买它", "帮我下单", "确认购买"]):
+        return "ORDER_CREATE"
+    if any(w in t for w in ["你好", "您好", "早上好", "晚上好", "嗨", "hello", "谢谢", "多谢", "再见", "在吗"]):
+        return "SMALL_TALK"
+    if re.search(r"不(?:要|用|需要|想).*(?:人工|真人)|取消.*(?:人工|转接)", t):
+        return "SMALL_TALK"
+    return "PRODUCT_CONSULT"
 
 @dataclass
 class CaseEvalResult:
@@ -127,7 +161,7 @@ class CustomerServiceBenchmark:
 
         # 2. 统一路由与意图决策
         policy = RequestPolicy(query)
-        actual_intent = policy.fast_intent() or policy.fallback_intent
+        actual_intent = policy.fast_intent() or _offline_legacy_intent(query)
         actual_route = policy.destination(actual_intent, web_enabled=False)
 
         # 3. 工具与参数提取仿真
@@ -136,7 +170,7 @@ class CustomerServiceBenchmark:
         if actual_route == "escalate_node":
             actual_tool = "escalate_to_human"
         elif actual_route == "agent":
-            if actual_intent == "AFTER_SALE_FAQ" or policy.policy_required:
+            if actual_intent == "AFTER_SALE_FAQ" or requires_kb(query):
                 actual_tool = "kb_search"
             elif actual_intent == "ORDER_CREATE":
                 actual_tool = "order_create"
@@ -329,6 +363,8 @@ class CustomerServiceBenchmark:
         )
 
     def evaluate_all(self, mode: str = "offline") -> BenchmarkReport:
+        if mode != "offline":
+            raise ValueError("This benchmark supports offline legacy comparison only; use live_eval for actual semantic execution")
         cases = self.load_dataset()
         results: list[CaseEvalResult] = [self.run_case_offline(c) for c in cases]
 
@@ -384,9 +420,10 @@ class CustomerServiceBenchmark:
         bad_cases = [asdict(r) for r in results if not r.passed]
 
         notes = [
-            f"评测覆盖 {len(by_cat)} 大核心客服维度共 {total} 道精细化测试用例（含真实多轮上下文）。",
+            "本报告是历史离线词法基线，不执行当前向量/意图模型，不代表线上语义路由准确率或真实端到端验收。",
+            f"离线比较覆盖 {len(by_cat)} 大客服维度共 {total} 条固定用例（包括多轮文本样本，但不运行真实模型）。",
             f"分级考核通过率：P0 致命安全合规率 {round(p0_pass_rate*100, 1)}%，P1 业务准确率 {round(p1_pass_rate*100, 1)}%，P2 体验人设率 {round(p2_pass_rate*100, 1)}%。",
-            f"端到端综合能力指数：{overall_score} 分（综合通过率 {round(overall_pass_rate*100, 1)}%）。",
+            f"离线规则模拟综合得分：{overall_score} 分（综合通过率 {round(overall_pass_rate*100, 1)}%）。",
             f"意图分流准确率 {round(intent_acc*100, 1)}%，路由准确率 {round(route_acc*100, 1)}%，工具决策调用正确率 {round(tool_acc*100, 1)}%。",
             f"多轮人设记忆持久化召回率：{round(persona_rate*100, 1)}%，负向情绪同理心安抚率：{round(empathy_rate*100, 1)}%。",
         ]
@@ -426,6 +463,8 @@ class CustomerServiceBenchmark:
             "# AI Mall 电商客服标准评测基准报告 (AI CS Benchmark)",
             "",
             f"> **评测时间**：{report.generated_at} | **评测模式**：`{report.mode}` | **用例总量**：{report.total_cases} 条",
+            "",
+            "> 注意：这是历史离线规则模拟，不运行当前语义路由、真实工具或模型，不能视为线上准确率。",
             "",
             "## 一、核心综合评分卡与分级合规指标",
             "",

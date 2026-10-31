@@ -1,4 +1,5 @@
 """LangGraph 图节点：意图路由 → 购物助理(工具循环) / 闲聊 / 转人工"""
+import asyncio
 import json
 import logging
 import re
@@ -20,13 +21,15 @@ from app.agent.prompts import (
     ESCALATE_OK_TEXT,
     FINALIZE_SYSTEM_PROMPT,
     INTENT_SYSTEM_PROMPT,
+    KNOWLEDGE_QUERY_PROMPT,
     SHOP_SYSTEM_PROMPT,
     SMALL_TALK_PROMPT,
     WEB_SYSTEM_PROMPT,
     PRODUCT_SYSTEM_PROMPT,
 )
+from app.agent.request_decision import CLARIFICATIONS, RequestDecision, get_semantic_router, next_focus, validated_focus, continuation_decision
 from app.agent.state import AgentState
-from app.agent.routing import RequestPolicy, TIME_QUERY_RE, fallback_intent_by_rules
+from app.agent.routing import RequestPolicy, TIME_QUERY_RE
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_chat_llm, get_intent_llm
 from app.config import settings
@@ -34,7 +37,7 @@ from app.agent.knowledge_answer import synthesize_knowledge_answer
 from app.agent.prompt_context import compact_prompt_messages, web_prompt_evidence
 from app.agent.memory import format_assistant_greeting, format_memory_prompt
 from app.agent.identity import normalize_profile, parse_naming_command
-from app.request_policy import needs_after_sale_clarification, asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
+from app.request_policy import asks_assistant_identity, asks_conversation_context, asks_mutual_identity, asks_user_identity, budget_from_text, is_negative_sentiment, is_out_of_scope, requests_human, requires_kb
 from app.observability.telemetry import generation
 from app.tools.tools import (
     ALL_TOOLS,
@@ -82,70 +85,103 @@ def parse_intent_json(content: str) -> dict:
 
 
 async def intent_router_node(state: AgentState) -> dict:
-    """意图识别（结构化 JSON 输出，失败规则启发式兜底）"""
+    """Resolve intent and next step once, using semantic evidence and dialogue context."""
     last = state["messages"][-1] if state["messages"] else None
-    user_text = getattr(last, "content", "") if last else ""
+    user_text = str(getattr(last, "content", ""))
     policy = RequestPolicy(user_text)
-    intent = policy.fast_intent()
-    if intent is not None:
-        get_tool_ctx()["latest_user_text"] = user_text
-        await generation(
-            "intent", model="rules", input_data={"user_text": user_text},
-            usage={"intent": intent, "confidence": 1.0}, tags=["intent", "fast-path"],
-        )
-        return {"intent": intent, "web_query": None,
-                "reply_route": policy.destination(intent, state.get("web_search_enabled", False))}
-    llm = get_intent_llm()
-    # Checkpoint messages are the source of truth; backend history may be empty.
+    explicit = policy.fast_intent()
     conversation = [m for m in state["messages"][:-1]
                     if isinstance(m, HumanMessage) or (isinstance(m, AIMessage) and not m.tool_calls)]
     def compact_assistant(role: str, content: str) -> str:
-        # Classification needs the question/clarifying tail, not pages of previous recommendations.
-        # Never truncate the buyer's requirements or the latest message.
         text = str(content)
         if role.upper() == "AI" and len(text) > 512:
             text = text[:320] + "…（省略助手长介绍）…" + text[-192:]
         return f"{role}: {text}"
-
     history_text = "\n".join(compact_assistant(m.type, m.content) for m in conversation[-6:])
     if not history_text:
-        history_text = "\n".join(
-            compact_assistant(m.get("role", "USER"), m.get("content", "")) for m in (state.get("history") or [])[-6:]
-        )
-    prompt = f"历史对话:\n{history_text or '(无)'}\n\n用户最新消息: {user_text}"
-    system_prompt = INTENT_SYSTEM_PROMPT
-    if state.get("web_search_enabled"):
-        system_prompt += ('\n若 intent 为 SMALL_TALK，额外给出 web_query：结合上下文的独立搜索词（尽量不超过20字）；'
-                          '业务意图不填。例：{"intent":"SMALL_TALK","web_query":"北京明天天气"}。')
+        history_text = "\n".join(compact_assistant(m.get("role", "USER"), m.get("content", ""))
+                                 for m in (state.get("history") or [])[-6:])
     web_query = None
-    try:
-        result = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=prompt)])
-        content = getattr(result, "content", "") or ""
-        data = parse_intent_json(content)
-        intent = policy.constrain(data.get("intent"))
-        query = data.get("web_query")
-        if (intent == "SMALL_TALK" and state.get("web_search_enabled")
-                and isinstance(query, str) and 0 < len(query.strip()) <= 200):
-            web_query = query.strip()
-        confidence = data.get("confidence")
-        logger.info("intent=%s confidence=%s", intent, confidence)
-        # 可观测：意图节点打点
-        await generation(
-            "intent", model=settings.llm_intent_model,
-            input_data={"user_text": user_text, "history": history_text[:500]},
-            usage={"intent": intent, "confidence": confidence}, tags=["intent"],
-        )
-    except Exception as e:
-        intent = policy.fallback_intent
-        logger.warning("intent parse failed, fallback by rules %s: %s", intent, e)
-        await generation(
-            "intent", model=settings.llm_intent_model,
-            input_data={"user_text": user_text}, usage={"intent": intent, "error": str(e)},
-            tags=["intent"],
-        )
+    knowledge_query = None
+    continued = False
+    focus = validated_focus(state.get("conversation_focus"))
+    decision = RequestDecision(explicit, "assist", source="local") if explicit else None
+    if decision is None:
+        decision = await get_semantic_router().classify(user_text, contextual=bool(history_text))
+        if decision and (decision.intent == "HUMAN_REQUEST"
+                         or (decision.intent == "SMALL_TALK" and state.get("web_search_enabled"))):
+            decision = None  # Resolve consent and external-vs-local conversation with context.
+    if decision is None:
+        system_prompt = INTENT_SYSTEM_PROMPT
+        if focus:
+            card = {"ORDER_QUERY": "ORDER", "PRODUCT_CONSULT": "SHOP", "AFTER_SALE_FAQ": "RULE"}[focus["intent"]]
+            system_prompt += f"\n当前已确认的业务任务是 {card}。用户仅补充原因、数量等且没有新目标时用CONTINUE，表示继续当前任务。明确的新问题/新目标仍选对应卡。"
+            system_prompt += '\n例如：当前ORDER且用户只是补充商品不合脚的原因，返回 {"route":"CONTINUE"}。当前SHOP且补充预算，也用CONTINUE。'
+        if state.get("web_search_enabled"):
+            system_prompt += '\n联网已开启：天气、新闻等外部资料请求用WEB卡，并给出结合历史的web_query。示例 {"route":"WEB","web_query":"北京明天天气"}。批评助手或闲聊仍用CHAT，不给web_query。'
+        prompt = f"历史对话:\n{history_text or '(无)'}\n\n用户最新消息: {user_text}"
+        try:
+            async with asyncio.timeout(settings.llm_intent_timeout_s):
+                result = await get_intent_llm().ainvoke([
+                    SystemMessage(content=system_prompt), HumanMessage(content=prompt)])
+            data = parse_intent_json(getattr(result, "content", "") or "")
+            decision = RequestDecision.from_model(data)
+            continuation = continuation_decision(data, focus)
+            if continuation:
+                decision = continuation
+                continued = True
+            query = data.get("kb_query")
+            if decision and decision.next_step == "retrieve" and isinstance(query, str) and 0 < len(query.strip()) <= 500:
+                knowledge_query = query.strip()
+            query = data.get("web_query")
+            if decision and decision.intent == "SMALL_TALK" and state.get("web_search_enabled") and isinstance(query, str) and 0 < len(query.strip()) <= 200:
+                web_query = query.strip()
+        except Exception as exc:
+            logger.warning("Request understanding unavailable (%s)", type(exc).__name__)
+    if decision is None:
+        decision = RequestDecision("SMALL_TALK", "clarify", "request", source="unavailable")
+        get_tool_ctx()["degraded"] = True
+    # Similarity or a classifier label never grants permission to transfer a user.
+    if decision.intent == "HUMAN_REQUEST" and not policy.human:
+        decision = RequestDecision("SMALL_TALK", "clarify", "request", source=decision.source)
+    # A purchase label cannot stand in for a real, known product selection.
+    entities = state.get("active_entities") or {}
+    if decision.intent == "ORDER_CREATE" and decision.next_step == "assist" and not entities.get("last_products"):
+        decision = RequestDecision("PRODUCT_CONSULT", "assist", source=decision.source)
+    if decision.next_step == "retrieve" and history_text and not knowledge_query:
+        # Query rewriting is a separate, single-output task; never let it change the decided route.
+        data = {"history": history_text, "latest": user_text,
+                "focus": focus["topic"] if focus else None}
+        try:
+            async with asyncio.timeout(min(5, settings.llm_intent_timeout_s)):
+                rewritten = await get_intent_llm().ainvoke([
+                    SystemMessage(content=KNOWLEDGE_QUERY_PROMPT),
+                    HumanMessage(content=json.dumps(data, ensure_ascii=False)),
+                ])
+            resolved = parse_intent_json(rewritten.content).get("query")
+            if isinstance(resolved, str) and 0 < len(resolved.strip()) <= 500:
+                knowledge_query = user_text + "\n规则主题：" + resolved.strip()
+        except Exception as exc:
+            logger.info("Knowledge query rewrite unavailable (%s)", type(exc).__name__)
+        if not knowledge_query and focus and focus["intent"] == "AFTER_SALE_FAQ":
+            knowledge_query = user_text + "\n前文规则主题：" + focus["topic"]
+    if decision.next_step == "retrieve" and not knowledge_query and continued and focus:
+        knowledge_query = user_text + "\n前文规则主题：" + focus["topic"]
+    updated_focus = next_focus(focus, decision, knowledge_query or user_text, continued=continued)
     get_tool_ctx()["latest_user_text"] = user_text
-    return {"intent": intent, "web_query": web_query,
-            "reply_route": policy.destination(intent, state.get("web_search_enabled", False))}
+    get_tool_ctx()["request_decision"] = decision.to_dict()
+    if decision.next_step == "clarify" or web_query:
+        route = "agent"
+    elif decision.intent == "SMALL_TALK" and decision.source != "local":
+        route = "small_talk"
+    else:
+        route = policy.destination(decision.intent, state.get("web_search_enabled", False))
+    await generation("intent", model=settings.embedding_model if decision.source == "embedding" else ("local" if decision.source == "local" else settings.llm_intent_model),
+        input_data={"user_text": user_text, "history": history_text[:500]},
+        usage=decision.to_dict(), tags=["intent", decision.source])
+    return {"intent": decision.intent, "web_query": web_query,
+            "request_decision": decision.to_dict(), "reply_route": route,
+            "conversation_focus": updated_focus, "knowledge_query": knowledge_query}
 
 
 def route_by_intent(state: AgentState) -> str:
@@ -201,8 +237,9 @@ async def agent_node(state: AgentState) -> dict:
     ctx["requested_category"] = requested_category
     latest_text = next((str(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
     ctx["latest_user_text"] = latest_text
-    if intent == "AFTER_SALE_FAQ" and needs_after_sale_clarification(latest_text):
-        clarification = "您是想退换货，还是商品存在质量问题？"
+    decision = state.get("request_decision") or {}
+    if decision.get("next_step") == "clarify":
+        clarification = CLARIFICATIONS.get(decision.get("missing"), CLARIFICATIONS["request"])
         ctx["policy_clarification"] = clarification
         return {"messages": [AIMessage(content=clarification)], "active_entities": entities}
     budget = budget_from_text(latest_text)
@@ -224,18 +261,19 @@ async def agent_node(state: AgentState) -> dict:
                       for m in state["messages"][latest_user + 1:])
     order_searched = any(getattr(m, "type", "") == "tool" and getattr(m, "name", "") == "order_query"
                          for m in state["messages"][latest_user + 1:])
-    must_kb = ((intent == "AFTER_SALE_FAQ" or requires_kb(latest_text))
+    must_kb = ((intent == "AFTER_SALE_FAQ" or decision.get("next_step") == "retrieve"
+                or (not decision and requires_kb(latest_text)))
                and not kb_searched and not state.get("tool_loop_count"))
     must_order_query = (intent == "ORDER_QUERY"
                         and not order_searched
                         and not state.get("tool_loop_count")
-                        and not re.search(r"取消|退款|退货|换货|售后", latest_text))
+                        and (bool(decision) or not re.search(r"取消|退款|退货|换货|售后", latest_text)))
     budget_changed = bool(budget)
     preferences_changed = bool(re.search(r"性价比|便宜|换一|重新推荐|再推荐", latest_text))
     is_external_query = bool(re.search(r"最新|新品|发布|上市|新闻|资讯|行情|什么时候|哪款好|排行榜|对比|评测|区别|怎么样|百科", latest_text))
     semantic_web_query = state.get("web_query") if intent == "SMALL_TALK" else None
     must_web_search = (state.get("web_search_enabled")
-                       and (is_external_query or bool(semantic_web_query))
+                       and ((not decision and is_external_query) or bool(semantic_web_query))
                        and not searched
                        and not state.get("tool_loop_count"))
     if must_order_query:
@@ -277,7 +315,7 @@ async def agent_node(state: AgentState) -> dict:
                           "args": {"category": requested_category, "keyword": clean_search_keyword(query),
                                    **ctx["requested_budget"]}})
         if must_kb:
-            kb_args = {"query": latest_text}
+            kb_args = {"query": state.get("knowledge_query") or latest_text}
             if re.search(r"平台|本商城|AI\s*Mall", latest_text, re.IGNORECASE):
                 kb_args.update(doc_type="POLICY", product_id=-1)
             else:

@@ -2,6 +2,10 @@
 
 让后续所有优化"可度量"。数据源取自 `backend` 真实商品库，覆盖**意图准确率 / 工具调用正确率 / RAG 命中率 / 回复质量**四项指标。
 
+## 语义路由改造后的评估范围
+
+`benchmark.py` / `scripts/run_benchmark.py` 的 `offline` 模式保留历史词法比较基线，便于比较旧实现；它不调用当前向量或意图模型，不执行工具，得分不能当作线上语义准确率。生产代码不再导入或调用该基线。该脚本拒绝把离线模拟标记为 `live`；真实能力需用 live 回放或有模型指纹与输入输出记录的语义验收验证。
+
 ## 目录
 - `dataset/` 种子数据集（由生成脚本产出，可提交、可复现）
   - `products.json` 商品语料（解析自 `backend/src/main/resources/product-catalog/products.jsonl` 真实采集清单）

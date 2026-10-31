@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.agent import nodes
 from app.agent.output import OutputPolicy
 from app.agent.routing import RequestPolicy
+from app.agent.request_decision import RequestDecision
 from app.tools.tools import get_tool_ctx, set_tool_ctx
 
 QUESTION = "平台无理由退货规则是什么？"
@@ -105,9 +106,13 @@ def test_shared_boundary_rejects_dump_with_valid_citation():
 @pytest.mark.parametrize("question", ["商品购买后不满意怎么办", "买到的东西不合适怎么办", "收到商品不喜欢怎么办",
     "到货后不满意怎么办", "货到了不满意怎么办", "签收后不满意怎么办", "拿到手不满意怎么办"])
 async def test_vague_dissatisfaction_asks_one_safe_question(monkeypatch, question):
-    assert RequestPolicy(question).fast_intent() == "AFTER_SALE_FAQ"
-    monkeypatch.setattr(nodes, "get_chat_llm", lambda: pytest.fail("Clarification needs no model"))
-    result = await nodes.agent_node({"intent": "AFTER_SALE_FAQ", "messages": [HumanMessage(content=question)]})
+    assert RequestPolicy(question).fast_intent() is None
+    semantic = RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_goal", source="embedding")
+    monkeypatch.setattr(nodes, "get_semantic_router", lambda: SimpleNamespace(classify=AsyncMock(return_value=semantic)))
+    monkeypatch.setattr(nodes, "get_chat_llm", lambda: pytest.fail("Clarification needs no generation"))
+    state = {"messages": [HumanMessage(content=question)]}
+    decision = await nodes.intent_router_node(state)
+    result = await nodes.agent_node({**state, **decision})
     message = result["messages"][0]
     assert not message.tool_calls and "退换货" in message.content and "质量" in message.content
     assert message.content.count("？") == 1 and "投诉" not in message.content
@@ -129,9 +134,9 @@ async def test_cancellation_is_not_swallowed_as_provider_failure(monkeypatch):
     "商品不满意，想退货怎么办", "收到商品不满意，有质量问题", "买的东西不合适，我要换货",
     "购买前不喜欢这个商品", "商品不满意，请转人工", "不满意你的回复", "帮我推荐不合适就能退的衣服",
     "到货后不满意想退货", "到货后不满意，请转人工", "还没买，到货后不满意能不能退"])
-def test_clarification_does_not_override_explicit_intent(question):
-    from app.request_policy import needs_after_sale_clarification
-    assert not needs_after_sale_clarification(question)
+def test_clarification_is_no_longer_selected_from_words(question):
+    # Business-word patterns cannot supersede the semantic decision contract.
+    assert RequestPolicy(question).fast_intent() in {None, "HUMAN_REQUEST"}
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["answer", "dump", "timeout", "clarification", "clarification-arrival"])
@@ -157,7 +162,9 @@ async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind
     monkeypatch.setattr(chat, "start_trace", lambda **k: False)
     monkeypatch.setattr(chat, "end_trace", lambda **k: None)
     monkeypatch.setattr(chat, "background_memory_extraction", AsyncMock())
-    monkeypatch.setattr(nodes, "get_intent_llm", lambda: pytest.fail("Explicit policy must use fast routing"))
+    semantic = RequestDecision("AFTER_SALE_FAQ", "clarify", "after_sale_goal", source="embedding") if kind.startswith("clarification") else RequestDecision("AFTER_SALE_FAQ", "retrieve", source="embedding")
+    monkeypatch.setattr(nodes, "get_semantic_router", lambda: SimpleNamespace(classify=AsyncMock(return_value=semantic)))
+    monkeypatch.setattr(nodes, "get_intent_llm", lambda: pytest.fail("Confident semantic route needs no fallback"))
     class Request:
         async def is_disconnected(self):
             return False
@@ -175,7 +182,7 @@ async def test_real_graph_sse_only_publishes_safe_final_answer(monkeypatch, kind
     if kind == "answer":
         assert done["content"] == ANSWER and done["citations"][0]["chunk_id"] == 7
     else:
-        assert done["citations"] == []
+        assert done.get("citations", []) == []
     if kind.startswith("clarification"):
         assert "退换货" in rendered and "质量" in rendered
         search.assert_not_awaited()

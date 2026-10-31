@@ -41,7 +41,7 @@ async def test_terminal_web_answer_has_no_tool_schema_and_a_compact_grounding_pr
     assert result['messages'][0].content.startswith('【联网搜索】')
 
 async def test_classifier_ignores_verbose_assistant_prose_but_keeps_user_requirements_and_clarifying_tail(monkeypatch):
-    llm=MagicMock();llm.ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT"}'))
+    llm=MagicMock();llm.ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT","next_step":"assist"}'))
     monkeypatch.setattr(nodes,'get_intent_llm',lambda:llm)
     user='预算三千，主要玩游戏。'+('必须保留用户条件。'*100)
     assistant='手机推荐背景：'+('大量商品介绍。'*2000)+'你希望优先拍照还是游戏？'
@@ -56,7 +56,7 @@ async def test_real_graph_classifies_then_searches_once_then_answers_without_ano
     from app.agent.graph import build_graph
     from langgraph.checkpoint.memory import MemorySaver
     from app.tools import web_search as search
-    classifier=MagicMock(); classifier.ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"SMALL_TALK"}'))
+    classifier=MagicMock(); classifier.ainvoke=AsyncMock(return_value=AIMessage(content='{"route":"WEB","web_query":"最近人工智能领域新闻"}'))
     answer=MagicMock(); answer.ainvoke=AsyncMock(return_value=AIMessage(content='【联网搜索】据检索资料回答。'))
     monkeypatch.setattr(nodes,'get_intent_llm',lambda:classifier)
     monkeypatch.setattr(nodes,'get_chat_llm',lambda:answer)

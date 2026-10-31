@@ -50,6 +50,7 @@ def test_benchmark_evaluator_runs_and_produces_valid_reports(tmp_path):
     bench = CustomerServiceBenchmark(DEFAULT_BENCHMARK_PATH)
     report = bench.evaluate_all(mode="offline")
     
+    assert any("不执行" in note and "语义" in note for note in report.summary_notes)
     assert report.total_cases == 72
     assert report.overall_pass_rate >= 0.95, f"Pass rate too low: {report.overall_pass_rate}"
     assert report.overall_score >= 95.0, f"Score too low: {report.overall_score}"
@@ -74,3 +75,9 @@ def test_benchmark_evaluator_runs_and_produces_valid_reports(tmp_path):
     assert "P0 致命红线合规率" in saved_md
     assert "PRE_SALES" in saved_md
     assert "SAFETY_GUARD" in saved_md
+
+
+def test_offline_benchmark_cannot_mislabel_rule_simulation_as_live():
+    bench=CustomerServiceBenchmark(DEFAULT_BENCHMARK_PATH)
+    with pytest.raises(ValueError,match="offline"):
+        bench.evaluate_all(mode="live")

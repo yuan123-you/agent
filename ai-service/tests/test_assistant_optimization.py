@@ -1,5 +1,7 @@
+from app.agent import nodes
+from langchain_core.messages import HumanMessage
 import pytest
-from app.agent.nodes import parse_intent_json, fallback_intent_by_rules, get_tools_for_intent
+from app.agent.nodes import parse_intent_json, get_tools_for_intent
 from app.tools.tools import normalize_category, clean_search_keyword
 
 
@@ -16,17 +18,16 @@ def test_parse_intent_json_handles_surrounding_text():
     assert parsed.get("intent") == "AFTER_SALE_FAQ"
 
 
-def test_fallback_intent_by_rules():
-    assert fallback_intent_by_rules("你好呀") == "SMALL_TALK"
-    assert fallback_intent_by_rules("谢谢你啦") == "SMALL_TALK"
-    assert fallback_intent_by_rules("你是谁") == "ASSISTANT_META"
-    assert fallback_intent_by_rules("我的订单到哪了") == "ORDER_QUERY"
-    assert fallback_intent_by_rules("发货没有呢") == "ORDER_QUERY"
-    assert fallback_intent_by_rules("七天无理由退货运费谁出") == "AFTER_SALE_FAQ"
-    assert fallback_intent_by_rules("保修期多久") == "AFTER_SALE_FAQ"
-    assert fallback_intent_by_rules("转人工客服") == "HUMAN_REQUEST"
-    assert fallback_intent_by_rules("我要下单买这个") == "ORDER_CREATE"
-    assert fallback_intent_by_rules("推荐一款电脑") == "PRODUCT_CONSULT"
+@pytest.mark.asyncio
+async def test_local_and_semantic_intents_share_the_validated_router(semantic_route):
+    for text,intent in [("你好呀","SMALL_TALK"),("谢谢你啦","SMALL_TALK"),("你是谁","ASSISTANT_META"),
+        ("我的订单到哪了","ORDER_QUERY"),("发货没有呢","ORDER_QUERY"),
+        ("七天无理由退货运费谁出","AFTER_SALE_FAQ"),("保修期多久","AFTER_SALE_FAQ"),
+        ("转人工客服","HUMAN_REQUEST"),("我要下单买这个","ORDER_CREATE"),("推荐一款电脑","PRODUCT_CONSULT")]:
+        semantic_route(intent)
+        result=await nodes.intent_router_node({"messages":[HumanMessage(content=text)],
+            "active_entities":{"last_products":[{"id":1,"name":"已展示商品"}]}})
+        assert result["intent"]==intent
 
 
 def test_normalize_category():
@@ -167,11 +168,13 @@ def test_clean_search_keyword_budget_and_prefixes():
     assert clean_search_keyword("给我推荐一款手机") == "手机"
 
 
-def test_fallback_intent_additional_order_keywords():
-    assert fallback_intent_by_rules("买第一个") == "ORDER_CREATE"
-    assert fallback_intent_by_rules("买这个") == "ORDER_CREATE"
-    assert fallback_intent_by_rules("买它") == "ORDER_CREATE"
-    assert fallback_intent_by_rules("帮我下单") == "ORDER_CREATE"
+@pytest.mark.asyncio
+async def test_semantic_purchase_requires_known_product_selection(semantic_route):
+    semantic_route("ORDER_CREATE")
+    for text in ("买第一个","买这个","买它","帮我下单"):
+        result=await nodes.intent_router_node({"messages":[HumanMessage(content=text)],
+            "active_entities":{"last_products":[{"id":1,"name":"已展示商品"}]}})
+        assert result["intent"]=="ORDER_CREATE"
 
 
 @pytest.mark.asyncio
@@ -278,7 +281,7 @@ async def test_mixed_or_contextual_requests_still_use_the_intent_model(monkeypat
     from app.tools.tools import set_tool_ctx
     set_tool_ctx({})
     llm = MagicMock()
-    llm.ainvoke = AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT"}'))
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT","next_step":"assist"}'))
     monkeypatch.setattr(nodes, "get_intent_llm", lambda: llm)
     await nodes.intent_router_node({"messages": [HumanMessage(content=text)]})
     llm.ainvoke.assert_awaited_once()

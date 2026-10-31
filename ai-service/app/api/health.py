@@ -58,6 +58,25 @@ async def _check_llm() -> bool:
         return False
 
 
+async def _check_intent_llm() -> bool:
+    """A dedicated intent daemon must be reachable and contain the configured model."""
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            response = await client.get(
+                settings.llm_intent_api_base.rstrip("/") + "/models",
+                headers={"Authorization": f"Bearer {settings.llm_intent_api_key or settings.llm_api_key}"},
+            )
+            response.raise_for_status()
+            available = any(item.get("id") == settings.llm_intent_model
+                            for item in response.json().get("data", []))
+            set_dependency("intent_llm", available, "configured intent model unavailable")
+            return available
+    except Exception as exc:
+        logger.warning("intent LLM health check failed: %s", type(exc).__name__)
+        set_dependency("intent_llm", False, "intent provider unavailable")
+        return False
+
+
 async def _check_backend() -> bool:
     try:
         async with httpx.AsyncClient(timeout=3) as client:
@@ -70,11 +89,14 @@ async def _check_backend() -> bool:
 
 
 async def _probe_all() -> dict[str, bool]:
-    return {
+    statuses = {
         "milvus": await _check_milvus(),
         "llm": await _check_llm(),
         "backend": await _check_backend(),
     }
+    if getattr(settings, "llm_intent_api_base", ""):
+        statuses["intent_llm"] = await _check_intent_llm()
+    return statuses
 
 
 @router.get("/health/live")

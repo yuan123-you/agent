@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent.graph import build_graph
-from app.agent.nodes import fallback_intent_by_rules, intent_router_node
+from app.agent.nodes import intent_router_node
 from app.api.chat import ChatMessage, ChatRequest, build_state
 from app.request_policy import (
     asks_assistant_identity,
@@ -52,13 +52,10 @@ def test_user_and_context_identity_detection():
     assert asks_conversation_context("推荐一款拍照好的手机") is False
 
 
-def test_fallback_intent_for_context_and_user_identity():
-    assert fallback_intent_by_rules("我叫什么名字") in {"SMALL_TALK", "ASSISTANT_META"}
-    assert fallback_intent_by_rules("我是谁") in {"SMALL_TALK", "ASSISTANT_META"}
-    assert fallback_intent_by_rules("你还记得我叫什么吗") in {"SMALL_TALK", "ASSISTANT_META"}
-    assert fallback_intent_by_rules("你叫什么名字，我叫什么名字") in {"SMALL_TALK", "ASSISTANT_META"}
-    assert fallback_intent_by_rules("我刚才问了你什么") in {"SMALL_TALK", "ASSISTANT_META"}
-    assert fallback_intent_by_rules("刚才我们聊了什么") in {"SMALL_TALK", "ASSISTANT_META"}
+def test_local_context_and_identity_shortcuts():
+    from app.agent.routing import RequestPolicy
+    for text in ("我叫什么名字","我是谁","你还记得我叫什么吗","你叫什么名字，我叫什么名字", "我刚才问了你什么","刚才我们聊了什么"):
+        assert RequestPolicy(text).fast_intent() in {"SMALL_TALK","ASSISTANT_META"}
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,8 @@ def isolated_context():
     set_tool_ctx({})
 
 @pytest.mark.asyncio
-async def test_order_query_intent_overrides_erroneous_model_classification(monkeypatch):
+async def test_confident_semantic_order_query_precedes_model_fallback(monkeypatch, semantic_route):
+    semantic_route("ORDER_QUERY")
     model = SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"SMALL_TALK"}')))
     monkeypatch.setattr(nodes, 'get_intent_llm', lambda: model)
     result = await nodes.intent_router_node({'messages': [HumanMessage(content='我的订单到哪了')]})

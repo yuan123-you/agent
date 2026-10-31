@@ -223,11 +223,10 @@ def test_settings_loads_web_search_config(monkeypatch):
     assert settings.searxng_url == "http://searxng.test"
 
 
-def test_fallback_intent_and_router_for_date_time_queries():
-    from app.agent.nodes import fallback_intent_by_rules
-    assert fallback_intent_by_rules("今天是星期几") == "SMALL_TALK"
-    assert fallback_intent_by_rules("今天几号") == "SMALL_TALK"
-    assert fallback_intent_by_rules("现在几点") == "SMALL_TALK"
+def test_local_date_time_requests_need_no_semantic_provider():
+    from app.agent.routing import RequestPolicy
+    for text in ("今天是星期几","今天几号","现在几点"):
+        assert RequestPolicy(text).fast_intent()=="SMALL_TALK"
 
 
 @pytest.mark.asyncio

@@ -21,7 +21,7 @@ from eval.benchmark import CustomerServiceBenchmark, DEFAULT_BENCHMARK_PATH, RES
 
 def main():
     parser = argparse.ArgumentParser(description="AI Mall 电商客服标准评测基准")
-    parser.add_argument("--mode", choices=["offline", "live"], default="offline", help="评测模式（默认离线状态机与规则评测）")
+    parser.add_argument("--mode", choices=["offline"], default="offline", help="评测模式（默认离线状态机与规则评测）")
     parser.add_argument("--dataset", default=str(DEFAULT_BENCHMARK_PATH), help="评测集路径")
     parser.add_argument("--category", default="ALL", help="指定评测维度（如 PRE_SALES, ORDER_FULFILLMENT）")
     parser.add_argument("--json", action="store_true", help="打印 JSON 结构体到控制台")

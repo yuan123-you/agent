@@ -38,7 +38,7 @@ class _FakeLLM:
     """同步注入意图 JSON 的假 LLM。"""
 
     def __init__(self, intent, confidence=0.9):
-        self._payload = json.dumps({"intent": intent, "confidence": confidence})
+        self._payload = json.dumps({"intent": intent, "confidence": confidence, "next_step": "retrieve" if intent=="AFTER_SALE_FAQ" else "assist"})
 
     async def ainvoke(self, messages):
         return _FakeMessage(self._payload)
@@ -66,14 +66,15 @@ async def test_intent_router_node_fallback_on_bad_json(monkeypatch):
                        escalated=False, user_id="1", conversation_id="1", history=[], summary=None,
                        web_search_enabled=False)
     out = await nodes.intent_router_node(state)
-    assert out["intent"] == "PRODUCT_CONSULT"
+    assert out["request_decision"]["next_step"] == "clarify"
+    assert out["request_decision"]["missing"] == "request"
 
 def test_intent_prompt_explicitly_routes_identity_and_capability_questions():
     from app.agent.prompts import INTENT_SYSTEM_PROMPT
 
-    assert "ASSISTANT_META" in INTENT_SYSTEM_PROMPT
-    assert "你是谁" in INTENT_SYSTEM_PROMPT
-    assert "你能帮我做什么" in INTENT_SYSTEM_PROMPT
+    from app.agent.request_decision import RequestDecision
+    assert "IDENTITY" in INTENT_SYSTEM_PROMPT and "身份能力" in INTENT_SYSTEM_PROMPT
+    assert RequestDecision.from_model({"route":"IDENTITY"}).intent == "ASSISTANT_META"
 
 
 class _ToolCallMessage:

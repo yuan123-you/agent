@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.request_policy import is_negative_sentiment, is_out_of_scope
-from app.agent.nodes import fallback_intent_by_rules, intent_router_node, small_talk_node
+from app.agent.nodes import intent_router_node, small_talk_node
 from app.agent.graph import build_graph
 from app.agent.state import AgentState
 
@@ -45,14 +45,17 @@ def test_out_of_scope_detection():
         assert is_out_of_scope(text) is False, f"False positive for {text}"
 
 
-def test_fallback_intent_routes_negative_and_out_of_scope_to_small_talk():
-    assert fallback_intent_by_rules("SB") == "SMALL_TALK"
-    assert fallback_intent_by_rules("你太笨了") == "SMALL_TALK"
-    assert fallback_intent_by_rules("帮我写一个冒泡排序代码") == "SMALL_TALK"
+@pytest.mark.asyncio
+async def test_semantic_negative_and_out_of_scope_requests_do_not_become_shopping(semantic_route):
+    semantic_route("SMALL_TALK")
+    for text in ("SB","你太笨了","帮我写一个冒泡排序代码"):
+        result=await intent_router_node({"messages":[HumanMessage(content=text)]})
+        assert result["intent"]=="SMALL_TALK"
 
 
 @pytest.mark.asyncio
-async def test_intent_router_node_handles_negative_and_out_of_scope():
+async def test_intent_router_node_handles_negative_and_out_of_scope(semantic_route):
+    semantic_route("SMALL_TALK")
     for text in ["SB", "你太笨了", "帮我写一个冒泡排序代码"]:
         state = AgentState(
             messages=[HumanMessage(content=text)],
@@ -135,7 +138,8 @@ async def test_small_talk_node_declines_out_of_scope_politely():
 
 
 @pytest.mark.asyncio
-async def test_end_to_end_graph_reproduces_and_fixes_screenshot_dialogue():
+async def test_end_to_end_graph_reproduces_and_fixes_screenshot_dialogue(semantic_route):
+    semantic_route("SMALL_TALK")
     cp = MemorySaver()
     app = build_graph(cp)
     thread_config = {"configurable": {"thread_id": "test_screenshot_thread"}}

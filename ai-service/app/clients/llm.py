@@ -34,15 +34,17 @@ def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
 def get_intent_llm(*, classification: bool = True) -> ChatOpenAI:
     """意图识别模型（低延迟、温度 0）"""
     return ChatOpenAI(
-        base_url=settings.llm_api_base,
-        api_key=settings.llm_api_key,
+        base_url=getattr(settings, "llm_intent_api_base", "") or settings.llm_api_base,
+        api_key=getattr(settings, "llm_intent_api_key", "") or settings.llm_api_key,
         model=settings.llm_intent_model,
         temperature=0,
         streaming=False,
         timeout=settings.llm_intent_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
         max_retries=0,
-        max_tokens=getattr(settings, "llm_intent_max_tokens", 64) if classification else None,
+        max_tokens=getattr(settings, "llm_intent_max_tokens", 128) if classification else None,
+        extra_body={"max_tokens": getattr(settings, "llm_intent_max_tokens", 128)}
+            if classification and getattr(settings, "llm_legacy_max_tokens", False) else None,
     )
 
 
@@ -52,20 +54,27 @@ async def warm_local_models() -> None:
         return
     from app.agent.prompts import INTENT_SYSTEM_PROMPT, WEB_SYSTEM_PROMPT
 
-    base = settings.llm_api_base.rstrip("/").removesuffix("/v1")
-    jobs = [(settings.llm_intent_model, INTENT_SYSTEM_PROMPT),
-            (settings.llm_chat_model, WEB_SYSTEM_PROMPT)]
-    async with asyncio.timeout(settings.llm_warmup_timeout_s):
-        async with httpx.AsyncClient(timeout=settings.llm_warmup_timeout_s) as client:
-            for model, prompt in jobs:
-                response = await client.post(base + "/api/chat", json={
-                    "model": model, "messages": [{"role": "system", "content": prompt}],
-                    "stream": False, "keep_alive": settings.llm_keep_alive_s,
-                    # A single preload token only; user-facing answers have no new output cap.
-                    "options": {"num_predict": 1, "temperature": 0},
-                })
-                response.raise_for_status()
-                logger.info("local LLM prompt prefix preloaded: %s", model)
+    intent_base = getattr(settings, "llm_intent_api_base", "") or settings.llm_api_base
+    jobs = [(intent_base, settings.llm_intent_model, INTENT_SYSTEM_PROMPT),
+            (settings.llm_api_base, settings.llm_chat_model, WEB_SYSTEM_PROMPT)]
+    async def preload(endpoint: str, model: str, prompt: str) -> None:
+        try:
+            async with asyncio.timeout(settings.llm_warmup_timeout_s):
+                async with httpx.AsyncClient(timeout=settings.llm_warmup_timeout_s) as client:
+                    base = endpoint.rstrip("/").removesuffix("/v1")
+                    response = await client.post(base + "/api/chat", json={
+                        "model": model, "messages": [{"role": "system", "content": prompt}],
+                        "stream": False, "keep_alive": settings.llm_keep_alive_s,
+                        # One preload token only; user-facing answers have no new output cap.
+                        "options": {"num_predict": 1, "temperature": 0},
+                    })
+                    response.raise_for_status()
+                    logger.info("local LLM prompt prefix preloaded: %s", model)
+        except Exception as exc:
+            logger.warning("local LLM preload unavailable: %s (%s)", model, type(exc).__name__)
+
+    # Each provider gets its own bounded opportunity; one failure must not skip the other.
+    await asyncio.gather(*(preload(*job) for job in jobs))
 
 
 class MaaSEmbeddings(Embeddings):

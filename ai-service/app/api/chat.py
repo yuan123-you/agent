@@ -18,6 +18,7 @@ from app.agent.memory import background_memory_extraction, persist_naming_memory
 from app.agent.identity import resolve_profile
 from app.agent.link_guard import GuardedLinkBuffer
 from app.agent.output import OutputPolicy
+from app.agent.request_decision import validated_focus
 from app.agent.prompts import SUMMARY_PROMPT
 from app.agent.state import AgentState
 from app.clients.llm import get_chat_llm
@@ -103,6 +104,10 @@ def build_state(req: ChatRequest, checkpointer: Any = None) -> AgentState:
         messages=msgs,
         intent=None,
         reply_route=None,
+        request_decision=None,
+        knowledge_query=None,
+        conversation_focus=None if req.options.get("regenerate") else validated_focus(
+            (existing_ckpt or {}).get("channel_values", {}).get("conversation_focus")),
         web_query=None,
         tool_loop_count=0,
         escalated=False,

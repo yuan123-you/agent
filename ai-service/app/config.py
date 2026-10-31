@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # LLM
     llm_api_base: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
+    # Optional dedicated intent provider; empty values preserve the shared-provider setup.
+    llm_intent_api_base: str = ""
+    llm_intent_api_key: str = ""
     llm_chat_model: str = "gpt-4o-mini"
     llm_intent_model: str = "gpt-4o-mini"
     temperature: float = 0.3
@@ -22,7 +25,8 @@ class Settings(BaseSettings):
     llm_chat_timeout_s: float = Field(default=60, gt=0)
     llm_intent_timeout_s: float = Field(default=20, gt=0)
     # Classification JSON is bounded separately from the dedicated knowledge-answer budget.
-    llm_intent_max_tokens: int = Field(default=64, ge=32, le=256)
+    llm_intent_max_tokens: int = Field(default=128, ge=32, le=256)
+    llm_legacy_max_tokens: bool = False
     # Opt in only for an Ollama-compatible LLM endpoint; no model download/provider migration.
     llm_warmup_enabled: bool = False
     llm_warmup_timeout_s: float = Field(default=45, gt=0)
@@ -30,6 +34,12 @@ class Settings(BaseSettings):
     web_search_timeout_s: float = Field(default=4, gt=0)
     web_search_total_timeout_s: float = Field(default=5, gt=0)
     web_search_hedge_delay_s: float = Field(default=0.5, ge=0)
+
+    # Semantic business routing reuses existing embeddings; uncertain/contextual turns use the intent model.
+    semantic_route_enabled: bool = True
+    semantic_route_min_score: float = Field(default=0.78, ge=0, le=1)
+    semantic_route_min_margin: float = Field(default=0.04, ge=0, le=2)
+    semantic_route_timeout_s: float = Field(default=4, gt=0)
 
     # Embedding（可独立配置：对话与向量模型可为不同供应商，如 DeepSeek 对话 + 千问 embedding）
     embedding_api_base: str = ""   # 空 = 复用 llm_api_base

@@ -19,7 +19,8 @@ def isolated_context():
 @pytest.mark.parametrize("text", [
     "推荐一款3000以内拍照好的手机", "帮我推荐游戏笔记本", "给我推荐一双鞋子", "请帮我找个背包。",
 ])
-async def test_clear_shopping_request_skips_intent_inference(monkeypatch, text):
+async def test_confident_semantic_shopping_skips_model_fallback(monkeypatch, semantic_route, text):
+    semantic_route("PRODUCT_CONSULT")
     factory = MagicMock(side_effect=AssertionError("unnecessary intent inference"))
     monkeypatch.setattr(nodes, "get_intent_llm", factory)
     result = await nodes.intent_router_node({"messages": [HumanMessage(content=text)]})
@@ -35,7 +36,7 @@ async def test_clear_shopping_request_skips_intent_inference(monkeypatch, text):
 ])
 async def test_mixed_contextual_and_action_requests_keep_classifier(monkeypatch, text):
     llm = MagicMock()
-    llm.ainvoke = AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT"}'))
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content='{"intent":"PRODUCT_CONSULT","next_step":"assist"}'))
     monkeypatch.setattr(nodes, "get_intent_llm", lambda: llm)
     await nodes.intent_router_node({"messages": [HumanMessage(content=text)]})
     llm.ainvoke.assert_awaited_once()

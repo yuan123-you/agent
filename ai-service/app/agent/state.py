@@ -23,6 +23,9 @@ class AgentState(TypedDict, total=False):
     messages: Annotated[list[Any], add_messages]   # 会话级消息通道（含工具调用与结果，自动追加）
     reply_route: ReplyRoute | None  # router-owned; reset each turn
     intent: str | None
+    conversation_focus: dict | None  # persistent validated business focus, never action authorization
+    knowledge_query: str | None  # resolved query, reset each turn
+    request_decision: dict | None  # validated intent + next step; reset each turn
     web_query: str | None        # classifier-produced contextual query; reset each turn
     tool_loop_count: int
     escalated: bool

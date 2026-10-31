@@ -3,8 +3,10 @@ import re
 
 
 def requests_human(text: str) -> bool:
+    # Quoted commands and hypothetical future statements are not present authorization.
+    text = re.sub('“[^”]*”|「[^」]*」|『[^』]*』|"[^"]*"|\'[^\']*\'', "", text)
     for clause in re.split(r'[，。！？,!?；;\n]', text):
-        if re.search(r'不(?:要|用|需要|想|是)|别|无需|取消|怎么|如何', clause):
+        if re.search(r'不(?:要|用|需要|想|是)|别|无需|取消|怎么|如何|如果|假如|假设|万一|要是|除非|例如|比如|可能|以后|将来|到时', clause):
             continue
         if re.search(r'(?:转(?:接)?|找|联系|接(?:入|通|一下)?|呼叫|我要|我需要|让).{0,15}?(?:人工|真人)|(?:我要|要求)?投诉.*(?:人工|介入|处理)?|(?:找|联系).{0,6}?主管', clause):
             return True
@@ -120,24 +122,11 @@ def budget_from_text(text: str) -> dict:
     return {"min_price": None, "max_price": float(match.group(1))} if match else {}
 
 
-def needs_after_sale_clarification(text: str) -> bool:
-    """Vague post-purchase dissatisfaction is not consent to return or complain."""
-    t = (text or "").strip()
-    return bool(
-        re.search(r"不满意|不合适|不喜欢", t)
-        and re.search(r"商品|产品|东西|买|收到|收货|到货|货到|到手|签收", t)
-        and not re.search(r"退|换|退款|质量|坏|破损|保修|运费|规则|政策|投诉|人工|推荐|选购|想买|购买前|不想买", t)
-        and not requests_human(t)
-    )
-
-
 def requires_kb(text: str) -> bool:
     """Explicit service-policy questions need evidence even if a model ignores tools."""
     t = (text or "").strip()
     if requests_human(t) or asks_assistant_identity(t):
         return False
-    if needs_after_sale_clarification(t):
-        return True
     topic = re.search(r"退货|退换|退款|保修|售后|运费|三包|发票|开票|配送|送货|人工客服", t)
     if not topic:
         return False

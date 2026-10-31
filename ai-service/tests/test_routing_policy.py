@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from app.agent import nodes
+from app.agent.routing import RequestPolicy
 from app.tools.tools import set_tool_ctx
 
 
@@ -23,14 +24,23 @@ def isolated_context():
     ("平台退款规则是什么", True, "AFTER_SALE_FAQ", "agent"),
     ("推荐一款手机", False, "PRODUCT_CONSULT", "agent"),
 ])
-async def test_explicit_requests_have_one_deterministic_route(monkeypatch, text, web, intent, route):
-    factory = MagicMock(side_effect=AssertionError("Explicit requests need no classifier"))
+async def test_semantic_or_local_decision_has_one_dispatch(monkeypatch, semantic_route, text, web, intent, route):
+    semantic_route(intent)
+    from types import SimpleNamespace
+    needs_confirmation = RequestPolicy(text).fast_intent() is None and (intent == "HUMAN_REQUEST" or (intent == "SMALL_TALK" and web))
+    if needs_confirmation:
+        factory = MagicMock(return_value=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='{"route":"HUMAN"}' if intent=="HUMAN_REQUEST" else '{"route":"CHAT"}'))))
+    else:
+        factory = MagicMock(side_effect=AssertionError("Confident semantic/local decision needs no fallback"))
     monkeypatch.setattr(nodes, "get_intent_llm", factory)
     result = await nodes.intent_router_node({"messages": [HumanMessage(content=text)], "web_search_enabled": web})
     assert result["intent"] == intent
     assert result["reply_route"] == route
     assert nodes.route_by_intent(result) == route
-    factory.assert_not_called()
+    if needs_confirmation:
+        factory.assert_called_once()
+    else:
+        factory.assert_not_called()
 
 
 async def test_contextual_web_query_uses_one_classifier_then_reuses_its_route(monkeypatch):

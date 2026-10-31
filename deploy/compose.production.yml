@@ -75,6 +75,23 @@ services:
       test: [CMD, ollama, list]
       interval: 30s
       retries: 5
+  # Dedicated intent model: never evicts the existing answer-generation weights.
+  intent:
+    image: ollama/ollama:0.40.1
+    restart: unless-stopped
+    mem_limit: 7g
+    cpus: 2.0
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NUM_PARALLEL: '1'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_CONTEXT_LENGTH: '4096'
+      OLLAMA_KEEP_ALIVE: '-1'
+    volumes: [intent-data:/root/.ollama]
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 30s
+      retries: 5
   embeddings:
     image: ollama/ollama:0.40.1
     restart: unless-stopped
@@ -104,12 +121,19 @@ services:
       LLM_API_BASE: http://ollama:11434/v1
       LLM_API_KEY: ollama
       LLM_CHAT_MODEL: qwen2.5:1.5b
-      LLM_INTENT_MODEL: qwen2.5:1.5b
+      LLM_INTENT_API_BASE: http://intent:11434/v1
+      LLM_INTENT_MODEL: qwen3:4b-instruct
       LLM_REASONING_EFFORT: none
       LLM_CHAT_TIMEOUT_S: '60'
-      LLM_INTENT_TIMEOUT_S: '30'
-      LLM_INTENT_MAX_TOKENS: '64'
+      LLM_INTENT_TIMEOUT_S: '45'
+      LLM_INTENT_MAX_TOKENS: '128'
+      LLM_LEGACY_MAX_TOKENS: 'true'
+      SEMANTIC_ROUTE_ENABLED: 'true'
+      SEMANTIC_ROUTE_MIN_SCORE: '0.78'
+      SEMANTIC_ROUTE_MIN_MARGIN: '0.06'
+      SEMANTIC_ROUTE_TIMEOUT_S: '4'
       LLM_WARMUP_ENABLED: 'true'
+      LLM_WARMUP_TIMEOUT_S: '180'
       LLM_KEEP_ALIVE_S: '-1'
       EMBEDDING_PROVIDER: ollama
       EMBEDDING_MODEL: shaw/dmeta-embedding-zh
@@ -203,5 +227,6 @@ volumes:
   milvus-data:
   ollama-data:
   embeddings-data:
+  intent-data:
   ai-service-data:
   after-sale-evidence:

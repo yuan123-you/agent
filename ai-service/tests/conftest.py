@@ -86,3 +86,30 @@ def _fake_retrievers(monkeypatch):
 def _no_network():
     """确保单测在关闭 tracing 的前提下进行（不触发外部依赖）。"""
     assert settings.langfuse_enabled is False
+
+
+@pytest.fixture(autouse=True)
+def _offline_semantic_routing(monkeypatch):
+    """Semantic unit tests inject vectors; unrelated model tests abstain without networking."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.agent import nodes
+    monkeypatch.setattr(nodes, "get_semantic_router", lambda: SimpleNamespace(classify=AsyncMock(return_value=None)))
+    monkeypatch.setattr(nodes, "get_intent_llm", lambda: SimpleNamespace(
+        ainvoke=AsyncMock(side_effect=RuntimeError("Offline test: inject semantic/model decision explicitly"))))
+
+
+@pytest.fixture
+def semantic_route(monkeypatch):
+    """Inject a validated semantic result when testing consumers, not embedding accuracy."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.agent import nodes
+    from app.agent.request_decision import RequestDecision
+    def choose(intent, next_step=None, missing=None):
+        decision=RequestDecision(intent, next_step or ("retrieve" if intent=="AFTER_SALE_FAQ" else "assist"),
+                                 missing, source="embedding",score=.95,margin=.2)
+        router=SimpleNamespace(classify=AsyncMock(return_value=decision))
+        monkeypatch.setattr(nodes,"get_semantic_router",lambda:router)
+        return router
+    return choose

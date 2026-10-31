@@ -12,7 +12,7 @@ class IntentLLM:
         self.intent, self.messages = intent, []
     async def ainvoke(self, messages):
         self.messages = messages
-        return AIMessage(content=json.dumps({'intent': self.intent, 'confidence': 0.99}))
+        return AIMessage(content=json.dumps({'intent': self.intent, 'confidence': 0.99, 'next_step': 'retrieve' if self.intent=='AFTER_SALE_FAQ' else 'assist'}))
 
 @pytest.fixture(autouse=True)
 def isolated_context():
@@ -32,7 +32,8 @@ def isolated_context():
     ('你好，帮我查订单', 'UNKNOWN', 'ORDER_QUERY'),
     ('帮我买一个拍照好看的手机', 'ORDER_CREATE', 'PRODUCT_CONSULT'),
 ])
-async def test_router_respects_latest_request_over_model_guess(monkeypatch, text, model_intent, expected):
+async def test_semantic_request_route_precedes_model_guess(monkeypatch, semantic_route, text, model_intent, expected):
+    semantic_route(expected)
     monkeypatch.setattr(nodes, 'get_intent_llm', lambda: IntentLLM(model_intent))
     result = await nodes.intent_router_node({'messages': [HumanMessage(content=text)]})
     assert result['intent'] == expected

@@ -24,7 +24,8 @@ def test_explicit_policy_question_requires_grounding(text,expected):
     assert request_policy.requires_kb(text) is expected
 
 @pytest.mark.asyncio
-async def test_small_talk_classifier_cannot_bypass_explicit_policy_retrieval(monkeypatch):
+async def test_confident_semantic_policy_route_cannot_be_bypassed_by_model_fallback(monkeypatch, semantic_route):
+    semantic_route("AFTER_SALE_FAQ")
     monkeypatch.setattr(nodes,'get_intent_llm',lambda:SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content='{"intent":"SMALL_TALK"}'))))
     result=await nodes.intent_router_node({'messages':[HumanMessage(content=QUESTION)]})
     assert result['intent']=='AFTER_SALE_FAQ'
@@ -120,7 +121,8 @@ async def test_extractive_policy_mode_does_not_trust_unapproved_tool_evidence(mo
     model.ainvoke.assert_not_awaited()
 
 @pytest.mark.asyncio
-async def test_policy_full_graph_emits_synthesized_grounded_sse(monkeypatch):
+async def test_policy_full_graph_emits_synthesized_grounded_sse(monkeypatch, semantic_route):
+    semantic_route("AFTER_SALE_FAQ")
     from langgraph.checkpoint.memory import MemorySaver
     from app.agent.graph import build_graph
     from app.rag import retrieval
