@@ -96,6 +96,20 @@ services:
     volumes: [/srv/aimall/searxng:/etc/searxng]
     environment:
       SEARXNG_BASE_URL: http://localhost:8080
+  reranker:
+    build: ./reranker
+    restart: unless-stopped
+    mem_limit: 3g
+    cpus: 3.0
+    environment:
+      MODEL_DIR: /models
+      RERANK_THREADS: '3'
+    volumes: [reranker-data:/models:ro]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=5)"]
+      interval: 15s
+      retries: 10
+      start_period: 90s
   ai-service:
     build: ../ai-service
     restart: unless-stopped
@@ -124,6 +138,16 @@ services:
       BACKEND_BASE_URL: http://backend:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?required}
       RERANKER_ENABLED: 'false'
+      RAG_RERANKER_ENABLED: 'true'
+      RAG_RERANKER_BASE_URL: http://reranker:8001
+      RAG_RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+      RAG_RERANKER_ENDPOINT: /v1/rerank
+      RAG_RERANKER_TIMEOUT_S: '20'
+      RAG_RERANKER_BATCH_SIZE: '10'
+      RAG_VECTOR_RECALL_K: '20'
+      RAG_BM25_RECALL_K: '20'
+      RAG_RRF_TOP_K: '10'
+      RAG_FINAL_TOP_K: '4'
       PRODUCT_SYNC_ENABLED: 'true'
       PRODUCT_SYNC_INTERVAL_S: '3600'
       KB_RESPONSE_MODE: generate
@@ -137,6 +161,7 @@ services:
     volumes: [ai-service-data:/app/data]
     depends_on:
       milvus: {condition: service_healthy}
+      reranker: {condition: service_healthy}
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=5)"]
       interval: 20s
@@ -205,3 +230,4 @@ volumes:
   embeddings-data:
   ai-service-data:
   after-sale-evidence:
+  reranker-data:
