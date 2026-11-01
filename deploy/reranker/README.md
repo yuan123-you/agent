@@ -24,7 +24,7 @@ Use the normal private production env file; never place credentials in this dire
 
 ```sh
 C="docker compose --env-file /srv/aimall/secrets/production.env -f deploy/compose.production.yml"
-$C build reranker
+$C build ai-service reranker
 docker volume create --label com.docker.compose.project=aimall-prod --label com.docker.compose.volume=reranker-data aimall-prod_reranker-data
 docker run --rm --memory 256m --cpus 1 -v aimall-prod_reranker-data:/models aimall-prod-reranker python download_model.py /models
 $C up -d --no-deps --wait reranker
@@ -35,8 +35,10 @@ The downloader verifies SHA256 before publishing each file, reuses only verified
 files and removes corrupt partial downloads. Runtime mounts weights read-only and
 performs checksum verification before native model loading. No runtime model downloads,
 PyTorch installation, paid service or arbitrary remote Python code are used.
-For this activation the verified original AI image is retained; do not rebuild the
-unrelated blocked generation-model branch during rollout.
+Build the AI image from this production-base branch, which changes only evidence
+message order and native embedding batch configuration. Chat/intent weights remain
+qwen2.5:1.5b and embeddings remain dmeta/768. Do not build the unrelated blocked
+generation-model/semantic-router branch during this rollout.
 
 ## Provenance
 
@@ -49,6 +51,10 @@ lock pins the actual exported files, not an unverified assertion about its upstr
 base-model commit. Original model license is Apache-2.0 per the publisher's card.
 
 ## Verification boundaries
+
+Production uses a two-text native embedding batch cap and24h encoder keepalive to
+avoid repeated cold loads and long waits behind bulk document encoding; this changes
+neither the encoder nor its indexed vector space.
 
 Unit tests cover pair ordering, sigmoid, stable output indices, request limits,
 verified downloads, overload and cancellation. They do not measure model accuracy.

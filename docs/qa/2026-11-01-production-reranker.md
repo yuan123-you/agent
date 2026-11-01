@@ -6,9 +6,10 @@ Status: isolated real-model tests complete; production cutover pending verificat
 
 This branch starts from verified production323b1ac, not the blocked semantic/generation
 upgrade ondev405698e. Chat and intent remainqwen2.5:1.5b; embeddings remain
-shaw/dmeta-embedding-zh/768 and collections stay unchanged. No AI/backend/frontend
-source files change. Only a dedicated cross-encoder service and production configuration
-are added. No Ollama JSON-scoring or product reranking is enabled.
+shaw/dmeta-embedding-zh/768 and collections stay unchanged. The initial attempt changed no application source. The measured integration follow-up
+changes only evidence-message ordering plus a bounded native embedding batch configuration;
+intent/ownership/confirmation/backend/frontend logic stays unchanged. A dedicated
+cross-encoder service and production configuration are added. No Ollama JSON-scoring or product reranking is enabled.
 
 Model: BAAI/bge-reranker-v2-m3, onnx-community INT8 export revision
 6f5ff65298512715a1e669753bc754d2bc8f367b. Model SHA256:
@@ -55,3 +56,47 @@ with ingress concurrency limits. Follow-up review and final tests are recorded b
 Auxiliary evaluation/credential hygiene plus reranker tests:50 passed. Existing deployment static baseline:11 passed,1 unchanged CartView simulated-payment-text failure.
 
 Production cutover and final HTTP/runtime evidence will be appended only after actual verification.
+
+
+## First HTTP cutover blocked and rolled back
+
+Thee73ad2f activation successfully enabled real production rerank scores, preserved all
+original eight dependencies and the original AI image, and passed the direct KB positive/
+negative checks. However the dedicated QA HTTP question about review timeout produced the
+false statement that timeout automatically approves. Verification rejected it and restored
+production323b1ac. The QA actor was disabled. This failure is not counted as a successful
+release and the original diagnostic record is retained privately.
+
+The actual trace attributed57.434s to query encoding,9.680s to reranking and26.764s to
+answer generation. Ranked source209 scored0.979642; source233 scored0.716902. Both expressly
+require human handling and deny automatic approval. Thus the false claim was not supported
+by the cited source; the ranker had found the relevant negative evidence.
+
+## Controlled follow-up, without new model weights
+
+Same original question, same four complete approved sources and same1.5B model:
+- Original question-first data layout reproduced the false affirmative answer.
+- Evidence-first/original-question-last layout produced a correctly negative answer.
+
+The source data stays in the Human message, the system message is not interpolated with
+user text, and all source/citation/dump guards remain. No business-keyword scoring, forced
+citation, approval exemption, model/embedding switch or confidence-threshold reduction is
+introduced. This is a small input-layout integration correction, not a general proof of
+factual entailment.
+
+Native replay with actual hybrid retrieval and the corrected layout:
+- Exact failed question:9.41s total,7.34s retrieval; correctly denied automatic approval.
+- Cross-product/SKU exchange:27.88s total,9.22s retrieval; correctly denied cross-SKU exchange.
+- Deadline question:32.92s total; retrieval succeeded but generation failed formatting and
+  returned the safe existing failure response. This remains a generator limitation, not a
+  successful answer or fabricated business clarification.
+- Unknown invoice:6.62s, explicitly insufficient evidence, no invented citation.
+
+The native document batch cap now defaults to16 for backwards compatibility and is2 in
+production; keepalive is24h instead of2m. Encoder/model/dimension and both collection names
+remain unchanged. A read-only shared-weight isolated encoder was used for the batch test,
+not a new model download:6 document encodings under a two-text batch cap yielded a5.26s
+interactive query and768-dimensional outputs, with no index writes. Its cgroup recorded
+no memory-limit or OOM events during that test. This is not a universal latency guarantee.
+
+Follow-up engineering verification:582 AI tests passed;51 dedicated/auxiliary/hygiene tests passed. The product-scope fake-provider reader was adapted to the new Human data envelope without relaxing any product/citation assertions. Independent review found no actionable regression in these three scoped app changes.

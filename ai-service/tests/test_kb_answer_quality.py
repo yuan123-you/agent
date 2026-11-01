@@ -346,3 +346,14 @@ async def test_streamed_internal_json_is_replaced_by_rendered_terminal_answer(mo
     assert tokens==done["content"]==ANSWER
     assert done["citations"][0]["chunk_id"]==7
     assert '"points"' not in tokens
+
+
+@pytest.mark.asyncio
+async def test_approved_evidence_precedes_the_original_question_without_promoting_user_data(monkeypatch):
+    model, state = setup(monkeypatch)
+    await nodes.agent_node(state)
+    system, data = model.ainvoke.call_args.args[0]
+    assert data.content.rstrip().endswith(QUESTION)
+    assert data.content.index("sources") < data.content.rindex(QUESTION)
+    assert SOURCE in data.content.replace("\\n", "\n")
+    assert QUESTION not in system.content

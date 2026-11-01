@@ -179,3 +179,9 @@ def test_production_recall_fusion_and_fine_ranking_windows_are_explicit():
     for key, value in {"RAG_VECTOR_RECALL_K":20, "RAG_BM25_RECALL_K":20,
                        "RAG_RRF_TOP_K":10, "RAG_FINAL_TOP_K":4}.items():
         assert f"{key}: '{value}'" in text
+
+
+def test_production_query_encoder_does_not_expire_between_slow_turns_or_run_huge_batches():
+    text=(Path(__file__).parent/"compose.production.yml").read_text(encoding="utf-8")
+    assert "OLLAMA_KEEP_ALIVE: 24h" in text
+    assert "OLLAMA_EMBED_BATCH_SIZE: '2'" in text

@@ -13,3 +13,12 @@ Architecture: existing typed HTTP client calls an internal CPU ONNX BAAI/bge-rer
 - [ ] Verify real scores, fallback, original models, readiness/public API and read-only QA stream; rollback on failure.
 
 Non-goals: product reranking, generation upgrades, data/index rebuilds, paid services or unrelated UI changes. Relevance ranking is not answer entailment.
+
+
+Integration follow-up: first HTTP rollout was rejected and rolled back when the unchanged
+1.5B generator inverted the approval rule despite correct high-scoring sources. A controlled
+same-model/same-evidence test justified only moving the original question after complete
+evidence. Trace evidence also justified limiting native background embedding batches to2
+and keeping the same encoder resident24h. These three small app-file changes are included
+in the second candidate; no semantic-router/generation-model upgrade is included. Deadline
+formatting failure remains safely refused and must not be counted as a successful answer.

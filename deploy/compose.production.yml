@@ -130,7 +130,8 @@ services:
       EMBEDDING_DIM: '768'
       OLLAMA_BASE_URL: http://embeddings:11434
       OLLAMA_NUM_GPU: '0'
-      OLLAMA_KEEP_ALIVE: 2m
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_EMBED_BATCH_SIZE: '2'
       OLLAMA_NUM_CTX: '2048'
       MILVUS_URI: http://milvus:19530
       MILVUS_COLLECTION: kb_chunks_dmeta_zh_768

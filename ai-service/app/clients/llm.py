@@ -204,6 +204,7 @@ def _make_embeddings(
             model=model,
             dimensions=dimensions,
             keep_alive=settings.ollama_keep_alive,
+            max_batch_size=getattr(settings, "ollama_embed_batch_size", 16),
             num_ctx=settings.ollama_num_ctx,
             num_gpu=settings.ollama_num_gpu,
         )

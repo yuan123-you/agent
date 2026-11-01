@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     ollama_keep_alive: str = "10m"
     ollama_num_ctx: int = Field(default=2048, ge=512)
     ollama_num_gpu: int = Field(default=10, ge=0)
+    # Bound background document batches so interactive queries do not wait behind 16 long texts.
+    ollama_embed_batch_size: int = Field(default=16, ge=1, le=16)
 
     # Optional Qwen3 second-stage reranker
     reranker_enabled: bool = False

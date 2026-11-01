@@ -76,7 +76,9 @@ async def test_selected_product_policy_answer_excludes_other_product_evidence(mo
     from langchain_core.messages import AIMessage
 
     async def synthesize(messages, **kwargs):
-        evidence = json.loads(messages[-1].content)["sources"]
+        data = messages[-1].content.split("\n", 1)[1]
+        evidence = json.JSONDecoder().raw_decode(data)[0]["sources"]
+        assert messages[-1].content.endswith("这款商品的退货条件是什么？")
         assert all("乙凭证" not in source["text"] for source in evidence)
         return AIMessage(content="\n".join(source["text"] + f'[{source["id"]}]' for source in evidence))
 

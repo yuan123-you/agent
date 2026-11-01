@@ -17,3 +17,21 @@ class ProductionLlmConfigTests(unittest.TestCase):
             self.assertEqual(constructor.call_args.kwargs.get('max_retries'),0)
 
 if __name__=='__main__': unittest.main()
+
+
+def test_native_embedding_factory_respects_small_cpu_batch_limit(monkeypatch):
+    config = SimpleNamespace(ollama_keep_alive="24h", ollama_num_ctx=2048,
+        ollama_num_gpu=0, ollama_embed_batch_size=2)
+    monkeypatch.setattr(llm,"settings",config)
+    with patch.object(llm,"OllamaEmbeddings") as constructor:
+        llm._make_embeddings("http://embeddings:11434", "", "shaw/dmeta-embedding-zh", provider="ollama",dimensions=768)
+        assert constructor.call_args.kwargs["max_batch_size"] == 2
+        assert constructor.call_args.kwargs["keep_alive"] == "24h"
+
+
+def test_embedding_batch_configuration_rejects_zero_or_unbounded_values():
+    import pytest
+    from app.config import Settings
+    for value in (0, 17):
+        with pytest.raises(ValueError):
+            Settings(_env_file=None, ollama_embed_batch_size=value)
