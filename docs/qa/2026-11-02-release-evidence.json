@@ -1,0 +1,105 @@
+{
+  "date": "2026-11-02",
+  "branch": "codex/native-agent-recovery",
+  "business_commit": "4343ca2f103b6225d9f4413b15d3badf4496810c",
+  "staging": {
+    "status": "PASSED",
+    "scope": "isolated MySQL/Redis/application containers; synthetic customer/order state; shared existing model/Milvus services only with owned test collections",
+    "checks": {
+      "old_preparation": true,
+      "mysql_v19_to_v20_backfill": true,
+      "stable_preparation": true,
+      "payload_binding": true,
+      "restart_waiting_no_approval": true,
+      "concurrent_approve_one_order": true,
+      "canonical_delivery": true,
+      "cross_owner_denied": true,
+      "cancel_replay": true,
+      "after_sale_submission_replay": true,
+      "mysql_one_effect_per_action": true,
+      "actual_milvus_insert_search_isolated_collection": true,
+      "embedding_768": true,
+      "actual_reranker": true,
+      "actual_llm_sdk": true,
+      "owned_test_collections_removed": true,
+      "native_provenance_no_downgrade": true,
+      "legacy_flag_off_confirm": true
+    }
+  },
+  "production": {
+    "status": "VERIFIED",
+    "checks": {
+      "backend_health": true,
+      "public_read_budget_headers_ignored": true,
+      "internal_auth": true,
+      "expired_internal_admission_rejected": true,
+      "native_feature_off": true,
+      "ai_dependencies_ready": true,
+      "dense_bm25_real_rerank": true,
+      "actual_backend_sse_readonly": true,
+      "owned_qa_actor_disabled": true,
+      "public_https_current_frontend": true,
+      "all_ten_services_healthy": true,
+      "seven_dependencies_unchanged": true
+    },
+    "models": {
+      "chat": "qwen2.5:1.5b",
+      "intent": "qwen2.5:1.5b",
+      "embedding": "shaw/dmeta-embedding-zh",
+      "dim": 768,
+      "reranker": "BAAI/bge-reranker-v2-m3"
+    },
+    "rag_smoke": {
+      "answerable": true,
+      "reason": "high_confidence",
+      "chunk_ids": [
+        209,
+        242,
+        228,
+        233
+      ],
+      "scores": [
+        0.971419,
+        0.967239,
+        0.841086,
+        0.645924
+      ],
+      "degraded": false
+    },
+    "after_images": {
+      "ai-service": "sha256:4822c059dd78ae6c9998bab02f780d95594a2c4ceef48aeb9ee0b4fc0098581a",
+      "backend": "sha256:e95f0fdeb2c08b634b333cbbbe77acfa5966ce8966f46cf17d058afc848a6f22",
+      "frontend": "sha256:41a1b68515612d47b24f96c6027b94542e9215f77d088ede59e030622375d433",
+      "mysql": "sha256:63823b8e2cbe4ae0c558155e02d00beba56130fbc3d147efccbdb328ae2dbb9e",
+      "redis": "sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+      "minio": "sha256:288240c466021999f6f1297fce33b5167876a8fc24fdb35ca80fdb2eeb664ed3",
+      "milvus": "sha256:ab599c8ef70f92bd8ae2b743a5830bd677076c66eedc494e81c0e0e5011aee67",
+      "ollama": "sha256:69f27594d8127cb43db1edcafa5e2d3cd8f88bdbc54a2cf3ceb11b8d138a24b1",
+      "embeddings": "sha256:69f27594d8127cb43db1edcafa5e2d3cd8f88bdbc54a2cf3ceb11b8d138a24b1",
+      "reranker": "sha256:af5a0fc6a93faeccf4041c1267296cf3d9390f23588a8c25fe530f414e34b7ec"
+    }
+  },
+  "runtime_component_trees": {
+    "ai-service": "b0bfe5d3f70052a96b3b15d6a7ea7b55bac57495",
+    "backend": "700d5f9def0936b645d8f4074fdc354fc5aea3d6",
+    "frontend": "19937e6877fa6d537cd8160300a55b7c07707984"
+  },
+  "frontend_build_args": {
+    "VITE_BASE_PATH": "/aimall/"
+  },
+  "limits": [
+    "Native approval stays OFF in production; financial workflow tests used isolated synthetic data.",
+    "Single production RAG smoke case, not a new accuracy benchmark or SLA.",
+    "Two intermediate application rollbacks occurred: verifier assumptions, then missing frontend subpath build argument; final checks passed."
+  ],
+  "runtime_controls": {
+    "pymilvus": "2.4.15",
+    "langgraph": "1.2.11",
+    "langgraph-checkpoint-sqlite": "3.1.2",
+    "aiosqlite": "0.22.1",
+    "native_enabled": false,
+    "retry_budget_limit": 6,
+    "sdk_chat_retries": 0,
+    "sdk_intent_retries": 0
+  }
+}

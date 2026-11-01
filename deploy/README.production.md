@@ -1,6 +1,16 @@
 # AI Mall Oracle 部署与运维
 
-## 最新热修复：到货表达追问（2026-10-30，已部署）
+## 最新发布：原生恢复代码与统一重试（2026-11-02，已部署）
+
+- 业务提交 `4343ca2f103b6225d9f4413b15d3badf4496810c`，分支 `codex/native-agent-recovery`；独立的 `dev` 分支未覆盖。
+- 10 个服务健康，仅更新 AI/backend/frontend；其余 7 个依赖的容器、镜像与 restart count 未变。MySQL V20 已验证并应用，私密备份/旧镜像保留。
+- 当前 chat/intent 为 `qwen2.5:1.5b`，embedding 为 `shaw/dmeta-embedding-zh` / 768，重排为 `BAAI/bge-reranker-v2-m3`。没有模型或向量空间迁移。
+- 统一错误分类、Full Jitter、Retry-After、总 deadline、共享 retry budget 与单次网关已生效；原生审批代码已部署，但 `ACTION_WORKFLOWS_ENABLED=false`，不擅自启用交易确认。
+- 真实隔离 MySQL/HTTP/native 恢复、实际 SDK/检索/重排/SSE 与公开前端入口通过；QA 账号已禁用。生产不做金融确认。
+- 本地 AI787 / Java868 / frontend581 / aux150 通过，TypeScript/Vite 通过；Windows→Linux 证据换行等价已验证。
+- 实际发布包含两次自动回滚，修正验收脚本假设与前端生产 base 参数后最终通过；完整范围、限制及证据见 `../docs/qa/2026-11-02-workspace-release.md`。
+
+## 历史热修复：到货表达追问（2026-10-30，已部署）
 
 - 当前应用提交 `7c24714f3a4bc265761ae975fd374bcb3dcdff33`。补齐“到货、货到、到手、签收”信号，避免“到货后不满意怎么办”误入知识库检索。
 - 579 项 AI 测试、32 项辅助测试通过；52 项生产专项检查通过，9 个服务健康。仅替换 AI 容器，其余 8 个容器不变。
