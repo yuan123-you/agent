@@ -48,6 +48,7 @@
         :action="action"
         @confirm="chat.confirmOrderAction"
         @cancel="chat.cancelOrderAction"
+        @recover="chat.recoverOrderAction"
         @view-order="viewOrder"
         @view-after-sale="id => router.push('/after-sales/'+id)"
       />

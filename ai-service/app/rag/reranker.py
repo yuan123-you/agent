@@ -1,7 +1,6 @@
 """Optional local and Qwen-compatible HTTP rerankers."""
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import math
@@ -13,6 +12,7 @@ import httpx
 
 from app.config import settings
 from app.rag.retrieval import RetrievalCandidate
+from app.resilience import budget_scope, run
 
 logger = logging.getLogger("ai-service.reranker")
 
@@ -54,23 +54,30 @@ class QwenHttpReranker:
 
         request_options = {"headers": {"Authorization": f"Bearer {self._api_key}"}} if self._api_key else {}
         scored: list[tuple[RetrievalCandidate, float]] = []
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            for start in range(0, len(candidates), self._batch_size):
-                batch = candidates[start : start + self._batch_size]
-                response = await client.post(
-                    self._url,
-                    json={
-                        "model": self._model,
-                        "query": query,
-                        "documents": [candidate.content for candidate in batch],
-                        "top_n": len(batch),
-                    },
-                    timeout=self._timeout,
-                    **request_options,
-                )
-                response.raise_for_status()
-                scores = self._validated_scores(response.json(), len(batch))
-                scored.extend(zip(batch, scores, strict=True))
+        with budget_scope(self._timeout):
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                for start in range(0, len(candidates), self._batch_size):
+                    batch = candidates[start : start + self._batch_size]
+
+                    async def attempt(timeout: float) -> httpx.Response:
+                        response = await client.post(
+                            self._url,
+                            json={
+                                "model": self._model,
+                                "query": query,
+                                "documents": [candidate.content for candidate in batch],
+                                "top_n": len(batch),
+                            },
+                            timeout=timeout,
+                            **request_options,
+                        )
+                        response.raise_for_status()
+                        return response
+
+                    response = await run("model.qwen.rerank", attempt, replay_safe=True,
+                                         attempt_timeout_s=self._timeout)
+                    scores = self._validated_scores(response.json(), len(batch))
+                    scored.extend(zip(batch, scores, strict=True))
 
         for candidate, score in scored:
             candidate.rerank_score = score
@@ -148,13 +155,13 @@ class OllamaReranker:
                 "num_ctx": settings.ollama_num_ctx, "num_gpu": settings.ollama_num_gpu,
             },
         }
-        for attempt in range(2):
-            response = await client.post(self._url, json=payload)
-            if attempt == 0 and (response.status_code == 429 or response.status_code >= 500):
-                await asyncio.sleep(1)
-                continue
+        async def attempt(timeout: float) -> httpx.Response:
+            response = await client.post(self._url, json=payload, timeout=timeout)
             response.raise_for_status()
-            break
+            return response
+
+        response = await run("model.ollama.rerank", attempt, replay_safe=True,
+                             attempt_timeout_s=self._timeout, total_timeout_s=self._timeout)
         raw = response.json().get("response", "")
         try:
             value = float(json.loads(raw)["score"])
@@ -171,8 +178,9 @@ class OllamaReranker:
         if not self.enabled:
             return hits[:top_n]
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-                scores = [await self._score(client, query, hit.get("content", "")) for hit in hits]
+            with budget_scope(self._timeout):
+                async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
+                    scores = [await self._score(client, query, hit.get("content", "")) for hit in hits]
         except Exception as exc:
             logger.warning("reranker unavailable; preserving fused order: %s", exc)
             return hits[:top_n]

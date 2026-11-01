@@ -22,7 +22,8 @@ class ScalarFilterMilvus:
             {"id": 801, "doc_id": 8, "doc_version": 1},
         ]
 
-    def delete(self, *, collection_name, filter):
+    def delete(self, *, collection_name, filter, timeout, retry_times, retry_on_rate_limit):
+        assert timeout > 0 and retry_times == 0 and retry_on_rate_limit is False
         comparisons = {"==": operator.eq, "!=": operator.ne, "<": operator.lt}
         conditions = []
         for clause in filter.split(" and "):
@@ -37,10 +38,12 @@ class ScalarFilterMilvus:
         self.rows = kept
         return {"delete_count": deleted}
 
-    def has_collection(self, name):
+    def has_collection(self, name, **kwargs):
+        assert kwargs["timeout"] > 0 and kwargs["retry_times"] == 0
         return False
 
-    def insert(self, *, collection_name, data):
+    def insert(self, *, collection_name, data, **kwargs):
+        assert kwargs["timeout"] > 0 and kwargs["retry_times"] == 0
         self.rows.extend(data)
 
     def ids(self):

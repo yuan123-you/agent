@@ -54,6 +54,9 @@ app:
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:120}
     refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
   ai:
+    action-workflows-enabled: ${ACTION_WORKFLOWS_ENABLED:false}
+    chat-timeout: ${AI_CHAT_TIMEOUT:180s}
+    ingest-timeout: ${AI_INGEST_TIMEOUT:30s}
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
     internal-token: ${INTERNAL_TOKEN}
   storage:

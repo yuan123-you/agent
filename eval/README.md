@@ -82,3 +82,34 @@ python eval/scripts/calibrate_answerability.py --input eval/dataset/rag_answerab
 ```
 
 输出仅包含按 F1、precision、reject rate 和参数元组稳定排序的 `best` 与 `candidates` 报告；每个候选包含 `min_score`、`high_score`、`min_margin`、`precision`、`recall`、`f1`、`reject_rate`。CLI 只写显式传给 `--output` 的报告，不会修改应用配置或 `.env`。当前生产默认阈值是**未经校准的可运行基线**；是否采用报告候选必须人工评审。
+
+## 原生恢复与真实检索消融（2026-11-01）
+
+这组证据与旧的规则/离线基线分开，不把 fixture/mock 结果当作真实模型质量：
+
+```bash
+# 在仓库根目录；默认只校验冻结数据，不连模型
+python -m eval.rag_quality
+# 显式只读模型/发布知识库调用；不写索引、不调用订单/售后/转人工工具
+python -m eval.rag_quality --live --ack-read-only --exclude-unresolved
+# 无网络；真实子进程退出/重启 + 真实 LangGraph/SQLite，业务账本是合成数据
+python -m eval.native_recovery_evidence
+```
+
+数据集卡片见 `docs/qa/2026-11-01-rag-quality-dataset.md`；实际测量与限制见
+`docs/qa/2026-11-01-native-agent-recovery.md`。
+`rq27` 标签未解决，必须显式排除，不得悄悄视为负例。
+当前 gold 为 AI 预标注、未人工复核，不等于答案正确率、合规认证或生产 SLA。
+
+## 统一重试的故障证据（不接外部模型）
+
+仓库根目录执行：
+
+```bash
+python -m pytest eval/tests/test_retry_evidence.py -q
+python -m eval.retry_evidence
+```
+
+使用本地临时端口、真实 TCP/HTTPX 与合成账本验证八种固定故障。
+它不是 MockTransport 冒充线上测量，不需要生产地址/凭证，也不计为模型准确率或 SLA。
+源码/运行时版本、真实请求数及效果数随报告输出；条件不成立时退出非零、不发布成功报告。

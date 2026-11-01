@@ -85,3 +85,11 @@ aimall-*.png
 
 # Private after-sale evidence (served only after case authorization)
 **/data/after-sale-evidence/
+
+# Durable checkpoint sidecars may contain approval/recipient data
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm

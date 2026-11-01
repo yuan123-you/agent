@@ -12,9 +12,36 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from app.config import settings
 from app.clients.ollama import OllamaEmbeddings
+from app.resilience import ResilientAsyncTransport, budget_scope, run
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+_model_clients: dict[tuple[asyncio.AbstractEventLoop | None, str, float], httpx.AsyncClient] = {}
+
+
+def _model_http_client(operation: str, timeout: float) -> httpx.AsyncClient:
+    # Never reuse an async connection pool across asyncio.run/event-loop boundaries.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    key = (loop, operation, timeout)
+    client = _model_clients.get(key)
+    if client is None or client.is_closed:
+        client = httpx.AsyncClient(
+            timeout=timeout,
+            transport=ResilientAsyncTransport(operation, replay_safe=True, timeout_s=timeout),
+        )
+        _model_clients[key] = client
+    return client
+
+
+async def close_model_clients() -> None:
+    """Release shared SDK HTTP pools; application lifespan owns this shutdown hook."""
+    clients = list(_model_clients.values())
+    _model_clients.clear()
+    for client in clients:
+        await client.aclose()
 
 
 def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
@@ -27,7 +54,8 @@ def get_chat_llm(streaming: bool = True) -> ChatOpenAI:
         streaming=streaming,
         timeout=settings.llm_chat_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
-        max_retries=1,
+        max_retries=0,
+        http_async_client=_model_http_client("model.chat", settings.llm_chat_timeout_s),
     )
 
 
@@ -42,6 +70,7 @@ def get_intent_llm(*, classification: bool = True) -> ChatOpenAI:
         timeout=settings.llm_intent_timeout_s,
         reasoning_effort=settings.llm_reasoning_effort,
         max_retries=0,
+        http_async_client=_model_http_client("model.intent", settings.llm_intent_timeout_s),
         max_tokens=getattr(settings, "llm_intent_max_tokens", 64) if classification else None,
     )
 
@@ -55,17 +84,23 @@ async def warm_local_models() -> None:
     base = settings.llm_api_base.rstrip("/").removesuffix("/v1")
     jobs = [(settings.llm_intent_model, INTENT_SYSTEM_PROMPT),
             (settings.llm_chat_model, WEB_SYSTEM_PROMPT)]
-    async with asyncio.timeout(settings.llm_warmup_timeout_s):
-        async with httpx.AsyncClient(timeout=settings.llm_warmup_timeout_s) as client:
-            for model, prompt in jobs:
-                response = await client.post(base + "/api/chat", json={
-                    "model": model, "messages": [{"role": "system", "content": prompt}],
-                    "stream": False, "keep_alive": settings.llm_keep_alive_s,
-                    # A single preload token only; user-facing answers have no new output cap.
-                    "options": {"num_predict": 1, "temperature": 0},
-                })
-                response.raise_for_status()
-                logger.info("local LLM prompt prefix preloaded: %s", model)
+    with budget_scope(settings.llm_warmup_timeout_s):
+        async with asyncio.timeout(settings.llm_warmup_timeout_s):
+            async with httpx.AsyncClient(timeout=settings.llm_warmup_timeout_s) as client:
+                for model, prompt in jobs:
+                    async def attempt(timeout: float) -> httpx.Response:
+                        response = await client.post(base + "/api/chat", json={
+                            "model": model, "messages": [{"role": "system", "content": prompt}],
+                            "stream": False, "keep_alive": settings.llm_keep_alive_s,
+                            # A preload token only; user-facing answers have no new output cap.
+                            "options": {"num_predict": 1, "temperature": 0},
+                        }, timeout=timeout)
+                        response.raise_for_status()
+                        return response
+
+                    await run("model.warmup", attempt, replay_safe=True,
+                              attempt_timeout_s=settings.llm_warmup_timeout_s)
+                    logger.info("local LLM prompt prefix preloaded: %s", model)
 
 
 class MaaSEmbeddings(Embeddings):
@@ -79,9 +114,14 @@ class MaaSEmbeddings(Embeddings):
     async def _acall(self, texts: list[str]) -> list[list[float]]:
         payload = {"model": self._model, "input": texts}
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(self._url, headers=self._headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+            async def attempt(timeout: float) -> httpx.Response:
+                response = await client.post(self._url, headers=self._headers, json=payload, timeout=timeout)
+                response.raise_for_status()
+                return response
+
+            resp = await run("model.maas.embeddings", attempt, replay_safe=True,
+                             attempt_timeout_s=30, total_timeout_s=30)
+        data = resp.json()
         items = data.get("data") or data.get("output", {}).get("embeddings", [])
         items.sort(key=lambda e: e.get("index", 0))
         return [e["embedding"] for e in items]
@@ -91,8 +131,9 @@ class MaaSEmbeddings(Embeddings):
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         results: list[list[float]] = []
-        for i in range(0, len(texts), 4):
-            results.extend(await self._acall(texts[i:i + 4]))
+        with budget_scope(30):
+            for i in range(0, len(texts), 4):
+                results.extend(await self._acall(texts[i:i + 4]))
         return results
 
     def embed_query(self, text: str) -> list[float]:
@@ -210,7 +251,10 @@ def _make_embeddings(
         )
     if provider.lower() == "maas" or "maas.aliyuncs.com" in base:
         return MaaSEmbeddings(base, key, model)
-    return OpenAIEmbeddings(base_url=base, api_key=key, model=model)
+    return OpenAIEmbeddings(
+        base_url=base, api_key=key, model=model, max_retries=0, timeout=30,
+        http_async_client=_model_http_client("model.openai.embeddings", 30),
+    )
 
 
 @lru_cache

@@ -85,9 +85,15 @@ services:
       MILVUS_URI: http://milvus:19530
       BACKEND_BASE_URL: http://backend:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN through the environment}
+      ACTION_WORKFLOWS_ENABLED: ${ACTION_WORKFLOWS_ENABLED:-false}
+      RETRY_BUDGET_LIMIT: ${RETRY_BUDGET_LIMIT:-6}
+      ACTION_WORKFLOW_TOTAL_TIMEOUT_S: ${ACTION_WORKFLOW_TOTAL_TIMEOUT_S:-15}
+      BACKGROUND_JOB_TIMEOUT_S: ${BACKGROUND_JOB_TIMEOUT_S:-300}
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-600}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-90}
       LANGFUSE_HOST: http://langfuse:3000
+    volumes:
+      - ai-service-data:/app/data
     # Docker 容器访问 Windows 主机上的 Ollama
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -123,6 +129,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET through the environment}
       AI_SERVICE_BASE_URL: http://ai-service:8000
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?Set INTERNAL_TOKEN through the environment}
+      ACTION_WORKFLOWS_ENABLED: ${ACTION_WORKFLOWS_ENABLED:-false}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER through the environment}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD through the environment}
@@ -201,6 +208,7 @@ services:
       start_period: 30s
 
 volumes:
+  ai-service-data:
   after-sale-evidence:
   mysql-data:
   redis-data:

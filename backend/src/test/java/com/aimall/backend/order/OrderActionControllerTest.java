@@ -11,6 +11,33 @@ import static org.mockito.Mockito.*;
 
 class OrderActionControllerTest {
     @Test
+    void nativeConfirmCancelAndRecoverOnlyCoordinateUsingAuthenticatedOwner() {
+        var service = mock(AgentOrderActionService.class);
+        var workflows = mock(com.aimall.backend.internal.ActionWorkflowCoordinator.class);
+        when(workflows.requiresNative(7L,"act")).thenReturn(true);
+        when(workflows.confirm(7L,"act",null)).thenReturn(java.util.Map.of("orderId",88L));
+        when(workflows.recover(7L,"act")).thenReturn(java.util.Map.of("workflow",java.util.Map.of("workflowStatus","WAITING_APPROVAL")));
+        var controller = new OrderActionController(service,workflows);
+        assertEquals(88L,controller.confirm(7L,"act",null).getData().get("orderId"));
+        controller.cancel(7L,"act");controller.recover(7L,"act");
+        verify(workflows).confirm(7L,"act",null);verify(workflows).cancel(7L,"act");verify(workflows).recover(7L,"act");
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void flagOffNativeProvenanceCannotReachLegacyConfirmationOrCancellation() {
+        var service=mock(AgentOrderActionService.class);
+        var props=new com.aimall.backend.config.AppProperties();
+        when(service.isNativeManaged(7L,"act")).thenReturn(true);
+        var workflows=new com.aimall.backend.internal.ActionWorkflowCoordinator(service,mock(com.aimall.backend.internal.ActionWorkflowClient.class),props);
+        var controller=new OrderActionController(service,workflows);
+        org.junit.jupiter.api.Assertions.assertThrows(com.aimall.backend.common.BizException.class,()->controller.confirm(7L,"act",null));
+        org.junit.jupiter.api.Assertions.assertThrows(com.aimall.backend.common.BizException.class,()->controller.cancel(7L,"act"));
+        org.junit.jupiter.api.Assertions.assertThrows(com.aimall.backend.common.BizException.class,()->controller.recover(7L,"act"));
+        verify(service,never()).confirm(anyLong(),anyString(),any());verify(service,never()).cancel(anyLong(),anyString());
+    }
+
+    @Test
     void confirmUsesAuthenticatedUserInsteadOfRequestSuppliedIdentity() {
         AgentOrderActionService service = mock(AgentOrderActionService.class);
         OrderInfo order = new OrderInfo();
@@ -79,4 +106,17 @@ class OrderActionControllerTest {
         verify(service).status(7L, "act_123");
         assertEquals("CANCELLED", response.getData().status());
     }
+    @Test void publicStatusAlwaysSerializesAuthoritativeNativeManagedIncludingFalse() {
+        var service=mock(AgentOrderActionService.class);
+        var controller=new OrderActionController(service);
+        var json=new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        for (boolean managed : new boolean[]{false,true}) {
+            when(service.status(7L,"act")).thenReturn(new AgentOrderActionService.ActionStatusResult(
+                    "ORDER_CREATE","PENDING",null,null,null,null,managed));
+            var data=json.valueToTree(controller.status(7L,"act")).path("data");
+            org.junit.jupiter.api.Assertions.assertTrue(data.has("nativeManaged"));
+            assertEquals(managed,data.path("nativeManaged").asBoolean());
+        }
+    }
+
 }

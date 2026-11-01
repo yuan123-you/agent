@@ -110,6 +110,16 @@ describe('拼多多风格购物车', () => {
     expect(host.querySelector('.goods-name')?.textContent).toContain('纯棉短袖')
     expect(host.querySelector('.checkout-submit-btn')).not.toBeNull()
   })
+  it('结算前在结算栏显示模拟支付且不会真实扣款的提示', async () => {
+    await mountPage()
+    const summary = host.querySelector<HTMLElement>('[aria-label="购物车结算"] .fcb-summary')!
+    expect(summary.textContent).toContain('模拟支付')
+    expect(summary.textContent).toContain('不会真实扣款')
+    expect(summary.textContent).toContain('优惠及运费以结算页为准')
+    expect(summary.closest('[hidden], [aria-hidden="true"]')).toBeNull()
+    expect(getComputedStyle(summary).display).not.toBe('none')
+    expect(getComputedStyle(summary).visibility).not.toBe('hidden')
+  })
   it('结算进入已有订单确认页，不直接创建订单或支付', async () => {
     await mountPage()
     click('.checkout-submit-btn'); await flush()

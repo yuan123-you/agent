@@ -109,6 +109,7 @@ class AgentOrderActionTransactionTest {
         table("conversation", Conversation.class);
         table("agent_action", AgentAction.class);
         jdbc.execute("create unique index uk_agent_action_order on agent_action(order_id)");
+        jdbc.execute("create unique index uk_agent_action_preparation on agent_action(user_id,conversation_id,preparation_key)");
         jdbc.update("insert into product(id,name,status,price,stock,version) values(10,'Product','ON_SALE',10,5,1)");
         jdbc.update("insert into conversation(id,user_id) values(20,7)");
         values = mock(ValueOperations.class);
@@ -142,6 +143,263 @@ class AgentOrderActionTransactionTest {
     private int count(String table) { return jdbc.queryForObject("select count(*) from " + table, Integer.class); }
     private String status(String id) {
         return jdbc.queryForObject("select status from agent_action where action_id=?", String.class, id);
+    }
+
+    @Test void preparationReplayReturnsOriginalSnapshotEvenAfterCatalogChanges() {
+        var request = new AgentOrderActionService.PrepareRequest(7L, 20L, 10L, 2,
+                "Buyer", "13800000000", "Test address", "call-create");
+        var first = service.prepare(request);
+        jdbc.update("update product set status='OFF_SALE', price=999 where id=10");
+        var replay = service.prepare(request);
+        assertEquals(first, replay);
+        assertEquals(1, count("agent_action"));
+        assertEquals(0, count("order_info"));
+        assertThrows(BizException.class, () -> service.prepare(new AgentOrderActionService.PrepareRequest(
+                7L, 20L, 10L, 3, "Buyer", "13800000000", "Test address", "call-create")));
+        assertEquals(1, count("agent_action"));
+    }
+
+    @Test void concurrentPreparationUsesDatabaseUniqueness() throws Exception {
+        var request = new AgentOrderActionService.PrepareRequest(7L, 20L, 10L, 2,
+                "Buyer", "13800000000", "Test address", "call-parallel");
+        var pool = Executors.newFixedThreadPool(2);
+        var start = new CountDownLatch(1);
+        try {
+            Callable<String> call = () -> { start.await(); return service.prepare(request).actionId(); };
+            var one = pool.submit(call); var two = pool.submit(call); start.countDown();
+            assertEquals(one.get(15, TimeUnit.SECONDS), two.get(15, TimeUnit.SECONDS));
+            assertEquals(1, count("agent_action"));
+        } finally { pool.shutdownNow(); }
+    }
+
+    @Test void cancelAndAfterSalePreparationReplayAndPayloadBinding() {
+        jdbc.update("insert into order_info(id,user_id,order_no,status,total_amount) values(30,7,'O30','PENDING_PAYMENT',20)");
+        var cancel = new AgentOrderActionService.CancelPrepareRequest(7L, 20L, 30L, "Changed mind", "call-cancel");
+        var first = service.prepareCancel(cancel);
+        jdbc.update("update order_info set status='DELIVERED' where id=30");
+        assertEquals(first, service.prepareCancel(cancel));
+        assertThrows(BizException.class, () -> service.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(
+                7L, 20L, 30L, "Different reason", "call-cancel")));
+        jdbc.update("insert into order_item(id,order_id,product_id,product_name,quantity,price,subtotal) values(40,30,10,'Product',2,10,20)");
+        when(context.getBean(com.aimall.backend.aftersale.AfterSaleService.class)
+                .quote(7L, 30L, 40L, "RETURN_REFUND", 1)).thenReturn(BigDecimal.TEN);
+        var after = new AgentOrderActionService.AfterSalePrepareRequest(7L, 20L, 30L, 40L,
+                "RETURN_REFUND", "QUALITY", "Broken", 1, "call-after");
+        var prepared = service.prepareAfterSale(after);
+        jdbc.update("update order_info set status='CANCELLED' where id=30");
+        assertEquals(prepared, service.prepareAfterSale(after));
+        assertThrows(BizException.class, () -> service.prepareAfterSale(new AgentOrderActionService.AfterSalePrepareRequest(
+                7L, 20L, 30L, 40L, "RETURN_REFUND", "QUALITY", "Changed", 1, "call-after")));
+        assertThrows(BizException.class, () -> service.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(
+                7L, 20L, 30L, "Broken", "call-after")));
+        assertEquals(2, count("agent_action"));
+        assertEquals(0, count("after_sale"));
+    }
+
+    @Test void canonicalSnapshotIsOwnerBoundAndStableThroughConfirmation() {
+        String id = prepare();
+        var before = service.snapshot(7L, id);
+        assertEquals(Set.of("actionId", "userId", "conversationId", "type", "status", "expiresAt", "fingerprint"),
+                new ObjectMapper().findAndRegisterModules().convertValue(before, Map.class).keySet());
+        assertThrows(BizException.class, () -> service.snapshot(8L, id));
+        service.confirm(7L, id, new AgentOrderActionService.ApprovalRequest("Edited", "13900000000", "Another address"));
+        var after = service.snapshot(7L, id);
+        assertEquals("CONFIRMED", after.status());
+        assertEquals(before.fingerprint(), after.fingerprint());
+        jdbc.update("update agent_action set amount=999, order_id=null where action_id=?", id);
+        assertEquals(before.fingerprint(),service.snapshot(7L,id).fingerprint());
+        jdbc.update("update conversation set user_id=8 where id=20");
+        assertThrows(BizException.class, () -> service.snapshot(7L, id));
+    }
+
+    @Test void nativeStartRunsOnlyAfterPreparationCommitAndFailureReplaysSameAction() throws Exception {
+        var props = new com.aimall.backend.config.AppProperties(); props.getAi().setActionWorkflowsEnabled(true);
+        var client = mock(ActionWorkflowClient.class);
+        var workflows = new ActionWorkflowCoordinator(service,client,props);
+        var controller = new InternalToolController(context.getBean(ProductMapper.class),context.getBean(OrderInfoMapper.class),
+                context.getBean(OrderService.class),context.getBean(ConversationMapper.class),service);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller,"workflows",workflows);
+        var body = new InternalToolController.OrderCreateBody();
+        body.setUserId(7L);body.setConversationId(20L);body.setProductId(10L);body.setQuantity(2);
+        body.setReceiverName("Buyer");body.setReceiverPhone("13800000000");body.setReceiverAddress("Test address");
+        body.setPreparationKey("call-start");
+        when(client.invoke(any(),eq("start"),isNull(),isNull())).thenAnswer(inv -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(1,count("agent_action"));
+            throw new ActionWorkflowClient.GatewayException(((AgentOrderActionService.ActionSnapshot)inv.getArgument(0)).actionId(),503,true);
+        });
+        assertThrows(ActionWorkflowClient.GatewayException.class, () -> controller.orderPrepare(body));
+        String id=jdbc.queryForObject("select action_id from agent_action",String.class);
+        assertTrue(service.isNativeManaged(7L,id));
+        jdbc.update("update agent_action set native_workflow_managed=false where action_id=?",id);
+        assertTrue(service.status(7L,id).nativeManaged());
+        assertTrue(service.isNativeManaged(7L,id));
+        assertThrows(ActionWorkflowClient.GatewayException.class, () -> controller.orderPrepare(body));
+        assertEquals(1,count("agent_action"));assertEquals(0,count("order_info"));
+        String saved = jdbc.queryForObject("select preparation_result from agent_action where action_id=?",String.class,id);
+        doAnswer(inv -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(1,count("agent_action"));
+            return new ActionWorkflowClient.WorkflowResult(id,"WAITING_APPROVAL",true,true,true,null,null);
+        }).when(client).invoke(any(),eq("start"),isNull(),isNull());
+        var data = new ObjectMapper().findAndRegisterModules().valueToTree(controller.orderPrepare(body).getData());
+        assertEquals(id,data.get("actionId").asText());
+        assertEquals("WAITING_APPROVAL",data.path("workflow").path("workflowStatus").asText());
+        assertTrue(data.path("workflow").path("nativeInterrupt").asBoolean());
+        assertEquals(saved,jdbc.queryForObject("select preparation_result from agent_action where action_id=?",String.class,id));
+        assertFalse(new ObjectMapper().readTree(saved).has("workflow"));
+        assertEquals(1,count("agent_action"));assertEquals(0,count("order_info"));
+        props.getAi().setActionWorkflowsEnabled(false);
+        assertThrows(BizException.class, () -> controller.orderPrepare(body));
+        body.setPreparationKey(null);
+        controller.orderPrepare(body);assertEquals(2,count("agent_action"));
+    }
+
+    @Test void keylessLegacyAdoptionCommitsProvenanceBeforeGatewayAndCannotDowngradeAfterFlagOff() {
+        String id=prepare();
+        var props=new com.aimall.backend.config.AppProperties();props.getAi().setActionWorkflowsEnabled(true);
+        var client=mock(ActionWorkflowClient.class);
+        var coordinator=new ActionWorkflowCoordinator(service,client,props);
+        var controller=new com.aimall.backend.order.OrderActionController(service,coordinator);
+        var json=new ObjectMapper().findAndRegisterModules();
+        var before=json.valueToTree(controller.status(7L,id));
+        assertTrue(before.path("data").has("nativeManaged"));
+        assertFalse(before.path("data").path("nativeManaged").asBoolean());
+        String fingerprint=service.snapshot(7L,id).fingerprint();
+        when(client.invoke(any(),eq("start"),isNull(),isNull())).thenAnswer(inv -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(Boolean.TRUE,jdbc.queryForObject("select native_workflow_managed from agent_action where action_id=?",Boolean.class,id));
+            assertNull(jdbc.queryForObject("select preparation_key from agent_action where action_id=?",String.class,id));
+            return new ActionWorkflowClient.WorkflowResult(id,"WAITING_APPROVAL",true,true,true,null,null);
+        });
+        var approval=new AgentOrderActionService.ApprovalRequest("Approved","13900000000","Approved address");
+        when(client.invoke(any(),eq("resume"),eq("approve"),eq(approval))).thenReturn(
+                new ActionWorkflowClient.WorkflowResult(id,"EXECUTING",true,false,true,null,null));
+        controller.confirm(7L,id,approval);
+        assertTrue(service.isNativeManaged(7L,id));
+        assertTrue(json.valueToTree(controller.status(7L,id)).path("data").path("nativeManaged").asBoolean());
+        assertEquals(fingerprint,service.snapshot(7L,id).fingerprint());
+        props.getAi().setActionWorkflowsEnabled(false);
+        assertTrue(json.valueToTree(controller.status(7L,id)).path("data").path("nativeManaged").asBoolean());
+        assertThrows(BizException.class,()->controller.confirm(7L,id,
+                new AgentOrderActionService.ApprovalRequest("Replacement","13800000000","Different address")));
+        assertThrows(BizException.class,()->controller.cancel(7L,id));
+        var legacy=new InternalToolController(context.getBean(ProductMapper.class),context.getBean(OrderInfoMapper.class),
+                context.getBean(OrderService.class),context.getBean(ConversationMapper.class),service);
+        org.springframework.test.util.ReflectionTestUtils.setField(legacy,"workflows",coordinator);
+        var body=new InternalToolController.OrderConfirmBody();body.setUserId(7L);body.setActionId(id);
+        assertThrows(BizException.class,()->legacy.orderConfirm(body));
+        assertEquals(0,count("order_info"));assertEquals(5,stock());
+    }
+
+    @Test void lostRegistrationOfKeylessLegacyActionStillPersistsFailClosedProvenance() {
+        String id=prepare();
+        var props=new com.aimall.backend.config.AppProperties();props.getAi().setActionWorkflowsEnabled(true);
+        var client=mock(ActionWorkflowClient.class);
+        var coordinator=new ActionWorkflowCoordinator(service,client,props);
+        when(client.invoke(any(),eq("start"),isNull(),isNull())).thenThrow(new ActionWorkflowClient.GatewayException(id,503,true));
+        assertThrows(ActionWorkflowClient.GatewayException.class,()->coordinator.recover(7L,id));
+        assertTrue(service.status(7L,id).nativeManaged());
+        props.getAi().setActionWorkflowsEnabled(false);
+        assertThrows(BizException.class,()->coordinator.requiresNative(7L,id));
+        assertEquals(0,count("order_info"));
+    }
+
+    @Test void nativeAdoptionRequiresOwnerAndConversationAndMarkerWriteIsTransactional() {
+        String id=prepare();
+        assertThrows(BizException.class,()->service.markNativeManaged(8L,id));
+        assertFalse(service.isNativeManaged(7L,id));
+        assertThrows(IllegalStateException.class,()->tx.executeWithoutResult(ignored -> {
+            service.markNativeManaged(7L,id);
+            assertTrue(service.isNativeManaged(7L,id));
+            throw new IllegalStateException("roll back adoption");
+        }));
+        assertFalse(service.isNativeManaged(7L,id));
+        jdbc.update("update conversation set user_id=8 where id=20");
+        assertThrows(BizException.class,()->service.markNativeManaged(7L,id));
+        assertFalse(service.isNativeManaged(7L,id));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"CONFIRMED","CANCELLED","EXPIRED"})
+    void unmanagedTerminalLegacyRecoveryRejectsWithoutPersistingNativeProvenance(String status) {
+        String id=prepare();
+        if ("CONFIRMED".equals(status)) service.confirm(7L,id);
+        else if ("CANCELLED".equals(status)) service.cancel(7L,id);
+        else {
+            jdbc.update("update agent_action set expires_at=? where action_id=?",
+                    java.sql.Timestamp.from(context.getBean(Clock.class).instant().minusSeconds(1)),id);
+            service.expirePendingActions();
+        }
+        assertEquals(status,service.snapshot(7L,id).status());
+        assertFalse(service.status(7L,id).nativeManaged());
+        int orders=count("order_info");int originalStock=stock();
+        var props=new com.aimall.backend.config.AppProperties();props.getAi().setActionWorkflowsEnabled(true);
+        var client=mock(ActionWorkflowClient.class);
+        // Before the fix, Java would commit adoption and only then receive Python's missing-checkpoint rejection.
+        when(client.invoke(any(),eq("start"),isNull(),isNull())).thenThrow(new ActionWorkflowClient.GatewayException(id,409,false));
+        var coordinator=new ActionWorkflowCoordinator(service,client,props);
+        var controller=new com.aimall.backend.order.OrderActionController(service,coordinator);
+        var failure=assertThrows(RuntimeException.class,()->controller.recover(7L,id));
+        assertFalse(service.isNativeManaged(7L,id));
+        assertFalse(service.status(7L,id).nativeManaged());
+        assertFalse(Boolean.TRUE.equals(jdbc.queryForObject("select native_workflow_managed from agent_action where action_id=?",Boolean.class,id)));
+        assertEquals(2004,assertInstanceOf(BizException.class,failure).getCode());
+        verifyNoInteractions(client);
+        assertEquals(orders,count("order_info"));assertEquals(originalStock,stock());
+        assertEquals(status,service.snapshot(7L,id).status());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"CONFIRMED","CANCELLED","EXPIRED"})
+    void terminalTransitionAfterCoordinatorReadCannotRaceNativeAdmission(String terminalStatus) {
+        String id=prepare();
+        var props=new com.aimall.backend.config.AppProperties();props.getAi().setActionWorkflowsEnabled(true);
+        var client=mock(ActionWorkflowClient.class);
+        var racedActions=mock(AgentOrderActionService.class,org.mockito.AdditionalAnswers.delegatesTo(service));
+        doAnswer(inv -> {
+            var pending=service.snapshot(7L,id);
+            assertEquals("PENDING",pending.status());
+            if ("CONFIRMED".equals(terminalStatus)) service.confirm(7L,id);
+            else if ("CANCELLED".equals(terminalStatus)) service.cancel(7L,id);
+            else jdbc.update("update agent_action set expires_at=? where action_id=?",
+                    java.sql.Timestamp.from(context.getBean(Clock.class).instant().minusSeconds(1)),id);
+            return pending;
+        }).when(racedActions).snapshot(7L,id);
+        when(client.invoke(any(),eq("start"),isNull(),isNull())).thenThrow(new ActionWorkflowClient.GatewayException(id,409,false));
+        var coordinator=new ActionWorkflowCoordinator(racedActions,client,props);
+        var failure=assertThrows(RuntimeException.class,()->coordinator.recover(7L,id));
+        assertFalse(service.isNativeManaged(7L,id));
+        assertFalse(service.status(7L,id).nativeManaged());
+        assertEquals(2004,assertInstanceOf(BizException.class,failure).getCode());
+        verifyNoInteractions(client);
+        assertEquals(terminalStatus,service.snapshot(7L,id).status());
+        if ("EXPIRED".equals(terminalStatus)) assertEquals("PENDING",status(id),"expiry must be computed under the row lock without relying on the sweeper");
+        // The locked guard must still permit the same terminal state when provenance already exists.
+        jdbc.update("update agent_action set native_workflow_managed=true where action_id=?",id);
+        assertDoesNotThrow(()->service.markNativeManaged(7L,id));
+        assertTrue(service.status(7L,id).nativeManaged());
+    }
+
+    @Test void callbackReplayAfterBusinessCommitReturnsSameReceiptWithoutAnotherOrderOrStockDeduction() {
+        var props=new com.aimall.backend.config.AppProperties();props.getAi().setActionWorkflowsEnabled(true);
+        var coordinator=new ActionWorkflowCoordinator(service,mock(ActionWorkflowClient.class),props);
+        var controller=new ActionWorkflowController(service,coordinator);
+        String id=service.prepare(new AgentOrderActionService.PrepareRequest(7L,20L,10L,2,
+                "Original","13800000000","Original address","call-execute")).actionId();
+        var before=service.snapshot(7L,id);
+        var approved=new AgentOrderActionService.ApprovalRequest("Edited","13900000000","Edited address");
+        var execute=new ActionWorkflowController.ExecuteBody(7L,id,approved);
+        var first=controller.execute(execute).getData();
+        // Model a lost callback response/checkpoint after the business transaction has committed.
+        var replay=controller.execute(execute).getData();
+        assertEquals(first,replay);assertEquals("Edited address",replay.get("receiverAddress"));
+        assertEquals(1,count("order_info"));assertEquals(1,count("order_item"));assertEquals(3,stock());
+        assertEquals(before.fingerprint(),service.snapshot(7L,id).fingerprint());
+        props.getAi().setActionWorkflowsEnabled(false);
+        assertThrows(BizException.class,()->controller.execute(execute));
+        assertThrows(BizException.class,()->controller.cancel(new ActionWorkflowController.ActionBody(7L,id)));
+        assertEquals(1,count("order_info"));
     }
 
     @Test void outerRollbackMustNotPublishAnUncommittedOrderToIdempotencyCache() {

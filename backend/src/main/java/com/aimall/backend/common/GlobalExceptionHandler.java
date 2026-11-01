@@ -18,6 +18,13 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.aimall.backend.internal.ActionWorkflowClient.GatewayException.class)
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> handleActionWorkflow(
+            com.aimall.backend.internal.ActionWorkflowClient.GatewayException e) {
+        return ResponseEntity.status(e.status()).body(new ApiResponse<>(5002, e.getMessage(), java.util.Map.of(
+                "actionId", e.actionId(), "recoverable", e.recoverable()), null));
+    }
+
     @ExceptionHandler(BizException.class)
     public ResponseEntity<ApiResponse<Void>> handleBiz(BizException e) {
         HttpStatus status = switch (e.getCode()) {

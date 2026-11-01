@@ -126,11 +126,28 @@ class Settings(BaseSettings):
     tool_callback_timeout_s: int = 3
     max_tool_loops: int = 4
     # Agent 会话：单次请求总超时（秒）与图递归深度上限（防工具循环/异常深递归失控）
-    chat_timeout_s: int = 60
+    chat_timeout_s: int = Field(default=60,gt=0,le=600)
     agent_recursion_limit: int = 20
 
     # 会话 Checkpointer 持久化配置（默认保存到本地 SQLite；设为 :memory: 或空则使用内存）
     checkpoint_sqlite_path: str = "data/checkpoints.db"
+
+    # Native business approvals are opt-in and never use an in-memory fallback.
+    action_workflows_enabled: bool = False
+    action_workflow_checkpoint_path: str = "data/action-workflows/checkpoints.db"
+    action_workflow_callback_timeout_s: float = Field(default=3, gt=0, le=5)
+    action_workflow_total_timeout_s: float = Field(default=15, gt=0, le=25)
+    retry_budget_limit: int = Field(default=6, ge=0, le=32)
+    background_job_timeout_s: float = Field(default=300, gt=0, le=3600)
+
+    @model_validator(mode="after")
+    def validate_action_workflow_store(self):
+        path = self.action_workflow_checkpoint_path
+        if self.action_workflows_enabled and (not path.strip() or path == ":memory:" or path.startswith("file:")):
+            raise ValueError("native approvals require a persistent checkpoint file")
+        if self.action_workflows_enabled and not self.internal_token:
+            raise ValueError("native approvals require internal service authentication")
+        return self
 
     # 联网搜索
     @property

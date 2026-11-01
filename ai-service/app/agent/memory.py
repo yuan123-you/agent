@@ -1,4 +1,5 @@
 """长期记忆管理：用户画像与人设提取、Prompt 注入与跨会话持久化"""
+import asyncio
 import json
 import logging
 import re
@@ -10,6 +11,7 @@ from app.agent.identity import IDENTITY_KEYS, normalize_profile, parse_naming_co
 from app.agent.prompt_context import compact_prompt_messages
 from app.clients.backend_client import backend_client
 from app.clients.llm import get_intent_llm
+from app.resilience import budget_scope
 
 logger = logging.getLogger("ai-service.memory")
 
@@ -163,6 +165,15 @@ def should_extract_memory(user_text: str) -> bool:
 
 
 async def background_memory_extraction(user_id: int, user_text: str, ai_text: str):
+    with budget_scope(30,inherit=False):
+        try:
+            async with asyncio.timeout(30):
+                await _background_memory_extraction(user_id,user_text,ai_text)
+        except TimeoutError:
+            logger.warning("optional memory job deadline exhausted")
+
+
+async def _background_memory_extraction(user_id: int, user_text: str, ai_text: str):
     """Best-effort preference/fact extraction, owned by the streaming response."""
     if user_id <= 0:
         return

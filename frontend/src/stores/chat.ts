@@ -3,12 +3,13 @@ import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import {
   apiCloseConversation, apiConversationDetail, apiConversationStatus, apiConversations,
-  apiCreateConversation, apiHumanMessage, apiCancelHuman, apiMessages, apiMessagesAfter, apiSatisfaction, apiConfirmOrderAction, apiCancelOrderAction, apiOrderActionStatus,
+  apiCreateConversation, apiHumanMessage, apiCancelHuman, apiMessages, apiMessagesAfter, apiSatisfaction, apiConfirmOrderAction, apiCancelOrderAction, apiOrderActionStatus, apiRecoverOrderAction,
 } from '@/api'
 import { streamChat, type SseStream } from '@/composables/useSseChat'
 import { StreamBuffer } from '@/components/mall/StreamBuffer'
 import { loadRecovery, saveRecovery, clearRecovery } from './chatRecovery'
 import { replyFeedback } from '@/components/chat/replyFeedback'
+import { actionDisplayStatus, applyWorkflowReceipt, canDecideAction, canRecoverAction, failActionRequest } from './actionWorkflow'
 import type { ChatMessage, ConversationVO, OrderAction, OrderApprovalForm, ToolCard } from '@/types/api'
 
 /** 单个会话的后台流式状态（切换会话/更换页面后恢复渲染用） */
@@ -150,13 +151,28 @@ export const useChatStore = defineStore('chat', {
             state.messages = messages
             state.streaming = pending?.streaming ?? false
           })
-          // Status hydration must not hold up history or overwrite a newer buyer decision.
+          // Native/history snapshots do not attest a workflow result or committed delivery.
           for (const action of this.messages.flatMap((message) => message.actions || [])) {
-            const status = action.status
+            const status = action.status, nativeManaged = action.nativeManaged
+            const workflow = action.workflow, recoveryRequired = action.recoveryRequired
+            const session = this.sessionVersion
+            const unchanged = () => this.sessionVersion === session && action.status === status
+              && action.nativeManaged === nativeManaged && action.workflow === workflow
+              && action.recoveryRequired === recoveryRequired
             void apiOrderActionStatus(action.actionId).then((fresh) => {
-              if (action.status === status) Object.assign(action, fresh)
+              if (!unchanged()) return
+              if (action.workflow || action.nativeManaged === true || fresh.nativeManaged !== false) {
+                if (action.workflow || fresh.nativeManaged === true) action.nativeManaged = true
+                action.recoveryRequired = true
+                action.status = 'RECOVERY_REQUIRED'
+              } else {
+                Object.assign(action, fresh, { nativeManaged: false, recoveryRequired: false })
+              }
             }).catch(() => {
-              if (action.status === status && Date.parse(action.expiresAt) <= Date.now()) action.status = 'EXPIRED'
+              if (unchanged()) {
+                action.recoveryRequired = true
+                action.status = 'RECOVERY_REQUIRED'
+              }
             })
           }
         } finally {
@@ -394,6 +410,7 @@ export const useChatStore = defineStore('chat', {
       if (!message.actions) message.actions = []
       const existing = message.actions.find((action) => action.actionId === incoming.actionId)
       if (existing) {
+        if (existing.workflow || existing.recoveryRequired) return existing
         const status = existing.status || 'PENDING'
         Object.assign(existing, incoming, { status })
         return existing
@@ -407,7 +424,7 @@ export const useChatStore = defineStore('chat', {
     expireOrderActions(now = Date.now()) {
       for (const message of this.messages) {
         for (const action of message.actions || []) {
-          if ((action.status === 'PENDING' || action.status === 'FAILED')
+          if (canDecideAction(action)
               && Date.parse(action.expiresAt) <= now) {
             action.status = 'EXPIRED'
           }
@@ -418,20 +435,22 @@ export const useChatStore = defineStore('chat', {
     /** 持久化买家的拒绝决定；只有后端接受后才进入 CANCELLED 终态。 */
     async cancelOrderAction(actionId: string) {
       const action = findOrderAction(this.messages, actionId)
-      if (!action || (action.status !== 'PENDING' && action.status !== 'FAILED')) return
+      if (!action || !canDecideAction(action)) return
+      const session = this.sessionVersion
       action.status = 'CANCELLING'
       try {
-        await apiCancelOrderAction(actionId)
-        action.status = 'CANCELLED'
-      } catch {
-        action.status = Date.parse(action.expiresAt) <= Date.now() ? 'EXPIRED' : 'FAILED'
+        const result = await apiCancelOrderAction(actionId)
+        if (this.sessionVersion !== session) return
+        if (!applyWorkflowReceipt(action, result)) action.status = 'CANCELLED'
+      } catch (error) {
+        if (this.sessionVersion === session) failActionRequest(action, error)
       }
     },
 
     /** 提交买家核对后的表单。同步锁定状态，使双击与并发调用最多发出一个请求。 */
     async confirmOrderAction(actionId: string, approval?: OrderApprovalForm) {
       const action = findOrderAction(this.messages, actionId)
-      if (!action || (action.status !== 'PENDING' && action.status !== 'FAILED')) return
+      if (!action || !canDecideAction(action)) return
       if (Date.parse(action.expiresAt) <= Date.now()) {
         action.status = 'EXPIRED'
         return
@@ -442,10 +461,13 @@ export const useChatStore = defineStore('chat', {
         receiverPhone: action.receiverPhone || '',
         receiverAddress: action.receiverAddress || '',
       }) : undefined
+      const session = this.sessionVersion
       action.status = 'CONFIRMING'
       try {
         const result = await apiConfirmOrderAction(actionId, approved)
-        Object.assign(action, approved || {}, {
+        if (this.sessionVersion !== session) return
+        const native = applyWorkflowReceipt(action, result)
+        if (!native) Object.assign(action, approved || {}, {
           status: 'CONFIRMED',
           orderId: result.orderId,
           orderNo: result.orderNo,
@@ -454,12 +476,29 @@ export const useChatStore = defineStore('chat', {
           afterSaleId: result.afterSaleId,
           afterSaleNo: result.afterSaleNo,
         })
+        if (actionDisplayStatus(action) !== 'CONFIRMED') return result
         ElMessage.success(action.type === 'ORDER_CREATE' ? '订单创建成功'
           : action.type === 'ORDER_CANCEL' ? '订单已取消' : '售后申请已提交')
         return result
-      } catch {
-        action.status = Date.parse(action.expiresAt) <= Date.now() ? 'EXPIRED' : 'FAILED'
+      } catch (error) {
+        if (this.sessionVersion === session) failActionRequest(action, error)
         return undefined
+      }
+    },
+
+    /** Explicit reconciliation only: no approval, rejection, or automatic retry. */
+    async recoverOrderAction(actionId: string) {
+      const action = findOrderAction(this.messages, actionId)
+      if (!action || !canRecoverAction(action)) return
+      const session = this.sessionVersion
+      action.status = 'RECOVERING'
+      try {
+        const result = await apiRecoverOrderAction(actionId)
+        if (this.sessionVersion !== session) return
+        applyWorkflowReceipt(action, result, true)
+        return result
+      } catch (error) {
+        if (this.sessionVersion === session) failActionRequest(action, error)
       }
     },
 
@@ -533,7 +572,7 @@ function parseOrderActions(msg: { toolCalls?: unknown }): OrderAction[] {
     if (!Array.isArray(events)) return []
     return events
       .filter((event): event is OrderAction => ['ORDER_CREATE', 'ORDER_CANCEL', 'AFTER_SALE_APPLY'].includes(event?.type) && typeof event.actionId === 'string')
-      .map((event) => ({ ...event, status: event.status || 'PENDING' }))
+      .map((event) => ({ ...event, status: 'RECOVERY_REQUIRED' as const, recoveryRequired: true }))
   } catch {
     return []
   }

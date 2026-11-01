@@ -5,3 +5,10 @@ __pycache__/
 *.py[cod]
 *.log
 tests/
+
+# Never bake durable chat/action approvals or recipient details into an image
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*

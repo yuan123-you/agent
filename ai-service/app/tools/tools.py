@@ -4,8 +4,10 @@ import contextvars
 import logging
 import re
 from dataclasses import asdict
+from typing import Annotated
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
+from app.config import settings
 
 from app.rag import retrieval
 from app.request_policy import requests_human
@@ -315,7 +317,8 @@ async def order_query(status: str = "ALL") -> dict:
 @tool
 async def order_create(product_id: int = 0, quantity: int = 1,
                        receiver_name: str = "", receiver_phone: str = "",
-                       receiver_address: str = "") -> dict:
+                       receiver_address: str = "",
+                       tool_call_id: Annotated[str, InjectedToolCallId] = "") -> dict:
     """生成待用户确认的下单动作，不创建订单。
     默认复用买家保存的默认收货地址；只有买家明确提供新信息时才传入覆盖值。
     返回确认卡片所需的商品、数量、金额、收货信息和 actionId。"""
@@ -331,6 +334,7 @@ async def order_create(product_id: int = 0, quantity: int = 1,
         product_id=target_product_id, quantity=quantity,
         receiver_name=receiver_name, receiver_phone=receiver_phone,
         receiver_address=receiver_address,
+        **({"preparation_key": tool_call_id} if settings.action_workflows_enabled else {}),
     )
     if "error" not in result:
         ctx.setdefault("actions", []).append({"type": "ORDER_CREATE", **result})
@@ -339,7 +343,8 @@ async def order_create(product_id: int = 0, quantity: int = 1,
 
 
 @tool
-async def order_cancel_prepare(order_id: int = 0, reason: str = "买家申请取消") -> dict:
+async def order_cancel_prepare(order_id: int = 0, reason: str = "买家申请取消",
+                               tool_call_id: Annotated[str, InjectedToolCallId] = "") -> dict:
     """准备取消待支付订单，返回待买家确认的动作卡片；绝不直接取消订单。
     order_id 必须来自 order_query，reason 是买家明确给出的取消原因。"""
     ctx = get_tool_ctx()
@@ -350,6 +355,7 @@ async def order_cancel_prepare(order_id: int = 0, reason: str = "买家申请取
     result = await backend_client.order_cancel_prepare(
         user_id=int(ctx.get("user_id", 0)), conversation_id=int(ctx.get("conversation_id", 0)),
         order_id=target_order_id, reason=reason,
+        **({"preparation_key": tool_call_id} if settings.action_workflows_enabled else {}),
     )
     if "error" not in result:
         ctx.setdefault("actions", []).append({"type": "ORDER_CANCEL", **result})
@@ -359,7 +365,8 @@ async def order_cancel_prepare(order_id: int = 0, reason: str = "买家申请取
 
 @tool
 async def after_sale_prepare(order_id: int, order_item_id: int, service_type: str,
-                             issue_category: str, reason: str, quantity: int = 1) -> dict:
+                             issue_category: str, reason: str, quantity: int = 1,
+                             tool_call_id: Annotated[str, InjectedToolCallId] = "") -> dict:
     """准备售后申请并返回待买家确认的动作卡片；绝不直接创建售后单。
     order_id/order_item_id 必须来自 order_query。service_type 可选 RETURN_REFUND/EXCHANGE/
     REFUND_ONLY/ISSUE_REPORT；issue_category 可选 PERSONAL/QUALITY/MERCHANT/PLATFORM。"""
@@ -368,6 +375,7 @@ async def after_sale_prepare(order_id: int, order_item_id: int, service_type: st
         user_id=int(ctx.get("user_id", 0)), conversation_id=int(ctx.get("conversation_id", 0)),
         order_id=order_id, order_item_id=order_item_id, service_type=service_type,
         issue_category=issue_category, reason=reason, quantity=quantity,
+        **({"preparation_key": tool_call_id} if settings.action_workflows_enabled else {}),
     )
     if "error" not in result:
         ctx.setdefault("actions", []).append({"type": "AFTER_SALE_APPLY", **result})

@@ -1,3 +1,4 @@
+from tests.preparation_helpers import invoke_preparation
 """上下文记忆与多轮会话实体链路专项测试"""
 from unittest.mock import AsyncMock, patch
 import pytest
@@ -124,7 +125,7 @@ async def test_order_create_resolves_ordinal_from_active_entities():
 
     with patch("app.tools.tools.backend_client.order_prepare", new_callable=AsyncMock) as mock_prepare:
         mock_prepare.return_value = {"orderId": 501, "totalAmount": 3999}
-        res = await order_create.ainvoke({"quantity": 1})
+        res = await invoke_preparation(order_create, {"quantity": 1})
         mock_prepare.assert_awaited_once()
         kwargs = mock_prepare.call_args[1]
         assert kwargs["product_id"] == 102

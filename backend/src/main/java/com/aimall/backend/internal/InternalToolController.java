@@ -36,6 +36,9 @@ public class InternalToolController {
     private final ConversationMapper conversationMapper;
     private final AgentOrderActionService agentOrderActionService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ActionWorkflowCoordinator workflows;
+
     @Data
     public static class ProductSearchBody {
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
@@ -65,6 +68,7 @@ public class InternalToolController {
 
     @Data
     public static class OrderCreateBody {
+        private String preparationKey;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
@@ -90,6 +94,7 @@ public class InternalToolController {
     /** 中文类目名 → 类目编码（容错：LLM 可能传"手机"而非 PHONE） */
     @Data
     public static class OrderCancelBody {
+        private String preparationKey;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
@@ -100,6 +105,7 @@ public class InternalToolController {
 
     @Data
     public static class AfterSalePrepareBody {
+        private String preparationKey;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
         private Long userId;
         @JsonDeserialize(using = ExactNumberDeserializers.LongValue.class)
@@ -261,27 +267,44 @@ public class InternalToolController {
 
     /** 准备 AI 下单：只保存待确认快照，绝不创建订单。 */
     @PostMapping("/order/prepare")
-    public ApiResponse<AgentOrderActionService.PrepareResult> orderPrepare(@RequestBody OrderCreateBody body) {
+    public ApiResponse<Object> orderPrepare(@RequestBody OrderCreateBody body) {
+        if (workflows != null) workflows.validatePreparationKey(body.getPreparationKey());
         var request = new AgentOrderActionService.PrepareRequest(
                 body.getUserId(), body.getConversationId(), body.getProductId(), body.getQuantity() == null ? 1 : body.getQuantity(),
-                body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress());
-        return ApiResponse.ok(agentOrderActionService.prepare(request));
+                body.getReceiverName(), body.getReceiverPhone(), body.getReceiverAddress(), body.getPreparationKey());
+        var result = agentOrderActionService.prepare(request);
+        return preparationResponse(body.getUserId(), result.actionId(), result);
     }
 
     /** 准备取消订单：只保存待确认动作。 */
     @PostMapping("/order/cancel/prepare")
-    public ApiResponse<AgentOrderActionService.BusinessPrepareResult> orderCancelPrepare(@RequestBody OrderCancelBody body) {
-        return ApiResponse.ok(agentOrderActionService.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(
-                body.getUserId(), body.getConversationId(), body.getOrderId(), body.getReason())));
+    public ApiResponse<Object> orderCancelPrepare(@RequestBody OrderCancelBody body) {
+        if (workflows != null) workflows.validatePreparationKey(body.getPreparationKey());
+        var result = agentOrderActionService.prepareCancel(new AgentOrderActionService.CancelPrepareRequest(
+                body.getUserId(), body.getConversationId(), body.getOrderId(), body.getReason(), body.getPreparationKey()));
+        return preparationResponse(body.getUserId(), result.actionId(), result);
     }
 
     /** 准备售后申请：确认前不创建售后单。 */
     @PostMapping("/after-sale/prepare")
-    public ApiResponse<AgentOrderActionService.BusinessPrepareResult> afterSalePrepare(@RequestBody AfterSalePrepareBody body) {
-        return ApiResponse.ok(agentOrderActionService.prepareAfterSale(new AgentOrderActionService.AfterSalePrepareRequest(
+    public ApiResponse<Object> afterSalePrepare(@RequestBody AfterSalePrepareBody body) {
+        if (workflows != null) workflows.validatePreparationKey(body.getPreparationKey());
+        var result = agentOrderActionService.prepareAfterSale(new AgentOrderActionService.AfterSalePrepareRequest(
                 body.getUserId(), body.getConversationId(), body.getOrderId(), body.getOrderItemId(),
                 body.getServiceType(), body.getIssueCategory(), body.getReason(),
-                body.getQuantity() == null ? 1 : body.getQuantity())));
+                body.getQuantity() == null ? 1 : body.getQuantity(), body.getPreparationKey()));
+        return preparationResponse(body.getUserId(), result.actionId(), result);
+    }
+
+    public record PreparationWithWorkflow(@com.fasterxml.jackson.annotation.JsonUnwrapped Object preparation,
+                                          Map<?, ?> workflow) {}
+
+    private ApiResponse<Object> preparationResponse(Long userId, String actionId, Object preparation) {
+        if (workflows != null && workflows.enabled()) {
+            var started = workflows.start(userId, actionId);
+            return ApiResponse.ok(new PreparationWithWorkflow(preparation, (Map<?, ?>) started.get("workflow")));
+        }
+        return ApiResponse.ok(preparation);
     }
 
     @Data
@@ -291,9 +314,10 @@ public class InternalToolController {
         private String actionId;
     }
 
-    /** 确认 AI 下单：唯一允许 AI 创建订单的入口。 */
+    /** 仅兼容旧链路，原生动作禁止绕过工作流。 */
     @PostMapping("/order/confirm")
     public ApiResponse<Map<String, Object>> orderConfirm(@RequestBody OrderConfirmBody body) {
+        if (workflows != null) workflows.rejectLegacyConfirm(body.getUserId(), body.getActionId());
         return ApiResponse.ok(orderVo(agentOrderActionService.confirm(body.getUserId(), body.getActionId())));
     }
     /** 转人工：会话置 PENDING_HUMAN */

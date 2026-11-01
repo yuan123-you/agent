@@ -26,6 +26,9 @@ public class AppProperties {
 
     @Data
     public static class Ai {
+        private boolean actionWorkflowsEnabled = false;
+        private java.time.Duration chatTimeout = java.time.Duration.ofSeconds(180);
+        private java.time.Duration ingestTimeout = java.time.Duration.ofSeconds(30);
         private String baseUrl;
         private String internalToken;
     }

@@ -1,5 +1,7 @@
 package com.aimall.backend.config;
 
+import com.aimall.backend.common.RequestBudget;
+import java.time.Duration;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,11 +34,26 @@ public class InternalAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
         String token = request.getHeader("X-Internal-Token");
-        if (props.getAi().getInternalToken().equals(token)) {
+        String expected = props.getAi().getInternalToken();
+        if (expected != null && !expected.isBlank() && expected.equals(token)) {
             var auth = new UsernamePasswordAuthenticationToken(
                     "internal", null, List.of(new SimpleGrantedAuthority("ROLE_INTERNAL")));
             SecurityContextHolder.getContext().setAuthentication(auth);
-            chain.doFilter(request, response);
+            // Only this authenticated internal path may import budgets. Public JWT/browser headers are ignored.
+            try (var budget = RequestBudget.open(
+                    RequestBudget.trustedTimeout(request.getHeader(RequestBudget.TIMEOUT_HEADER),Duration.ofSeconds(30)),
+                    RequestBudget.trustedRetryBudget(request.getHeader(RequestBudget.RETRY_HEADER)))) {
+                // Admit before any controller/domain work, including callbacks with no outgoing AI call.
+                try {
+                    budget.remainingTimeout();
+                } catch (RequestBudget.DeadlineExceeded exhausted) {
+                    response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"code\":5002,\"message\":\"internal request deadline exhausted\"}");
+                    return;
+                }
+                chain.doFilter(request, response);
+            }
         } else {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");

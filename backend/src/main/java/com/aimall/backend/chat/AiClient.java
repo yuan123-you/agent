@@ -1,6 +1,8 @@
 package com.aimall.backend.chat;
 
 import com.aimall.backend.common.JsonUtil;
+import com.aimall.backend.common.RequestBudget;
+import java.util.concurrent.TimeoutException;
 import com.aimall.backend.config.AppProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -41,37 +43,52 @@ public class AiClient {
         if (isCircuitOpen()) {
             return Flux.error(new IllegalStateException("AI 服务熔断中，请稍后重试"));
         }
-        return webClient.post().uri("/v1/chat/stream")
+        var budget = RequestBudget.forOperation(props.getAi().getChatTimeout());
+        return Flux.defer(() -> {
+            var deadlineSignal = Mono.defer(() -> Mono.delay(budget.remainingTimeout()))
+                    .onErrorResume(RequestBudget.DeadlineExceeded.class, ignored -> Mono.just(0L));
+            return webClient.post().uri("/v1/chat/stream")
                 .header("X-Internal-Token", props.getAi().getInternalToken())
+                .headers(budget::writeHeaders)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToFlux(new ParameterizedTypeReference<org.springframework.http.codec.ServerSentEvent<String>>() {
                 })
-                .timeout(Duration.ofSeconds(180))
+                // All timers target the same absolute deadline, not a fresh idle interval per token.
+                // timeout cancels the upstream body; the fallback is an error, never a replay.
+                .timeout(deadlineSignal, ignored -> deadlineSignal,
+                        Flux.error(new TimeoutException("AI stream total deadline exceeded")));
+        })
                 .doOnComplete(this::recordSuccess)
                 .doOnError(this::recordFailure);
     }
 
     /** 触发文档摄取（异步任务，AI 服务 202 返回） */
     public Mono<Void> triggerIngest(Map<String, Object> body) {
-        return webClient.post().uri("/v1/kb/ingest")
+        var budget = RequestBudget.forOperation(props.getAi().getIngestTimeout());
+        return Mono.defer(() -> webClient.post().uri("/v1/kb/ingest")
                 .header("X-Internal-Token", props.getAi().getInternalToken())
+                .headers(budget::writeHeaders)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .toBodilessEntity()
-                .then();
+                .timeout(budget.remainingTimeout())
+                .then());
     }
 
     /** 删除文档向量（version>0 时保留该版本） */
     public Mono<Void> deleteVectors(Long docId, int version) {
-        return webClient.delete()
+        var budget = RequestBudget.forOperation(Duration.ofSeconds(30));
+        return Mono.defer(() -> webClient.delete()
                 .uri(b -> b.path("/v1/kb/docs/{id}").queryParam("version", version).build(docId))
                 .header("X-Internal-Token", props.getAi().getInternalToken())
+                .headers(budget::writeHeaders)
                 .retrieve()
                 .toBodilessEntity()
+                .timeout(budget.remainingTimeout()))
                 .onErrorResume(e -> {
                     log.warn("delete vectors failed doc={}: {}", docId, e.getMessage());
                     return Mono.empty();
@@ -81,12 +98,15 @@ public class AiClient {
 
     /** 会话摘要压缩（返回 summary 文本；失败返回空） */
     public Mono<String> summarize(Map<String, Object> body) {
-        return webClient.post().uri("/v1/chat/summarize")
+        var budget = RequestBudget.forOperation(Duration.ofSeconds(30));
+        return Mono.defer(() -> webClient.post().uri("/v1/chat/summarize")
                 .header("X-Internal-Token", props.getAi().getInternalToken())
+                .headers(budget::writeHeaders)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
+                .timeout(budget.remainingTimeout()))
                 .map(s -> {
                     var node = JsonUtil.parse(s);
                     return node != null ? node.path("summary").asText("") : "";

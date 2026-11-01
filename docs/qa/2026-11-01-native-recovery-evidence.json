@@ -1,0 +1,327 @@
+{
+  "status": "verified",
+  "generated_at": "2026-11-01T16:49:24.565660+00:00",
+  "scope": "real LangGraph + durable SQLite + real process exit; synthetic idempotent business ledger",
+  "limits": [
+    "not live Java/Python integration",
+    "not a real order/payment/refund",
+    "single process-local coordinator; not multi-instance HA",
+    "no model accuracy or production SLA measurement"
+  ],
+  "provenance": {
+    "base_commit": "b81128a647e519b7f3fdd2227a1de2e57c0c20e9",
+    "uncommitted_changes": true,
+    "python": "3.14.6",
+    "packages": {
+      "langgraph": "1.2.11",
+      "langgraph-checkpoint-sqlite": "3.1.2",
+      "aiosqlite": "0.22.1"
+    },
+    "source_hash_mode": "utf8-lf",
+    "sha256": {
+      "ai-service/app/agent/action_workflow.py": "613022bca42ec697bab51e03cf29d76a6c99d2f4165a2e9ba2079ae94cde284c",
+      "ai-service/app/resilience.py": "e65fd9c3ede2581ceccff01e28a37ee0aaebb96dcf46654a806c6944691b8a86",
+      "ai-service/tests/fixtures/action_workflow_worker.py": "a83c28eb5c3ba372809b30c940829f5cb8ceef86b1fdb32330716ba67f33fd16",
+      "ai-service/tests/fixtures/action_review_pending_worker.py": "19fbe0fc7333da226af2ce142e42f249a4f453dd6308494c3fad04bf3687166b",
+      "eval/native_recovery_evidence.py": "e56d855e69f5a36daef455e92af8b3502c184a3b6689441d78d6fc92538de98a"
+    }
+  },
+  "trace": {
+    "start": {
+      "mode": "start",
+      "workflowStatus": "WAITING_APPROVAL",
+      "next": [
+        "review"
+      ],
+      "interrupts": 1,
+      "savedDecision": null,
+      "effects": 0,
+      "executionAttempts": 0,
+      "returncode": 0
+    },
+    "approve-crash": {
+      "returncode": 73
+    },
+    "inspect": {
+      "mode": "inspect",
+      "workflowStatus": "EXECUTING",
+      "next": [
+        "execute_decision"
+      ],
+      "interrupts": 0,
+      "savedDecision": "approve",
+      "effects": 1,
+      "executionAttempts": 1,
+      "returncode": 0
+    },
+    "recover": {
+      "mode": "recover",
+      "workflowStatus": "COMPLETED",
+      "next": [],
+      "interrupts": 0,
+      "savedDecision": "approve",
+      "effects": 1,
+      "executionAttempts": 2,
+      "returncode": 0
+    },
+    "recover-again": {
+      "mode": "recover",
+      "workflowStatus": "COMPLETED",
+      "next": [],
+      "interrupts": 0,
+      "savedDecision": "approve",
+      "effects": 1,
+      "executionAttempts": 2,
+      "returncode": 0
+    },
+    "wrong-owner": {
+      "returncode": 23
+    }
+  },
+  "pending_write_traces": {
+    "review": {
+      "start": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "start",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "WAITING_APPROVAL",
+          "interrupted": true,
+          "recoverable": true,
+          "result": null,
+          "error": null
+        },
+        "next": [
+          "review"
+        ],
+        "workflowStatus": "WAITING_APPROVAL",
+        "recoverable": true,
+        "interrupts": 1,
+        "savedDecision": null,
+        "savedApproval": null,
+        "rawCheckpointDecision": null,
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": false,
+        "pendingCanonical": false,
+        "effects": 0,
+        "executionAttempts": 0,
+        "returncode": 0
+      },
+      "review-crash": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "review-crash",
+        "result": null,
+        "next": [],
+        "workflowStatus": "EXECUTING",
+        "recoverable": null,
+        "interrupts": 1,
+        "savedDecision": "approve",
+        "savedApproval": {
+          "receiverName": "Synthetic buyer",
+          "receiverPhone": "10000000000",
+          "receiverAddress": "Synthetic approved address"
+        },
+        "rawCheckpointDecision": null,
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": true,
+        "pendingCanonical": false,
+        "effects": 0,
+        "executionAttempts": 0,
+        "returncode": 73
+      },
+      "inspect": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "inspect",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "EXECUTING",
+          "interrupted": false,
+          "recoverable": true,
+          "result": null,
+          "error": null
+        },
+        "next": [],
+        "workflowStatus": "EXECUTING",
+        "recoverable": true,
+        "interrupts": 1,
+        "savedDecision": "approve",
+        "savedApproval": {
+          "receiverName": "Synthetic buyer",
+          "receiverPhone": "10000000000",
+          "receiverAddress": "Synthetic approved address"
+        },
+        "rawCheckpointDecision": null,
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": true,
+        "pendingCanonical": false,
+        "effects": 0,
+        "executionAttempts": 0,
+        "returncode": 0
+      },
+      "recover": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "recover",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "COMPLETED",
+          "interrupted": false,
+          "recoverable": false,
+          "result": {
+            "type": "ORDER_CREATE",
+            "actionStatus": "CONFIRMED",
+            "orderId": 42,
+            "orderNo": "SYNTHETIC42",
+            "receiverName": "Synthetic buyer",
+            "receiverPhone": "10000000000",
+            "receiverAddress": "Synthetic approved address"
+          },
+          "error": null
+        },
+        "next": [],
+        "workflowStatus": "COMPLETED",
+        "recoverable": false,
+        "interrupts": 0,
+        "savedDecision": "approve",
+        "savedApproval": {
+          "receiverName": "Synthetic buyer",
+          "receiverPhone": "10000000000",
+          "receiverAddress": "Synthetic approved address"
+        },
+        "rawCheckpointDecision": "approve",
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": false,
+        "pendingCanonical": false,
+        "effects": 1,
+        "executionAttempts": 1,
+        "returncode": 0
+      },
+      "resume-identical": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "resume-identical",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "COMPLETED",
+          "interrupted": false,
+          "recoverable": false,
+          "result": {
+            "type": "ORDER_CREATE",
+            "actionStatus": "CONFIRMED",
+            "orderId": 42,
+            "orderNo": "SYNTHETIC42",
+            "receiverName": "Synthetic buyer",
+            "receiverPhone": "10000000000",
+            "receiverAddress": "Synthetic approved address"
+          },
+          "error": null
+        },
+        "next": [],
+        "workflowStatus": "COMPLETED",
+        "recoverable": false,
+        "interrupts": 0,
+        "savedDecision": "approve",
+        "savedApproval": {
+          "receiverName": "Synthetic buyer",
+          "receiverPhone": "10000000000",
+          "receiverAddress": "Synthetic approved address"
+        },
+        "rawCheckpointDecision": "approve",
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": false,
+        "pendingCanonical": false,
+        "effects": 1,
+        "executionAttempts": 1,
+        "returncode": 0
+      }
+    },
+    "start": {
+      "start-crash": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "start-crash",
+        "result": null,
+        "next": [],
+        "workflowStatus": "WAITING_APPROVAL",
+        "recoverable": null,
+        "interrupts": 0,
+        "savedDecision": null,
+        "savedApproval": null,
+        "rawCheckpointDecision": null,
+        "rawCheckpointHasCanonical": false,
+        "pendingDecision": false,
+        "pendingCanonical": true,
+        "effects": 0,
+        "executionAttempts": 0,
+        "returncode": 73
+      },
+      "recover": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "recover",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "WAITING_APPROVAL",
+          "interrupted": true,
+          "recoverable": true,
+          "result": null,
+          "error": null
+        },
+        "next": [
+          "review"
+        ],
+        "workflowStatus": "WAITING_APPROVAL",
+        "recoverable": true,
+        "interrupts": 1,
+        "savedDecision": null,
+        "savedApproval": null,
+        "rawCheckpointDecision": null,
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": false,
+        "pendingCanonical": false,
+        "effects": 0,
+        "executionAttempts": 0,
+        "returncode": 0
+      },
+      "resume-identical": {
+        "evidenceKind": "real_langgraph_sqlite_process_crash_synthetic_business",
+        "mode": "resume-identical",
+        "result": {
+          "actionId": "act_44444444-4444-4444-8444-444444444444",
+          "nativeInterrupt": true,
+          "workflowStatus": "COMPLETED",
+          "interrupted": false,
+          "recoverable": false,
+          "result": {
+            "type": "ORDER_CREATE",
+            "actionStatus": "CONFIRMED",
+            "orderId": 42,
+            "orderNo": "SYNTHETIC42",
+            "receiverName": "Synthetic buyer",
+            "receiverPhone": "10000000000",
+            "receiverAddress": "Synthetic approved address"
+          },
+          "error": null
+        },
+        "next": [],
+        "workflowStatus": "COMPLETED",
+        "recoverable": false,
+        "interrupts": 0,
+        "savedDecision": "approve",
+        "savedApproval": {
+          "receiverName": "Synthetic buyer",
+          "receiverPhone": "10000000000",
+          "receiverAddress": "Synthetic approved address"
+        },
+        "rawCheckpointDecision": "approve",
+        "rawCheckpointHasCanonical": true,
+        "pendingDecision": false,
+        "pendingCanonical": false,
+        "effects": 1,
+        "executionAttempts": 1,
+        "returncode": 0
+      }
+    }
+  }
+}

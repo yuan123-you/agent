@@ -1,3 +1,4 @@
+from tests.preparation_helpers import invoke_preparation
 import pytest
 
 from app.clients.backend_client import backend_client
@@ -28,7 +29,7 @@ async def test_order_create_prepares_pending_action_without_confirming(monkeypat
     monkeypatch.setattr(backend_client, "order_confirm", forbidden, raising=False)
     set_tool_ctx({"user_id": 7, "conversation_id": 9})
 
-    result = await order_create.ainvoke({"product_id": 11, "quantity": 2})
+    result = await invoke_preparation(order_create, {"product_id": 11, "quantity": 2})
 
     assert result["actionId"] == "act_123"
     assert result["status"] == "PENDING_CONFIRMATION"
@@ -58,7 +59,7 @@ async def test_prepared_order_is_queued_for_standalone_action_event(monkeypatch)
     context = {"user_id": 7, "conversation_id": 9}
     set_tool_ctx(context)
 
-    await order_create.ainvoke({"product_id": 11})
+    await invoke_preparation(order_create, {"product_id": 11})
 
     assert context["actions"] == [{"type": "ORDER_CREATE", **action}]
 
@@ -83,7 +84,7 @@ async def test_order_cancel_tool_only_prepares_buyer_action(monkeypatch):
     context = {"user_id": 7, "conversation_id": 9}
     set_tool_ctx(context)
 
-    result = await order_cancel_prepare.ainvoke({"order_id": 30, "reason": "不需要了"})
+    result = await invoke_preparation(order_cancel_prepare, {"order_id": 30, "reason": "不需要了"})
 
     assert result["status"] == "PENDING_CONFIRMATION"
     assert context["actions"][0]["type"] == "ORDER_CANCEL"
@@ -100,7 +101,7 @@ async def test_after_sale_tool_only_prepares_buyer_action(monkeypatch):
     context = {"user_id": 7, "conversation_id": 9}
     set_tool_ctx(context)
 
-    result = await after_sale_prepare.ainvoke({"order_id": 30, "order_item_id": 41,
+    result = await invoke_preparation(after_sale_prepare, {"order_id": 30, "order_item_id": 41,
         "service_type": "RETURN_REFUND", "issue_category": "QUALITY", "reason": "屏幕损坏"})
 
     assert result["status"] == "PENDING_CONFIRMATION"

@@ -138,6 +138,10 @@ services:
       MILVUS_PRODUCT_COLLECTION: product_index_dmeta_zh_768
       BACKEND_BASE_URL: http://backend:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?required}
+      ACTION_WORKFLOWS_ENABLED: ${ACTION_WORKFLOWS_ENABLED:-false}
+      RETRY_BUDGET_LIMIT: ${RETRY_BUDGET_LIMIT:-6}
+      ACTION_WORKFLOW_TOTAL_TIMEOUT_S: ${ACTION_WORKFLOW_TOTAL_TIMEOUT_S:-15}
+      BACKGROUND_JOB_TIMEOUT_S: ${BACKGROUND_JOB_TIMEOUT_S:-300}
       RERANKER_ENABLED: 'false'
       RAG_RERANKER_ENABLED: 'true'
       RAG_RERANKER_BASE_URL: http://reranker:8001
@@ -184,6 +188,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
       JWT_SECRET: ${JWT_SECRET:?required}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?required}
+      ACTION_WORKFLOWS_ENABLED: ${ACTION_WORKFLOWS_ENABLED:-false}
       SEED_PASSWORD: ${SEED_PASSWORD:?required}
       APP_CORS_ALLOWED_ORIGINS: https://aimall.novo.ccwu.cc,https://aimall.iflare.cn
       AI_SERVICE_BASE_URL: http://ai-service:8000

@@ -2,7 +2,7 @@ import { API_BASE } from '@/api/base'
 /** 全量 API 函数（按模块分组） */
 import { del, get, post, put, upload } from './request'
 import type {
-  AddressVO, AdminDashboardVO, BrandVO, CategoryVO, ConversationVO, CouponVO, CustomerRegistration,
+  ActionWorkflowReceipt, AddressVO, AdminDashboardVO, BrandVO, CategoryVO, ConversationVO, CouponVO, CustomerRegistration,
   KbDocVO, LoginResp, MerchantRegistration, MyCouponVO, OrderAction, OrderApprovalForm, OrderVO,
   PageResult, ProductVO, SeckillVO, SkuVO, StatsVO, UsableCouponVO, UserInfo, WorkbenchSla,
 } from '@/types/api'
@@ -168,15 +168,19 @@ export const apiAdminDeliver = (id: number) => post<void>(`/admin/orders/${id}/d
 
 // ---------- AI 下单动作 ----------
 export interface AgentActionConfirmResult {
-  type: OrderAction['type']; actionStatus: string; orderId?: number; orderNo?: string
+  type?: OrderAction['type']; actionStatus?: string; orderId?: number; orderNo?: string
   status?: string; totalAmount?: number; afterSaleId?: number; afterSaleNo?: string
+  receiverName?: string; receiverPhone?: string; receiverAddress?: string
+  workflow?: ActionWorkflowReceipt
 }
 export const apiConfirmOrderAction = (actionId: string, approval?: OrderApprovalForm) =>
   post<AgentActionConfirmResult>(`/order-actions/${actionId}/confirm`, approval)
 export const apiCancelOrderAction = (actionId: string) =>
-  post<void>(`/order-actions/${actionId}/cancel`)
+  post<AgentActionConfirmResult | undefined>(`/order-actions/${actionId}/cancel`)
+export const apiRecoverOrderAction = (actionId: string) =>
+  post<AgentActionConfirmResult>(`/order-actions/${actionId}/recover`)
 export const apiOrderActionStatus = (actionId: string) =>
-  get<Pick<OrderAction, 'status' | 'orderId' | 'orderNo'>>(`/order-actions/${actionId}`)
+  get<Pick<OrderAction, 'type' | 'status' | 'orderId' | 'orderNo' | 'afterSaleId' | 'afterSaleNo' | 'nativeManaged'>>(`/order-actions/${actionId}`)
 
 // ---------- 收货地址簿 ----------
 export interface AddressPayload {

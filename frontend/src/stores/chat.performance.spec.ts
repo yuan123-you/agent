@@ -77,7 +77,7 @@ describe('conversation loading performance', () => {
     expect(chat.loadingConversationId).toBeNull()
   })
 
-  it('displays history without waiting for slow action-status hydration', async () => {
+  it('displays legacy history without waiting for slow authoritative action-status hydration', async () => {
     const chat = useChatStore(), status = deferred<any>()
     api.messages.mockResolvedValue({ records: [{ role: 'AI', content: '历史', toolCalls: JSON.stringify([action()]) }] })
     api.status.mockReturnValue(status.promise)
@@ -86,7 +86,8 @@ describe('conversation loading performance', () => {
     await flush()
     expect(completed).toBe(true)
     expect(chat.messages[0].content).toBe('历史')
-    status.resolve({ status: 'CONFIRMED' })
+    expect(chat.messages[0].actions?.[0].status).toBe('RECOVERY_REQUIRED')
+    status.resolve({ status: 'CONFIRMED', nativeManaged: false })
     await request; await flush()
     expect(chat.messages[0].actions?.[0].status).toBe('CONFIRMED')
   })

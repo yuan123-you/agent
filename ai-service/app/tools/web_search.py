@@ -10,6 +10,7 @@ from langchain_core.tools import tool
 from opencc import OpenCC
 
 from app.config import settings
+from app.resilience import budget_scope, remaining_timeout, run
 
 logger = logging.getLogger("ai-service.websearch")
 _to_simplified = OpenCC("t2s").convert
@@ -27,12 +28,19 @@ def _clean_text(value: str | None) -> str:
 
 
 async def _request(client, method, url, **kwargs):
+    remaining_timeout(settings.web_search_timeout_s)
     if client is None:
         async with httpx.AsyncClient(timeout=settings.web_search_timeout_s, follow_redirects=True) as owned:
             return await _request(owned, method, url, **kwargs)
-    response = await client.request(method, url, **kwargs)
-    response.raise_for_status()
-    return response
+    async def call(timeout):
+        response = await client.request(method, url, timeout=timeout, **kwargs)
+        response.raise_for_status()
+        return response
+
+    # The provider hedge/fallback is the single-shot owner, NOT a retry loop.
+    # Retrying each hedge would multiply traffic even with shared retry permits.
+    return await run("web_search.http", call, replay_safe=True, max_attempts=1,
+                     attempt_timeout_s=settings.web_search_timeout_s)
 
 
 async def _search_tavily(query: str, max_results: int, *, client=None) -> list[dict]:
@@ -102,6 +110,12 @@ async def _search_sogou(query: str, max_results: int, *, client=None) -> list[di
 
 
 async def _search(query: str, max_results: int) -> tuple[list[dict], str]:
+    with budget_scope(settings.web_search_total_timeout_s):
+        timeout = remaining_timeout(settings.web_search_total_timeout_s)
+        return await asyncio.wait_for(_search_providers(query, max_results), timeout=timeout)
+
+
+async def _search_providers(query: str, max_results: int) -> tuple[list[dict], str]:
     providers = []
     if os.environ.get("TAVILY_API_KEY"):
         providers.append(("tavily", _search_tavily))
@@ -109,7 +123,7 @@ async def _search(query: str, max_results: int) -> tuple[list[dict], str]:
         providers.append(("searxng", _search_searxng))
     providers.extend([("bing", _search_bing), ("sogou", _search_sogou)])
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + settings.web_search_total_timeout_s
+    deadline = loop.time() + remaining_timeout(settings.web_search_total_timeout_s)
     all_tasks = []
     completed_ok = False
 
@@ -170,7 +184,9 @@ async def web_search(query: str, max_results: int = 5) -> dict:
     """联网检索真实网络信息，返回标题、摘要与链接。适用于新闻、最新产品、价格等外部资讯。
     回答须基于真实搜索结果并标注【联网搜索】，不得把外站信息当作平台承诺。"""
     try:
-        results, engine = await asyncio.wait_for(_search(query, max_results), timeout=settings.web_search_total_timeout_s)
+        with budget_scope(settings.web_search_total_timeout_s):
+            timeout = remaining_timeout(settings.web_search_total_timeout_s)
+            results, engine = await asyncio.wait_for(_search(query, max_results), timeout=timeout)
         return {"results": results, "total": len(results), "engine": engine,
                 "note": "以下内容来自互联网搜索，回答开头需标注【联网搜索】"}
     except Exception as e:

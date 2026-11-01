@@ -92,7 +92,7 @@
           <el-checkbox :model-value="allChecked" :indeterminate="checkedCount > 0 && !allChecked" class="fcb-checkbox" @change="checkAll">全选</el-checkbox>
           <div v-if="!isManageMode" class="fcb-summary">
             <div class="fcb-total-line"><span class="fcb-label">合计</span><span class="fcb-symbol">¥</span><span class="fcb-price">{{ totalAmount.toFixed(2) }}</span></div>
-            <span class="fcb-sub">优惠及运费以结算页为准</span>
+            <span class="fcb-sub">优惠及运费以结算页为准<br />模拟支付，不会真实扣款</span>
           </div>
           <div class="fcb-action-btns">
             <button v-if="!isManageMode" class="checkout-submit-btn" :disabled="checkedCount === 0" @click="openCheckout">去结算<span>（{{ checkedCount }}）</span></button>

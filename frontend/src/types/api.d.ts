@@ -225,6 +225,16 @@ export interface OrderApprovalForm {
   receiverAddress: string
 }
 
+/** Native receipt metadata is not an approval and must never be sent to recover. */
+export interface ActionWorkflowReceipt {
+  actionId: string
+  workflowStatus: string
+  nativeInterrupt: boolean
+  interrupted: boolean
+  recoverable: boolean
+  error?: Record<string, unknown> | null
+}
+
 export interface OrderAction {
   type: 'ORDER_CREATE' | 'ORDER_CANCEL' | 'AFTER_SALE_APPLY'
   actionId: string
@@ -245,7 +255,12 @@ export interface OrderAction {
   afterSaleId?: number
   afterSaleNo?: string
   expiresAt: string
-  status?: 'PENDING' | 'CONFIRMING' | 'CANCELLING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
+  workflow?: ActionWorkflowReceipt
+  /** Authoritative server ownership marker; missing historical metadata is unknown. */
+  nativeManaged?: boolean
+  /** A decision may already be durable; only explicit recovery may reconcile it. */
+  recoveryRequired?: boolean
+  status?: 'PENDING' | 'CONFIRMING' | 'CANCELLING' | 'RECOVERING' | 'EXECUTING' | 'RECOVERY_REQUIRED' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED'
 }
 
 export interface ChatMessage {

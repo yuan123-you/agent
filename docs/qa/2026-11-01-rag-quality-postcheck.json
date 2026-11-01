@@ -1,0 +1,37 @@
+{
+  "scope": "post-benchmark read-only deployment identity/health; not a benchmark-time weight attestation",
+  "live_commit": "2dbf495ba7aa77a098d8dd10d1d6180af6b102dd",
+  "ai_image": "sha256:4d47264a1f3fff77dd713311231d54103d796149630562cf3ff7fb914be8be6c",
+  "reranker_image": "sha256:af5a0fc6a93faeccf4041c1267296cf3d9390f23588a8c25fe530f414e34b7ec",
+  "runtime": {
+    "action_workflows_flag": "unset",
+    "reranker_health": {
+      "status": "UP",
+      "model": "BAAI/bge-reranker-v2-m3",
+      "revision": "6f5ff65298512715a1e669753bc754d2bc8f367b",
+      "precision": "int8",
+      "provider": "CPUExecutionProvider"
+    }
+  },
+  "weight_check": {
+    "model_lock_revision": "6f5ff65298512715a1e669753bc754d2bc8f367b",
+    "model_files_match_lock": {
+      "model.onnx": true,
+      "tokenizer.json": true,
+      "config.json": true
+    },
+    "scope": "post-benchmark read-only file verification, not benchmark-time attestation"
+  },
+  "running_services": [
+    "ai-service",
+    "backend",
+    "embeddings",
+    "frontend",
+    "milvus",
+    "minio",
+    "mysql",
+    "ollama",
+    "redis",
+    "reranker"
+  ]
+}

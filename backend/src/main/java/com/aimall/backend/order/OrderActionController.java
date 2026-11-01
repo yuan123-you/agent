@@ -4,7 +4,8 @@ import com.aimall.backend.common.ApiResponse;
 import com.aimall.backend.entity.OrderInfo;
 import com.aimall.backend.internal.AgentOrderActionService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import com.aimall.backend.internal.ActionWorkflowCoordinator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,15 +20,24 @@ import java.util.Map;
 /** Buyer-owned explicit decision endpoints for prepared AI order actions. */
 @RestController
 @RequestMapping("/api/v1/order-actions")
-@RequiredArgsConstructor
 public class OrderActionController {
     private final AgentOrderActionService actionService;
+    private final ActionWorkflowCoordinator workflows;
+
+    public OrderActionController(AgentOrderActionService actionService) { this(actionService, null); }
+
+    @Autowired
+    public OrderActionController(AgentOrderActionService actionService, ActionWorkflowCoordinator workflows) {
+        this.actionService = actionService; this.workflows = workflows;
+    }
 
     @PostMapping("/{actionId}/confirm")
     public ApiResponse<Map<String, Object>> confirm(@AuthenticationPrincipal Long userId,
                                                     @PathVariable String actionId,
                                                     @Valid @RequestBody(required = false)
                                                     AgentOrderActionService.ApprovalRequest approval) {
+        if (workflows != null && workflows.requiresNative(userId, actionId))
+            return ApiResponse.ok(workflows.confirm(userId, actionId, approval));
         String type = actionService.typeOf(userId, actionId);
         Map<String, Object> result = new LinkedHashMap<>();
         if (AgentOrderActionService.ORDER_CREATE.equals(type)) {
@@ -48,13 +58,21 @@ public class OrderActionController {
     @GetMapping("/{actionId}")
     public ApiResponse<AgentOrderActionService.ActionStatusResult> status(
             @AuthenticationPrincipal Long userId, @PathVariable String actionId) {
+        if (workflows != null && workflows.enabled()) actionService.snapshot(userId, actionId);
         return ApiResponse.ok(actionService.status(userId, actionId));
     }
 
     @PostMapping("/{actionId}/cancel")
-    public ApiResponse<Void> cancel(@AuthenticationPrincipal Long userId,
+    public ApiResponse<?> cancel(@AuthenticationPrincipal Long userId,
                                     @PathVariable String actionId) {
+        if (workflows != null && workflows.requiresNative(userId, actionId))
+            return ApiResponse.ok(workflows.cancel(userId, actionId));
         actionService.cancel(userId, actionId);
         return ApiResponse.ok();
+    }
+    @PostMapping("/{actionId}/recover")
+    public ApiResponse<Map<String, Object>> recover(@AuthenticationPrincipal Long userId, @PathVariable String actionId) {
+        if (workflows == null) throw new com.aimall.backend.common.BizException(5002, "原生工作流未启用");
+        return ApiResponse.ok(workflows.recover(userId, actionId));
     }
 }

@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api import chat, health, kb, products
+from app.api import chat, health, kb, products, action_workflows
 from app.config import settings
-from app.clients.llm import warm_local_models
+from app.request_budget import RequestBudgetMiddleware
+from app.resilience import budget_scope
+from app.clients.llm import close_model_clients, warm_local_models
 from app.rag.ingest import sync_products
 from app.rag.product_index import get_product_index
 from app.rag.vectorstore import get_vectorstore
@@ -24,12 +26,17 @@ async def _product_sync_loop() -> None:
     except Exception as e:
         logger.error("product collection init failed (product RAG will degrade): %s", e)
     while True:
-        await sync_products()
+        with budget_scope(settings.background_job_timeout_s,retry_tokens=settings.retry_budget_limit,inherit=False):
+            try:
+                async with asyncio.timeout(settings.background_job_timeout_s):
+                    await sync_products()
+            except TimeoutError:
+                logger.warning("product sync job deadline exhausted")
         await asyncio.sleep(settings.product_sync_interval_s)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def _chat_lifespan(app: FastAPI):
     sync_task = None
     # lifespan 显式初始化并缓存向量库实例；Milvus 宕机时抛可控异常 → 记录降级依赖，服务照常启动。
     try:
@@ -58,11 +65,26 @@ async def lifespan(app: FastAPI):
             pass
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Durable approvals initialize before serving or launching background chat jobs.
+    try:
+        async with action_workflows.lifespan(app):
+            async with _chat_lifespan(app):
+                yield
+    finally:
+        await close_model_clients()
+
+
 app = FastAPI(title="AI Mall AI Service", version="1.0.0", lifespan=lifespan)
 app.include_router(chat.router, prefix="/v1")
+app.include_router(action_workflows.router, prefix="/v1")
 app.include_router(kb.router, prefix="/v1")
 app.include_router(products.router, prefix="/v1")
 app.include_router(health.router)
+app.add_middleware(RequestBudgetMiddleware,timeout_s=settings.chat_timeout_s,
+                   action_timeout_s=settings.action_workflow_total_timeout_s,
+                   retry_tokens=settings.retry_budget_limit)
 
 
 @app.middleware("http")

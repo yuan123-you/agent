@@ -219,7 +219,7 @@ describe('chat tool result history', () => {
         }]),
       }],
     })
-    api.orderActionStatus.mockResolvedValue({ status: 'CANCELLED' })
+    api.orderActionStatus.mockResolvedValue({ status: 'CANCELLED', nativeManaged: false })
     const chat = useChatStore()
 
     await chat.openConversation(7)

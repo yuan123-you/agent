@@ -28,3 +28,10 @@ deploy/*audit.json
 **/.tmp_ssh
 **/*-data-export.sql
 **/*data-dump*.sql
+
+# Persistent approval checkpoints and SQLite journals contain private action state
+**/data/action-workflows
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite*

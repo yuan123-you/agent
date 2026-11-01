@@ -60,7 +60,7 @@ async def test_qwen_request_and_sort(monkeypatch):
         "top_n": 2,
     }
     assert seen["headers"] == {"Authorization": "Bearer test-secret"}
-    assert seen["timeout"] == 7.5
+    assert 0 < seen["timeout"] <= 7.5
     assert [item.chunk_id for item in ranked] == [20, 10]
     assert [item.rerank_score for item in ranked] == [0.91, 0.32]
     assert [item.evidence_score for item in ranked] == [0.91, 0.32]

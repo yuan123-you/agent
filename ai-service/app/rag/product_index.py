@@ -13,11 +13,15 @@ import logging
 import re
 from collections import defaultdict
 
-from pymilvus import DataType, MilvusClient
+from pymilvus import DataType
 
 from app.clients.llm import get_embeddings
 from app.config import settings
-from app.rag.vectorstore import MilvusUnavailableError
+from app.rag.vectorstore import (
+    MilvusUnavailableError, _MILVUS_TIMEOUT_S, _SingleShotMilvusClient,
+    _milvus_call, _milvus_sync,
+)
+from app.resilience import budget_scope, remaining_timeout
 from app.rag.reranker import OllamaReranker, get_reranker
 
 logger = logging.getLogger("ai-service.product-index")
@@ -155,8 +159,12 @@ class ProductIndex:
 
     def __init__(self):
         try:
-            self.client = MilvusClient(uri=settings.milvus_uri)
-            self.client.list_collections()  # 首次触达：构造与连接校验，失败抛可控异常
+            with budget_scope(_MILVUS_TIMEOUT_S):
+                self.client = _SingleShotMilvusClient(
+                    uri=settings.milvus_uri, timeout=remaining_timeout(_MILVUS_TIMEOUT_S),
+                    grpc_options={"grpc.enable_retries": 0}, dedicated=True,
+                )
+                _milvus_sync(self.client, "list_collections")
         except Exception as e:
             raise MilvusUnavailableError(
                 f"Milvus unavailable at {settings.milvus_uri}: {e}") from e
@@ -166,36 +174,37 @@ class ProductIndex:
 
     # ---------- collection ----------
     def ensure_collection(self) -> None:
-        name = settings.milvus_product_collection
-        if self.client.has_collection(name):
-            return
-        schema = self.client.create_schema(auto_id=False, enable_dynamic_field=False)
-        schema.add_field("product_id", DataType.INT64, is_primary=True)
-        schema.add_field("embedding", DataType.FLOAT_VECTOR, dim=settings.embedding_dim)
-        schema.add_field("name", DataType.VARCHAR, max_length=256)
-        schema.add_field("category", DataType.VARCHAR, max_length=32)
-        schema.add_field("brand", DataType.VARCHAR, max_length=64)
-        schema.add_field("price", DataType.FLOAT)
-        schema.add_field("stock", DataType.INT64)
-        schema.add_field("sales", DataType.INT64)
-        schema.add_field("build_version", DataType.INT64)
-        index_params = self.client.prepare_index_params()
-        index_params.add_index(
-            field_name="embedding", index_type="HNSW", metric_type="IP",
-            params={"M": 16, "efConstruction": 200},
-        )
-        self.client.create_collection(name, schema=schema, index_params=index_params)
-        logger.info("created milvus product collection %s (dim=%s)", name, settings.embedding_dim)
+        with budget_scope(_MILVUS_TIMEOUT_S):
+            name = settings.milvus_product_collection
+            if _milvus_sync(self.client, "has_collection", name):
+                return
+            schema = self.client.create_schema(auto_id=False, enable_dynamic_field=False)
+            schema.add_field("product_id", DataType.INT64, is_primary=True)
+            schema.add_field("embedding", DataType.FLOAT_VECTOR, dim=settings.embedding_dim)
+            schema.add_field("name", DataType.VARCHAR, max_length=256)
+            schema.add_field("category", DataType.VARCHAR, max_length=32)
+            schema.add_field("brand", DataType.VARCHAR, max_length=64)
+            schema.add_field("price", DataType.FLOAT)
+            schema.add_field("stock", DataType.INT64)
+            schema.add_field("sales", DataType.INT64)
+            schema.add_field("build_version", DataType.INT64)
+            index_params = self.client.prepare_index_params()
+            index_params.add_index(
+                field_name="embedding", index_type="HNSW", metric_type="IP",
+                params={"M": 16, "efConstruction": 200},
+            )
+            _milvus_sync(self.client, "create_collection", name, schema=schema, index_params=index_params)
+            logger.info("created milvus product collection %s (dim=%s)", name, settings.embedding_dim)
 
     async def upsert(self, rows: list[dict]) -> None:
-        await asyncio.to_thread(
-            self.client.upsert, collection_name=settings.milvus_product_collection, data=rows,
+        await _milvus_call(
+            self.client, "upsert", replay_safe=False, collection_name=settings.milvus_product_collection, data=rows,
         )
 
     async def delete_old_versions(self, version: int) -> None:
         """重建/停用：清理旧版本向量（新版本已含当前在售全量，旧版本即停用商品）"""
-        await asyncio.to_thread(
-            self.client.delete,
+        await _milvus_call(
+            self.client, "delete", replay_safe=False,
             collection_name=settings.milvus_product_collection,
             filter=f"build_version < {version}",
         )
@@ -217,8 +226,8 @@ class ProductIndex:
 
     async def vector_recall(self, query: str, category, min_price, max_price, k: int) -> list[tuple[int, float]]:
         emb = await self.embeddings.aembed_query(query)
-        res = await asyncio.to_thread(
-            self.client.search,
+        res = await _milvus_call(
+            self.client, "search", replay_safe=True,
             collection_name=settings.milvus_product_collection,
             data=[emb],
             limit=k,

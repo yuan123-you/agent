@@ -1,3 +1,4 @@
+from tests.preparation_helpers import invoke_preparation
 """Regression coverage for the retrieval/product audit (offline boundaries)."""
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -122,7 +123,7 @@ async def test_legacy_only_vector_must_be_searchable_after_ingest(monkeypatch):
     def insert(**kwargs):
         active_rows.extend(kwargs["data"])
     store.client = SimpleNamespace(
-        has_collection=lambda name: True,
+        has_collection=lambda name, **kwargs: True,
         query=lambda **kwargs: [{"id": 101}] if kwargs["collection_name"] == "audit_legacy" else [],
         insert=insert,
         search=lambda **kwargs: [[{"id": row["id"], "distance": 0.95, "entity": row} for row in active_rows]],
@@ -231,7 +232,7 @@ async def test_order_reference_uses_the_same_fourth_product_resolution(monkeypat
     tools.set_tool_ctx({"user_id": 1, "conversation_id": 1, "latest_user_text": "买第四款", "active_entities": {
         "last_products": [{"id": 101+i} for i in range(5)]}})
     monkeypatch.setattr(tools.backend_client, "order_prepare", AsyncMock(side_effect=lambda **kwargs: {"productId": kwargs["product_id"]}))
-    result = await tools.order_create.ainvoke({})
+    result = await invoke_preparation(tools.order_create, {})
     assert result["productId"] == 104
 
 

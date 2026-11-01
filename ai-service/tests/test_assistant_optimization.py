@@ -1,3 +1,4 @@
+from tests.preparation_helpers import invoke_preparation
 import pytest
 from app.agent.nodes import parse_intent_json, fallback_intent_by_rules, get_tools_for_intent
 from app.tools.tools import normalize_category, clean_search_keyword
@@ -178,9 +179,9 @@ def test_fallback_intent_additional_order_keywords():
 async def test_order_tools_missing_entity_error():
     from app.tools.tools import order_create, order_cancel_prepare, set_tool_ctx
     set_tool_ctx({"active_entities": {}})
-    res_cancel = await order_cancel_prepare.ainvoke({"order_id": 0, "reason": "不想要了"})
+    res_cancel = await invoke_preparation(order_cancel_prepare, {"order_id": 0, "reason": "不想要了"})
     assert "error" in res_cancel
-    res_create = await order_create.ainvoke({"product_id": 0, "quantity": 1})
+    res_create = await invoke_preparation(order_create, {"product_id": 0, "quantity": 1})
     assert "error" in res_create
 
 

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.clients.backend_client import backend_client
 from app.config import settings
+from app.resilience import budget_scope
 from app.clients.llm import get_embeddings
 from app.rag.product_index import get_product_corpus, get_product_index
 from app.rag.vectorstore import get_vectorstore
@@ -98,6 +99,18 @@ def split_text(
     return [chunk for chunk in chunks if chunk.strip()]
 
 async def run_ingest(task: IngestTask) -> None:
+    # An accepted asynchronous job is independent of its finished HTTP response.
+    with budget_scope(settings.background_job_timeout_s,retry_tokens=settings.retry_budget_limit,inherit=False):
+        try:
+            async with asyncio.timeout(settings.background_job_timeout_s):
+                await _run_ingest(task)
+        except TimeoutError:
+            # No fresh retry/deadline is invented for a late mutation callback;
+            # the backend's existing stuck-ingest recovery owns that transition.
+            logger.warning("ingest job deadline exhausted doc=%s",task.doc_id)
+
+
+async def _run_ingest(task: IngestTask) -> None:
     """后台摄取任务：分块落库失败置 FAILED；
     向量 Embedding/Milvus 不可用时降级为关键词检索模式（仍置 ACTIVE，保证知识库可用）"""
     try:

@@ -1,0 +1,791 @@
+{
+  "cases": {
+    "auth_401": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 0,
+      "elapsed_s": 0.0072462999960407615,
+      "errors": [
+        "HTTPStatusError"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.auth_401",
+          "outcome": "attempt",
+          "remaining_s": 0.9999751999857835,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_401",
+          "operation": "evidence.auth_401",
+          "outcome": "failure",
+          "remaining_s": 0.9927842000033706,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "rejected",
+      "physical_requests": 1,
+      "remaining_retry_tokens": 2,
+      "remaining_s": 0.9927447999943979,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 401
+        }
+      ]
+    },
+    "bad_model_json": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 0,
+      "elapsed_s": 0.009559099969919771,
+      "errors": [
+        "JSONDecodeError"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.bad_model_json",
+          "outcome": "attempt",
+          "remaining_s": 0.9999774000025354,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.bad_model_json",
+          "outcome": "success",
+          "remaining_s": 0.9905192999867722,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "malformed_json",
+      "physical_requests": 1,
+      "remaining_retry_tokens": 2,
+      "remaining_s": 0.9904336000327021,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 200
+        }
+      ]
+    },
+    "deadline": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.0399815000128001
+      ],
+      "deadline_s": 0.04,
+      "effects": 0,
+      "elapsed_s": 0.04270280001219362,
+      "errors": [
+        "DeadlineExceeded"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.deadline",
+          "outcome": "attempt",
+          "remaining_s": 0.03997380001237616,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "timeout",
+          "operation": "evidence.deadline",
+          "outcome": "failure",
+          "remaining_s": 0.0,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.2,
+      "outcome": "deadline_exceeded",
+      "physical_requests": 1,
+      "remaining_retry_tokens": 2,
+      "remaining_s": 0.0,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": null
+        }
+      ]
+    },
+    "keyed_write": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5,
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 1,
+      "elapsed_s": 0.022702400048729032,
+      "errors": [],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.keyed_write",
+          "outcome": "attempt",
+          "remaining_s": 0.9999708999530412,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "disconnect_before_response",
+          "operation": "evidence.keyed_write",
+          "outcome": "failure",
+          "remaining_s": 0.9914288999862038,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "disconnect_before_response",
+          "operation": "evidence.keyed_write",
+          "outcome": "retry_wait",
+          "remaining_s": 0.991392600000836,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0.0021712963449251753
+        },
+        {
+          "attempt": 2,
+          "category": null,
+          "operation": "evidence.keyed_write",
+          "outcome": "attempt",
+          "remaining_s": 0.9848936999915168,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": null,
+          "operation": "evidence.keyed_write",
+          "outcome": "success",
+          "remaining_s": 0.9773180999909528,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "resolved",
+      "physical_requests": 2,
+      "remaining_retry_tokens": 1,
+      "remaining_s": 0.9772889000014402,
+      "root_operations": 1,
+      "same_key": true,
+      "sse_chunks": 0,
+      "waits_s": [
+        0.0021712963449251753
+      ],
+      "wire": [
+        {
+          "committed": true,
+          "key_present": true,
+          "method": "POST",
+          "root": 0,
+          "status": null
+        },
+        {
+          "committed": false,
+          "key_present": true,
+          "method": "POST",
+          "root": 0,
+          "status": 200
+        }
+      ]
+    },
+    "parallel_nested": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 0,
+      "elapsed_s": 0.02978179999627173,
+      "errors": [
+        "RetryBudgetExhausted",
+        "RetryBudgetExhausted",
+        "RetryBudgetExhausted"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "attempt",
+          "remaining_s": 0.9997952000121586,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.inner.0",
+          "outcome": "attempt",
+          "remaining_s": 0.9997444999753498,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "attempt",
+          "remaining_s": 0.9993761999648996,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.inner.1",
+          "outcome": "attempt",
+          "remaining_s": 0.9993485999875702,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.root.2",
+          "outcome": "attempt",
+          "remaining_s": 0.9991321999696083,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.inner.2",
+          "outcome": "attempt",
+          "remaining_s": 0.9991097999736667,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.inner.0",
+          "outcome": "failure",
+          "remaining_s": 0.9848275000113063,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "failure",
+          "remaining_s": 0.9847871999954805,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "retry_wait",
+          "remaining_s": 0.9847722999984398,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0.0038466096850535755
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.inner.1",
+          "outcome": "failure",
+          "remaining_s": 0.9842633999651298,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "failure",
+          "remaining_s": 0.9842370999976993,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "retry_wait",
+          "remaining_s": 0.9842253999668173,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0.0028556174165699022
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.inner.2",
+          "outcome": "failure",
+          "remaining_s": 0.981207299977541,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.2",
+          "outcome": "failure",
+          "remaining_s": 0.9811811000108719,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.2",
+          "outcome": "permits_exhausted",
+          "remaining_s": 0.9811698999837972,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": null,
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "attempt",
+          "remaining_s": 0.9811186000006273,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.inner.1",
+          "outcome": "attempt",
+          "remaining_s": 0.981089000008069,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": null,
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "attempt",
+          "remaining_s": 0.9795948999817483,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.parallel_nested.inner.0",
+          "outcome": "attempt",
+          "remaining_s": 0.9795320999692194,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.inner.1",
+          "outcome": "failure",
+          "remaining_s": 0.9752608999842778,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "failure",
+          "remaining_s": 0.9752244999981485,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.1",
+          "outcome": "permits_exhausted",
+          "remaining_s": 0.9752092999988236,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.inner.0",
+          "outcome": "failure",
+          "remaining_s": 0.970324800000526,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "failure",
+          "remaining_s": 0.9702871000044979,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.parallel_nested.root.0",
+          "outcome": "permits_exhausted",
+          "remaining_s": 0.9702734000165947,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "bounded_failure",
+      "physical_requests": 5,
+      "remaining_retry_tokens": 0,
+      "remaining_s": 0.97021020000102,
+      "root_operations": 3,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [
+        0.0038466096850535755,
+        0.0028556174165699022
+      ],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 1,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 2,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 1,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 503
+        }
+      ]
+    },
+    "read_503": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 0,
+      "elapsed_s": 0.04992109996965155,
+      "errors": [],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.read_503",
+          "outcome": "attempt",
+          "remaining_s": 0.999957199965138,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.read_503",
+          "outcome": "failure",
+          "remaining_s": 0.9820534999598749,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "http_503",
+          "operation": "evidence.read_503",
+          "outcome": "retry_wait",
+          "remaining_s": 0.9820151999592781,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0.00013627280677647568
+        },
+        {
+          "attempt": 2,
+          "category": null,
+          "operation": "evidence.read_503",
+          "outcome": "attempt",
+          "remaining_s": 0.978829899977427,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.read_503",
+          "outcome": "failure",
+          "remaining_s": 0.9702940999995917,
+          "retry_tokens_remaining": 1,
+          "wait_s": 0
+        },
+        {
+          "attempt": 2,
+          "category": "http_503",
+          "operation": "evidence.read_503",
+          "outcome": "retry_wait",
+          "remaining_s": 0.9702541999868117,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0.006464174852243923
+        },
+        {
+          "attempt": 3,
+          "category": null,
+          "operation": "evidence.read_503",
+          "outcome": "attempt",
+          "remaining_s": 0.9581803999608383,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        },
+        {
+          "attempt": 3,
+          "category": null,
+          "operation": "evidence.read_503",
+          "outcome": "success",
+          "remaining_s": 0.950092599960044,
+          "retry_tokens_remaining": 0,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "success",
+      "physical_requests": 3,
+      "remaining_retry_tokens": 0,
+      "remaining_s": 0.950059800001327,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [
+        0.00013627280677647568,
+        0.006464174852243923
+      ],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 503
+        },
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 200
+        }
+      ]
+    },
+    "sse_partial": {
+      "accepted_stream": true,
+      "attempt_timeouts_s": [
+        0.49999570002546534
+      ],
+      "deadline_s": 1.0,
+      "effects": 0,
+      "elapsed_s": 0.01455969997914508,
+      "errors": [
+        "RemoteProtocolError"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.sse_partial",
+          "outcome": "attempt",
+          "remaining_s": 0.4999942000140436,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.sse_partial",
+          "outcome": "stream_open",
+          "remaining_s": 0.4971368000260554,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "partial_stream_failed",
+      "physical_requests": 1,
+      "remaining_retry_tokens": 2,
+      "remaining_s": 0.985433500027284,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 1,
+      "waits_s": [],
+      "wire": [
+        {
+          "committed": false,
+          "key_present": false,
+          "method": "GET",
+          "root": 0,
+          "status": 200
+        }
+      ]
+    },
+    "unsafe_write": {
+      "accepted_stream": false,
+      "attempt_timeouts_s": [
+        0.5
+      ],
+      "deadline_s": 1.0,
+      "effects": 1,
+      "elapsed_s": 0.007037099974695593,
+      "errors": [
+        "RemoteProtocolError"
+      ],
+      "events": [
+        {
+          "attempt": 1,
+          "category": null,
+          "operation": "evidence.unsafe_write",
+          "outcome": "attempt",
+          "remaining_s": 0.9999797000200488,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        },
+        {
+          "attempt": 1,
+          "category": "unsafe_replay",
+          "operation": "evidence.unsafe_write",
+          "outcome": "failure",
+          "remaining_s": 0.9930046000517905,
+          "retry_tokens_remaining": 2,
+          "wait_s": 0
+        }
+      ],
+      "initial_retry_tokens": 2,
+      "injected_delay_s": 0.0,
+      "outcome": "unresolved",
+      "physical_requests": 1,
+      "remaining_retry_tokens": 2,
+      "remaining_s": 0.9929563000332564,
+      "root_operations": 1,
+      "same_key": null,
+      "sse_chunks": 0,
+      "waits_s": [],
+      "wire": [
+        {
+          "committed": true,
+          "key_present": false,
+          "method": "POST",
+          "root": 0,
+          "status": null
+        }
+      ]
+    }
+  },
+  "evidence_kind": "actual_loopback_tcp_fault_injection",
+  "generated_at_utc": "2026-11-01T16:49:02.895741+00:00",
+  "schema_version": 1,
+  "scope": {
+    "business_ledger": "synthetic_in_memory",
+    "external_services_used": false,
+    "live_model_accuracy": false,
+    "production_outage_or_sla": false,
+    "time_basis": "relative_monotonic_seconds"
+  },
+  "server_cleanup": {
+    "cancelled_handlers": 1,
+    "open_connections": 0,
+    "pending_handlers": 0,
+    "unexpected_errors": []
+  },
+  "source_hash_mode": "utf8-lf",
+  "sources_sha256": {
+    "ai-service/app/resilience.py": "e65fd9c3ede2581ceccff01e28a37ee0aaebb96dcf46654a806c6944691b8a86",
+    "eval/retry_evidence.py": "bd129ffd1f73e998a26c8bb7bc2d81eed77138ab548630cb9b8c67fefc3ee24a",
+    "eval/tests/test_retry_evidence.py": "8a8e172fdec13d83a7a5d049a123abcb425199639fcc70f6e17436226c575675"
+  },
+  "total_elapsed_s": 0.3439232999808155,
+  "versions": {
+    "anyio": "4.12.1",
+    "httpcore": "1.0.9",
+    "httpx": "0.28.1",
+    "python": "3.14.6"
+  }
+}

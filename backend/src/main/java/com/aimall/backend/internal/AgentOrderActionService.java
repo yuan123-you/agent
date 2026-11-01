@@ -34,6 +34,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Set;
+import java.util.Map;
+import java.util.TreeMap;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import org.springframework.dao.DuplicateKeyException;
 
 @Service
 @RequiredArgsConstructor
@@ -59,11 +66,28 @@ public class AgentOrderActionService {
     private com.aimall.backend.aftersale.AfterSaleService afterSaleService;
 
     public record PrepareRequest(Long userId, Long conversationId, Long productId, Integer quantity,
-                                 String receiverName, String receiverPhone, String receiverAddress) {}
-    public record ApprovalRequest(String receiverName, String receiverPhone, String receiverAddress) {}
-    public record CancelPrepareRequest(Long userId, Long conversationId, Long orderId, String reason) {}
+                                 String receiverName, String receiverPhone, String receiverAddress, String preparationKey) {
+        public PrepareRequest(Long userId, Long conversationId, Long productId, Integer quantity,
+                              String receiverName, String receiverPhone, String receiverAddress) {
+            this(userId, conversationId, productId, quantity, receiverName, receiverPhone, receiverAddress, null);
+        }
+    }
+    public record ApprovalRequest(String receiverName, String receiverPhone, String receiverAddress) {
+        @com.fasterxml.jackson.annotation.JsonAnySetter
+        public void rejectUnknown(String key, Object value) { throw new IllegalArgumentException("Unknown approval field"); }
+    }
+    public record CancelPrepareRequest(Long userId, Long conversationId, Long orderId, String reason, String preparationKey) {
+        public CancelPrepareRequest(Long userId, Long conversationId, Long orderId, String reason) {
+            this(userId, conversationId, orderId, reason, null);
+        }
+    }
     public record AfterSalePrepareRequest(Long userId, Long conversationId, Long orderId, Long orderItemId,
-                                          String serviceType, String issueCategory, String reason, Integer quantity) {}
+                                          String serviceType, String issueCategory, String reason, Integer quantity, String preparationKey) {
+        public AfterSalePrepareRequest(Long userId, Long conversationId, Long orderId, Long orderItemId,
+                                       String serviceType, String issueCategory, String reason, Integer quantity) {
+            this(userId, conversationId, orderId, orderItemId, serviceType, issueCategory, reason, quantity, null);
+        }
+    }
     public record BusinessPrepareResult(String type, String actionId, Long orderId, String orderNo,
                                         Long orderItemId, String productName, String serviceType,
                                         String issueCategory, String reason, Integer quantity,
@@ -71,7 +95,11 @@ public class AgentOrderActionService {
     public record BusinessConfirmResult(String type, String status, Long orderId, String orderNo,
                                         String orderStatus, Long afterSaleId, String afterSaleNo) {}
     public record ActionStatusResult(String type, String status, Long orderId, String orderNo,
-                                     Long afterSaleId, String afterSaleNo) {
+                                     Long afterSaleId, String afterSaleNo, boolean nativeManaged) {
+        public ActionStatusResult(String type, String status, Long orderId, String orderNo,
+                                  Long afterSaleId, String afterSaleNo) {
+            this(type, status, orderId, orderNo, afterSaleId, afterSaleNo, false);
+        }
         public ActionStatusResult(String status, Long orderId, String orderNo) {
             this(ORDER_CREATE, status, orderId, orderNo, null, null);
         }
@@ -83,6 +111,9 @@ public class AgentOrderActionService {
     @Transactional
     public PrepareResult prepare(PrepareRequest request) {
         validateCore(request);
+        if (request.preparationKey() != null) validateConversationOwner(request.userId(), request.conversationId());
+        var replay = preparationReplay(request.userId(), request.conversationId(), request.preparationKey(), ORDER_CREATE, request, PrepareResult.class);
+        if (replay != null) return replay;
         PrepareRequest prepared = withSavedDelivery(request);
         validateRequest(prepared);
         validateConversationOwner(prepared.userId(), prepared.conversationId());
@@ -100,16 +131,17 @@ public class AgentOrderActionService {
         action.setAmount(amount);
         action.setStatus("PENDING");
         action.setExpiresAt(expiresAt);
-        actionMapper.insert(action);
-        return new PrepareResult(action.getActionId(), product.getName(), prepared.quantity(),
+        return insertPreparation(action, request.preparationKey(), request, id -> new PrepareResult(id, product.getName(), prepared.quantity(),
                 amount.divide(BigDecimal.valueOf(prepared.quantity()), 2, java.math.RoundingMode.HALF_UP), amount, prepared.receiverName(), prepared.receiverPhone(),
-                prepared.receiverAddress(), expiresAt);
+                prepared.receiverAddress(), expiresAt), PrepareResult.class);
     }
 
     @Transactional
     public BusinessPrepareResult prepareCancel(CancelPrepareRequest request) {
         validateBusinessCore(request == null ? null : request.userId(), request == null ? null : request.conversationId());
         validateConversationOwner(request.userId(), request.conversationId());
+        var replay = preparationReplay(request.userId(), request.conversationId(), request.preparationKey(), ORDER_CANCEL, request, BusinessPrepareResult.class);
+        if (replay != null) return replay;
         OrderInfo order = requireOwnedOrder(request.userId(), request.orderId());
         if (!"PENDING_PAYMENT".equals(order.getStatus())) {
             throw new BizException(2004, "仅待支付订单可取消");
@@ -117,15 +149,16 @@ public class AgentOrderActionService {
         String reason = requireReason(request.reason());
         AgentAction action = pendingBusinessAction(request.userId(), request.conversationId(), ORDER_CANCEL,
                 request.orderId(), writePayload(request));
-        actionMapper.insert(action);
-        return new BusinessPrepareResult(ORDER_CANCEL, action.getActionId(), order.getId(), order.getOrderNo(),
-                null, null, null, null, reason, null, BigDecimal.ZERO, action.getExpiresAt());
+        return insertPreparation(action, request.preparationKey(), request, id -> new BusinessPrepareResult(ORDER_CANCEL, id, order.getId(), order.getOrderNo(),
+                null, null, null, null, reason, null, BigDecimal.ZERO, action.getExpiresAt()), BusinessPrepareResult.class);
     }
 
     @Transactional
     public BusinessPrepareResult prepareAfterSale(AfterSalePrepareRequest request) {
         validateBusinessCore(request == null ? null : request.userId(), request == null ? null : request.conversationId());
         validateConversationOwner(request.userId(), request.conversationId());
+        var replay = preparationReplay(request.userId(), request.conversationId(), request.preparationKey(), AFTER_SALE_APPLY, request, BusinessPrepareResult.class);
+        if (replay != null) return replay;
         OrderInfo order = requireAfterSaleOrder(request.userId(), request.orderId());
         OrderItem item = requireOrderItem(order.getId(), request.orderItemId(), request.quantity());
         String serviceType = requireOneOf(request.serviceType(), Set.of("RETURN_REFUND", "EXCHANGE", "REFUND_ONLY", "ISSUE_REPORT"), "售后类型");
@@ -135,10 +168,9 @@ public class AgentOrderActionService {
                 request.orderId(), request.orderItemId(), serviceType, issueCategory, reason, request.quantity());
         AgentAction action = pendingBusinessAction(request.userId(), request.conversationId(), AFTER_SALE_APPLY,
                 request.orderId(), writePayload(prepared));
-        actionMapper.insert(action);
-        return new BusinessPrepareResult(AFTER_SALE_APPLY, action.getActionId(), order.getId(), order.getOrderNo(),
+        return insertPreparation(action, request.preparationKey(), request, id -> new BusinessPrepareResult(AFTER_SALE_APPLY, id, order.getId(), order.getOrderNo(),
                 item.getId(), item.getProductName(), serviceType, issueCategory, reason, request.quantity(),
-                afterSaleService.quote(request.userId(), request.orderId(), request.orderItemId(), serviceType, request.quantity()), action.getExpiresAt());
+                afterSaleService.quote(request.userId(), request.orderId(), request.orderItemId(), serviceType, request.quantity()), action.getExpiresAt()), BusinessPrepareResult.class);
     }
 
     @Transactional
@@ -183,6 +215,113 @@ public class AgentOrderActionService {
                     order.getStatus(), afterSale.getId(), afterSale.getAfterSaleNo());
         }
         throw new BizException(2010, "待确认操作类型不支持");
+    }
+
+    public record ActionSnapshot(String actionId, Long userId, Long conversationId, String type,
+                                 String status, Instant expiresAt, String fingerprint) {}
+
+    @Transactional(readOnly = true)
+    public ActionSnapshot snapshot(Long userId, String actionId) {
+        if (userId == null || blank(actionId)) throw new BizException(2001, "缺少操作信息");
+        AgentAction action = actionMapper.selectById(actionId);
+        if (action == null) throw new BizException(2010, "待确认操作不存在");
+        if (!userId.equals(action.getUserId())) throw new BizException(2003, "无权操作该请求");
+        validateConversationOwner(userId, action.getConversationId());
+        if (ORDER_CREATE.equals(action.getType())) {
+            var request = readPayload(action.getPayload());
+            if (!userId.equals(request.userId()) || !action.getConversationId().equals(request.conversationId()))
+                throw new BizException(2003, "操作快照归属校验失败");
+        } else if (ORDER_CANCEL.equals(action.getType())) {
+            var request = readPayload(action.getPayload(), CancelPrepareRequest.class);
+            validateBusinessSnapshot(action, userId, request.userId(), request.conversationId(), request.orderId());
+        } else if (AFTER_SALE_APPLY.equals(action.getType())) {
+            var request = readPayload(action.getPayload(), AfterSalePrepareRequest.class);
+            validateBusinessSnapshot(action, userId, request.userId(), request.conversationId(), request.orderId());
+        } else throw new BizException(2010, "待确认操作类型不支持");
+        BigDecimal original = action.getOriginalAmount() == null ? action.getAmount() : action.getOriginalAmount();
+        if (original == null || original.signum() < 0) throw new BizException(2013, "报价快照无效");
+        Object payload = canonicalJson(readPayload(action.getPayload(), Object.class));
+        String fingerprint = digest(writePayload(java.util.List.of(action.getActionId(), userId, action.getConversationId(),
+                action.getType(), action.getExpiresAt().toString(), original.stripTrailingZeros().toPlainString(), payload)));
+        String status = "PENDING".equals(action.getStatus()) && !action.getExpiresAt().isAfter(clock.instant())
+                ? "EXPIRED" : action.getStatus();
+        return new ActionSnapshot(actionId, userId, action.getConversationId(), action.getType(), status, action.getExpiresAt(), fingerprint);
+    }
+
+    private Object canonicalJson(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            var sorted = new TreeMap<String, Object>();
+            map.forEach((key, item) -> sorted.put(key.toString(), canonicalJson(item)));
+            return sorted;
+        }
+        if (value instanceof java.util.List<?> list) return list.stream().map(this::canonicalJson).toList();
+        return value;
+    }
+
+    private String digest(String value) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
+        catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    private void validatePreparationKey(String key) {
+        if (key != null && (key.isBlank() || key.length() > 191 || !key.matches("[\\x21-\\x7E]+")))
+            throw new BizException(2001, "preparationKey 必须是191字符以内的非空ASCII工具调用标识");
+    }
+
+    private <T> T preparationReplay(Long userId, Long conversationId, String key, String type, Object request, Class<T> resultType) {
+        validatePreparationKey(key);
+        if (key == null) return null;
+        AgentAction existing = actionMapper.selectPreparation(userId, conversationId, key);
+        return existing == null ? null : boundPreparation(existing, type, request, resultType);
+    }
+
+    private <T> T boundPreparation(AgentAction action, String type, Object request, Class<T> resultType) {
+        if (!type.equals(action.getType()) || !digest(writePayload(request)).equals(action.getPreparationFingerprint()))
+            throw new BizException(2004, "preparationKey 已绑定其他操作参数");
+        try { return objectMapper.copy().findAndRegisterModules().readValue(action.getPreparationResult(), resultType); }
+        catch (JsonProcessingException e) { throw new BizException(2013, "操作准备快照损坏"); }
+    }
+
+    private <T> T insertPreparation(AgentAction action, String key, Object request,
+                                    java.util.function.Function<String, T> resultFactory, Class<T> resultType) {
+        action.setOriginalAmount(action.getAmount());
+        if (key == null) {
+            actionMapper.insert(action);
+            return resultFactory.apply(action.getActionId());
+        }
+        T result = resultFactory.apply(action.getActionId());
+        action.setPreparationKey(key);
+        action.setPreparationFingerprint(digest(writePayload(request)));
+        try { action.setPreparationResult(objectMapper.copy().findAndRegisterModules().writeValueAsString(result)); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("无法保存准备响应", e); }
+        try { actionMapper.insert(action); }
+        catch (DuplicateKeyException e) {
+            AgentAction winner = actionMapper.selectPreparationForUpdate(action.getUserId(), action.getConversationId(), key);
+            if (winner == null) throw e;
+            return boundPreparation(winner, action.getType(), request, resultType);
+        }
+        return result;
+    }
+
+    @Transactional
+    public void markNativeManaged(Long userId, String actionId) {
+        AgentAction action = requireOwnedLockedAction(userId, actionId);
+        // Revalidate canonical ownership, payload and computed expiry under the lock before adopting a legacy action.
+        var canonical = snapshot(userId, actionId);
+        if (!nativeManaged(action) && !"PENDING".equals(canonical.status()))
+            throw new BizException(2004, "非待确认的旧操作不能创建原生工作流");
+        if (!Boolean.TRUE.equals(action.getNativeWorkflowManaged())
+                && actionMapper.markNativeWorkflowManaged(userId, actionId) != 1)
+            throw new BizException(2004, "无法保存原生工作流归属，请重试恢复");
+    }
+
+    private boolean nativeManaged(AgentAction action) {
+        return action.getPreparationKey() != null || Boolean.TRUE.equals(action.getNativeWorkflowManaged());
+    }
+
+    public boolean isNativeManaged(Long userId, String actionId) {
+        typeOf(userId, actionId);
+        return nativeManaged(actionMapper.selectById(actionId));
     }
 
     public String typeOf(Long userId, String actionId) {
@@ -313,7 +452,7 @@ public class AgentOrderActionService {
                 ? afterSaleMapper.selectOne(new LambdaQueryWrapper<AfterSale>().eq(AfterSale::getActionId, actionId)) : null;
         return new ActionStatusResult(action.getType(), status, order == null ? null : order.getId(),
                 order == null ? null : order.getOrderNo(), afterSale == null ? null : afterSale.getId(),
-                afterSale == null ? null : afterSale.getAfterSaleNo());
+                afterSale == null ? null : afterSale.getAfterSaleNo(), nativeManaged(action));
     }
 
     @Transactional

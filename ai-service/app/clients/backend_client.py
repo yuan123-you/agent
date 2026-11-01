@@ -1,10 +1,10 @@
 """后端回调客户端：AI 工具执行业务动作（商品检索/订单/转人工/知识库回写）"""
-import asyncio
 import logging
 
 import httpx
 
 from app.config import settings
+from app.resilience import budget_headers, run
 
 logger = logging.getLogger("ai-service.backend")
 
@@ -24,38 +24,64 @@ class BackendClient:
             trust_env=False,
         )
 
-    async def _get(self, path: str, params: dict | None = None, retries: int = 2) -> dict | list:
-        for attempt in range(retries):
-            try:
-                r = await self._client.get(path, params=params)
-                r.raise_for_status()
-                resp = r.json()
-                if resp.get("code") == 0:
-                    return resp.get("data")
-                return {"error": resp.get("message", "backend business error")}
-            except Exception as e:
-                if attempt == retries - 1:
-                    logger.warning("backend get failed %s: %s", path, e)
-                    return {"error": "后端服务暂时不可用，请稍后再试"}
-                await asyncio.sleep(0.3)
-        return {"error": "后端服务暂时不可用"}
+    _READ_ONLY_POSTS = frozenset({
+        "/internal/tools/product/search", "/internal/tools/product/detail",
+        "/internal/tools/order/query", "/internal/tools/products/all",
+        "/internal/kb/search", "/internal/kb/chunks/current", "/internal/kb/titles",
+    })
+    _KEYED_PREPARATIONS = frozenset({
+        "/internal/tools/order/prepare", "/internal/tools/order/cancel/prepare",
+        "/internal/tools/after-sale/prepare",
+    })
 
-    async def _post(self, path: str, body: dict, retries: int = 2) -> dict:
-        """POST 并解包统一响应体；失败返回 {error: ...} 而不抛异常（交给 LLM 友好告知用户）"""
-        for attempt in range(retries):
-            try:
-                r = await self._client.post(path, json=body)
-                r.raise_for_status()
-                resp = r.json()
-                if resp.get("code") == 0:
-                    return resp.get("data") or {}
-                return {"error": resp.get("message", "backend business error")}
-            except Exception as e:
-                if attempt == retries - 1:
-                    logger.warning("backend call failed %s: %s", path, e)
-                    return {"error": "后端服务暂时不可用，请稍后再试"}
-                await asyncio.sleep(0.3)
-        return {"error": "后端服务暂时不可用"}
+    @classmethod
+    def _replay_safe_post(cls, path, body):
+        return path in cls._READ_ONLY_POSTS or (path in cls._KEYED_PREPARATIONS
+            and isinstance(body.get("preparationKey"),str) and bool(body["preparationKey"].strip()))
+
+    async def _perform(self, client, method, path, *, body=None, params=None,
+                       replay_safe=False, max_attempts=3, timeout_s=None):
+        async def attempt(timeout):
+            response = await client.request(method,path,json=body,params=params,
+                                            timeout=timeout,headers=budget_headers())
+            response.raise_for_status()
+            return response
+        return await run("backend.read" if replay_safe else "backend.write",attempt,
+                         replay_safe=replay_safe,max_attempts=max_attempts,
+                         attempt_timeout_s=timeout_s or settings.tool_callback_timeout_s)
+
+    @staticmethod
+    def _envelope(response):
+        payload = response.json()
+        if not isinstance(payload,dict) or type(payload.get("code")) is not int:
+            raise ValueError("invalid backend response envelope")
+        return payload
+
+    async def _get(self, path: str, params: dict | None = None, retries: int = 3) -> dict | list:
+        try:
+            response = await self._perform(self._client,"GET",path,params=params,
+                                           replay_safe=True,max_attempts=retries)
+            result = self._envelope(response)
+            if result["code"] == 0:
+                return result.get("data")
+            return {"error":result.get("message","backend business error")}
+        except Exception as error:
+            logger.warning("backend read unavailable (%s)",type(error).__name__)
+            return {"error":"后端服务暂时不可用，请稍后再试"}
+
+    async def _post(self, path: str, body: dict, retries: int = 3) -> dict:
+        # POST is not replay-safe merely because it is used as an RPC. Only the
+        # explicit read allowlist or a backend-enforced stable preparation key qualifies.
+        try:
+            response = await self._perform(self._client,"POST",path,body=body,
+                replay_safe=self._replay_safe_post(path,body),max_attempts=retries)
+            result = self._envelope(response)
+            if result["code"] == 0:
+                return result.get("data") or {}
+            return {"error":result.get("message","backend business error")}
+        except Exception as error:
+            logger.warning("backend operation unavailable (%s)",type(error).__name__)
+            return {"error":"后端服务暂时不可用，请稍后再试"}
 
     async def record_ai_trace(self, trace_id: str, payload: dict) -> dict:
         return await self._post(f"/internal/ai-traces/{trace_id}", payload, retries=1)
@@ -89,19 +115,12 @@ class BackendClient:
     async def products_all(self) -> list[dict]:
         """拉取全量在售商品（商品向量化 job 数据源：含参数/介绍/销量）。
         全量商品响应较大，必须走长超时客户端，避免 3s 默认超时导致同步失败。"""
-        for attempt in range(3):
-            try:
-                r = await self._long_client.post("/internal/tools/products/all", json={})
-                r.raise_for_status()
-                resp = r.json()
-                if resp.get("code") == 0:
-                    return (resp.get("data") or {}).get("products") or []
-                raise RuntimeError(resp.get("message", "backend business error"))
-            except Exception as e:
-                if attempt == 2:
-                    raise RuntimeError(f"后端服务暂时不可用，请稍后再试: {e}") from e
-                await asyncio.sleep(0.3)
-        return []
+        response = await self._perform(self._long_client,"POST","/internal/tools/products/all",
+                                       body={},replay_safe=True,timeout_s=60)
+        result = self._envelope(response)
+        if result["code"] != 0:
+            raise RuntimeError("product snapshot rejected")
+        return (result.get("data") or {}).get("products") or []
 
     async def order_query(self, user_id: int, status: str = "ALL") -> dict:
         return await self._post("/internal/tools/order/query", {
@@ -109,27 +128,31 @@ class BackendClient:
         })
 
     async def order_prepare(self, user_id: int, conversation_id: int, product_id: int, quantity: int,
-                           receiver_name: str, receiver_phone: str, receiver_address: str) -> dict:
+                           receiver_name: str, receiver_phone: str, receiver_address: str,
+                           preparation_key: str | None = None) -> dict:
         return await self._post("/internal/tools/order/prepare", {
             "userId": user_id, "conversationId": conversation_id, "productId": product_id,
             "quantity": quantity, "receiverName": receiver_name, "receiverPhone": receiver_phone,
             "receiverAddress": receiver_address,
+            **({"preparationKey": preparation_key} if preparation_key is not None else {}),
         })
 
     async def order_cancel_prepare(self, user_id: int, conversation_id: int,
-                                   order_id: int, reason: str) -> dict:
+                                   order_id: int, reason: str, preparation_key: str | None = None) -> dict:
         return await self._post("/internal/tools/order/cancel/prepare", {
             "userId": user_id, "conversationId": conversation_id,
             "orderId": order_id, "reason": reason,
+            **({"preparationKey": preparation_key} if preparation_key is not None else {}),
         })
 
     async def after_sale_prepare(self, user_id: int, conversation_id: int, order_id: int,
                                  order_item_id: int, service_type: str, issue_category: str,
-                                 reason: str, quantity: int) -> dict:
+                                 reason: str, quantity: int, preparation_key: str | None = None) -> dict:
         return await self._post("/internal/tools/after-sale/prepare", {
             "userId": user_id, "conversationId": conversation_id, "orderId": order_id,
             "orderItemId": order_item_id, "serviceType": service_type,
             "issueCategory": issue_category, "reason": reason, "quantity": quantity,
+            **({"preparationKey": preparation_key} if preparation_key is not None else {}),
         })
 
     async def escalate(self, user_id: int, conversation_id: int, reason: str) -> dict:
@@ -148,15 +171,14 @@ class BackendClient:
 
     async def _post_long(self, path: str, body: dict) -> dict:
         try:
-            r = await self._long_client.post(path, json=body)
-            r.raise_for_status()
-            resp = r.json()
-            if resp.get("code") == 0:
-                return resp.get("data") or {}
-            return {"error": resp.get("message")}
-        except Exception as e:
-            logger.warning("backend long call failed %s: %s", path, e)
-            return {"error": str(e)}
+            # Chunk allocation is a mutation without a replay contract: one attempt.
+            response = await self._perform(self._long_client,"POST",path,body=body,
+                                           replay_safe=False,timeout_s=60)
+            result = self._envelope(response)
+            return (result.get("data") or {}) if result["code"] == 0 else {"error":result.get("message")}
+        except Exception as error:
+            logger.warning("backend long operation unavailable (%s)",type(error).__name__)
+            return {"error":"后端服务暂时不可用，请稍后再试"}
 
     async def kb_result(self, doc_id: int, status: str, chunk_count: int = 0,
                         fail_reason: str | None = None, vector_count: int | None = None, *,
@@ -168,9 +190,10 @@ class BackendClient:
             }
             if vector_count is not None:
                 body["vectorCount"] = vector_count
-            await self._long_client.post("/internal/kb/result", json=body)
+            await self._perform(self._long_client,"POST","/internal/kb/result",body=body,
+                                replay_safe=False,timeout_s=60)
         except Exception as e:
-            logger.warning("kb_result callback failed: %s", e)
+            logger.warning("kb_result callback failed (%s)",type(e).__name__)
 
     async def kb_keyword_search(self, query: str, doc_type: str = "ALL",
                                 product_id: int | None = None, top_k: int = 4) -> dict:
@@ -201,16 +224,18 @@ class BackendClient:
         return {int(k): v for k, v in r.items()}
 
     async def download_file(self, url: str) -> bytes:
-        request = self._long_client.build_request("GET", url)
-        backend_url = self._long_client.base_url
-        if (request.url.scheme, request.url.host, request.url.port) != (
-            backend_url.scheme, backend_url.host, backend_url.port
-        ):
-            # Object storage / external document URLs must not receive backend credentials.
-            request.headers.pop("X-Internal-Token", None)
-        r = await self._long_client.send(request)
-        r.raise_for_status()
-        return r.content
+        async def attempt(timeout):
+            request = self._long_client.build_request("GET",url,timeout=timeout,headers=budget_headers())
+            backend_url = self._long_client.base_url
+            if (request.url.scheme,request.url.host,request.url.port) != (
+                    backend_url.scheme,backend_url.host,backend_url.port):
+                # Credentials and internal hop budgets never leave the trusted backend origin.
+                for name in ("X-Internal-Token","X-Request-Timeout-Ms","X-Request-Retry-Budget"):
+                    request.headers.pop(name,None)
+            response = await self._long_client.send(request)
+            response.raise_for_status()
+            return response.content
+        return await run("document.download",attempt,replay_safe=True,attempt_timeout_s=60)
 
 
 backend_client = BackendClient()

@@ -1,5 +1,5 @@
 <template>
-  <section v-if="action" class="order-action-card" :class="`status-${action.status?.toLowerCase()}`">
+  <section v-if="action" class="order-action-card" :class="`status-${visibleStatus?.toLowerCase()}`">
     <header class="action-head">
       <div class="eyebrow">{{ actionTitle }}</div>
       <el-tag :type="statusMeta.type" size="small">{{ statusMeta.label }}</el-tag>
@@ -28,18 +28,20 @@
     </template>
 
     <footer class="action-footer">
-      <span v-if="action.status === 'CONFIRMED'" class="order-no">{{ confirmedText }}</span>
-      <span v-else-if="action.status === 'CANCELLED'" class="hint">本次操作已撤销，不会执行</span>
-      <span v-else-if="action.status === 'EXPIRED'" class="hint">确认请求已失效，请重新发起</span>
+      <span v-if="visibleStatus === 'CONFIRMED'" class="order-no">{{ confirmedText }}</span>
+      <span v-else-if="visibleStatus === 'CANCELLED'" class="hint">本次操作已撤销，不会执行</span>
+      <span v-else-if="visibleStatus === 'EXPIRED'" class="hint">确认请求已失效，请重新发起</span>
       <span v-else class="hint">{{ pendingHint }}</span>
 
       <div v-if="canDecide" class="action-buttons">
         <el-button :disabled="isDeciding" @click="requestCancel">放弃</el-button>
-        <el-button type="primary" :loading="action.status === 'CONFIRMING'" :disabled="isDeciding"
+        <el-button type="primary" :loading="visibleStatus === 'CONFIRMING'" :disabled="isDeciding"
                    @click="action.type === 'ORDER_CREATE' ? openReview() : requestConfirm()">核对并确认</el-button>
       </div>
-      <el-button v-else-if="action.status === 'CONFIRMED' && action.afterSaleId" type="primary" plain @click="emit('view-after-sale',action.afterSaleId)">查看售后</el-button>
-      <el-button v-else-if="action.status === 'CONFIRMED' && action.orderId" type="primary" plain
+      <el-button v-if="showRecovery" :loading="visibleStatus === 'RECOVERING'" :disabled="isDeciding"
+                 @click="requestRecovery">恢复操作</el-button>
+      <el-button v-else-if="visibleStatus === 'CONFIRMED' && action.afterSaleId" type="primary" plain @click="emit('view-after-sale',action.afterSaleId)">查看售后</el-button>
+      <el-button v-else-if="visibleStatus === 'CONFIRMED' && action.orderId" type="primary" plain
                  @click="emit('view-order', action.orderId)">查看订单</el-button>
     </footer>
 
@@ -54,7 +56,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showReview = false">返回</el-button>
-        <el-button type="primary" :loading="action.status === 'CONFIRMING'" @click="submitApproval">确认创建订单</el-button>
+        <el-button type="primary" :loading="visibleStatus === 'CONFIRMING'" @click="submitApproval">确认创建订单</el-button>
       </template>
     </el-dialog>
   </section>
@@ -76,11 +78,13 @@ import { computed, reactive, ref } from 'vue'
 import { CircleCheck, Link, Loading, Search, ShoppingCart, Tickets, User, Goods, Document } from '@element-plus/icons-vue'
 import { ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import type { OrderAction, OrderApprovalForm, ToolCard } from '@/types/api'
+import { actionDisplayStatus, canDecideAction, canRecoverAction } from '@/stores/actionWorkflow'
 
 const props = defineProps<{ card?: ToolCard; action?: OrderAction }>()
 const emit = defineEmits<{
   confirm: [actionId: string, approval?: OrderApprovalForm]
   cancel: [actionId: string]
+  recover: [actionId: string]
   'view-order': [orderId?: number]
   'view-after-sale': [afterSaleId: number]
 }>()
@@ -101,8 +105,13 @@ const label = computed(() => props.card ? (META[props.card.tool]?.label || props
 const icon = computed(() => props.card ? ((META[props.card.tool]?.icon as any) || Search) : Search)
 const actionTitle = computed(() => props.action?.type === 'ORDER_CREATE' ? '待确认下单'
   : props.action?.type === 'ORDER_CANCEL' ? '待确认取消订单' : '待确认售后申请')
-const pendingHint = computed(() => props.action?.type === 'ORDER_CREATE' ? '确认后才会正式创建订单'
-  : props.action?.type === 'ORDER_CANCEL' ? '确认后才会取消订单' : '确认后才会提交售后申请')
+const pendingHint = computed(() => {
+  if (visibleStatus.value === 'RECOVERY_REQUIRED') return '处理结果尚未确认，请手动恢复；不会重新提交确认'
+  if (visibleStatus.value === 'EXECUTING' || visibleStatus.value === 'RECOVERING') return '正在核实处理结果；恢复不会重新提交确认'
+  if (props.action?.workflow && visibleStatus.value === 'FAILED') return '操作未完成，请核实状态后再处理'
+  return props.action?.type === 'ORDER_CREATE' ? '确认后才会正式创建订单'
+    : props.action?.type === 'ORDER_CANCEL' ? '确认后才会取消订单' : '确认后才会提交售后申请'
+})
 const confirmedText = computed(() => props.action?.type === 'ORDER_CREATE' ? `订单号 ${props.action.orderNo || ''}`
   : props.action?.type === 'ORDER_CANCEL' ? '订单已取消'
     : `售后单 ${props.action?.afterSaleNo || '已提交'}`)
@@ -110,8 +119,10 @@ const serviceTypeText = computed(() => ({ RETURN_REFUND: '退货退款', EXCHANG
   REFUND_ONLY: '仅退款', ISSUE_REPORT: '问题反馈' }[props.action?.serviceType || ''] || props.action?.serviceType || ''))
 const issueCategoryText = computed(() => ({ PERSONAL: '个人原因', QUALITY: '质量问题',
   MERCHANT: '商家问题', PLATFORM: '平台问题' }[props.action?.issueCategory || ''] || props.action?.issueCategory || ''))
-const canDecide = computed(() => props.action?.status === 'PENDING' || props.action?.status === 'FAILED')
-const isDeciding = computed(() => props.action?.status === 'CONFIRMING' || props.action?.status === 'CANCELLING')
+const visibleStatus = computed(() => props.action ? actionDisplayStatus(props.action) : undefined)
+const canDecide = computed(() => !!props.action && canDecideAction(props.action))
+const isDeciding = computed(() => ['CONFIRMING', 'CANCELLING', 'RECOVERING'].includes(props.action?.status || ''))
+const showRecovery = computed(() => !!props.action && (props.action.status === 'RECOVERING' || canRecoverAction(props.action)))
 const showReview = ref(false)
 const approvalFormRef = ref<FormInstance>()
 const approvalForm = reactive<OrderApprovalForm>({ receiverName: '', receiverPhone: '', receiverAddress: '' })
@@ -124,19 +135,22 @@ const approvalRules: FormRules<OrderApprovalForm> = {
   receiverAddress: [{ required: true, message: '请输入详细收货地址', trigger: 'blur' }],
 }
 const statusMeta = computed(() => {
-  switch (props.action?.status) {
+  switch (visibleStatus.value) {
+    case 'RECOVERING': return { label: '恢复中', type: 'warning' as const }
+    case 'EXECUTING': return { label: '执行中，结果待核实', type: 'warning' as const }
+    case 'RECOVERY_REQUIRED': return { label: '结果待恢复', type: 'warning' as const }
     case 'CONFIRMING': return { label: '执行中', type: 'warning' as const }
     case 'CANCELLING': return { label: '取消中', type: 'warning' as const }
     case 'CONFIRMED': return { label: '已确认', type: 'success' as const }
     case 'CANCELLED': return { label: '已放弃', type: 'info' as const }
     case 'EXPIRED': return { label: '已过期', type: 'info' as const }
-    case 'FAILED': return { label: '确认失败，可重试', type: 'danger' as const }
+    case 'FAILED': return { label: props.action?.workflow ? '操作失败' : '确认失败，可重试', type: 'danger' as const }
     default: return { label: '请核对', type: 'warning' as const }
   }
 })
 
 function openReview() {
-  if (!props.action) return
+  if (!props.action || !canDecide.value) return
   Object.assign(approvalForm, {
     receiverName: props.action.receiverName || '',
     receiverPhone: props.action.receiverPhone || '',
@@ -146,28 +160,32 @@ function openReview() {
 }
 
 async function submitApproval() {
-  if (!props.action || !await approvalFormRef.value?.validate().catch(() => false)) return
+  if (!props.action || !canDecide.value || !await approvalFormRef.value?.validate().catch(() => false) || !canDecide.value) return
   emit('confirm', props.action.actionId, { ...approvalForm })
   showReview.value = false
 }
 
+function requestRecovery() {
+  if (props.action && canRecoverAction(props.action)) emit('recover', props.action.actionId)
+}
+
 async function requestConfirm() {
-  if (!props.action) return
+  if (!props.action || !canDecide.value) return
   try {
     await ElMessageBox.confirm(pendingHint.value, actionTitle.value, {
       type: 'warning', confirmButtonText: '确认执行', cancelButtonText: '返回',
     })
-    emit('confirm', props.action.actionId)
+    if (canDecide.value) emit('confirm', props.action.actionId)
   } catch { /* 用户返回继续核对。 */ }
 }
 
 async function requestCancel() {
-  if (!props.action) return
+  if (!props.action || !canDecide.value) return
   try {
     await ElMessageBox.confirm('确定放弃本次待确认操作吗？', '放弃操作', {
       type: 'warning', confirmButtonText: '确定放弃', cancelButtonText: '返回',
     })
-    emit('cancel', props.action.actionId)
+    if (canDecide.value) emit('cancel', props.action.actionId)
   } catch {
     // 用户返回继续核对。
   }

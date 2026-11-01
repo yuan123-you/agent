@@ -1,8 +1,12 @@
 """Small Ollama HTTP clients used by the local RAG pipeline."""
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from langchain_core.embeddings import Embeddings
+
+from app.resilience import budget_scope, run
 
 
 class OllamaEmbeddings(Embeddings):
@@ -56,30 +60,33 @@ class OllamaEmbeddings(Embeddings):
 
     async def _acall(self, texts: list[str]) -> list[list[float]]:
         async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-            response = await client.post(self._url, json=self._payload(texts))
-            response.raise_for_status()
-            return self._validate(response.json().get("embeddings") or [], len(texts))
+            async def attempt(timeout: float) -> httpx.Response:
+                response = await client.post(self._url, json=self._payload(texts), timeout=timeout)
+                response.raise_for_status()
+                return response
+
+            response = await run(
+                "model.ollama.embeddings", attempt, replay_safe=True,
+                attempt_timeout_s=self._timeout, total_timeout_s=self._timeout,
+            )
+        # Model output validation is not a transport failure and must never replay HTTP.
+        return self._validate(response.json().get("embeddings") or [], len(texts))
 
     def _call(self, texts: list[str]) -> list[list[float]]:
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.post(self._url, json=self._payload(texts))
-            response.raise_for_status()
-            return self._validate(response.json().get("embeddings") or [], len(texts))
+        return asyncio.run(self._acall(texts))
 
     async def aembed_query(self, text: str) -> list[float]:
         return (await self._acall([text]))[0]
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
-        for start in range(0, len(texts), self._max_batch_size):
-            vectors.extend(await self._acall(texts[start:start + self._max_batch_size]))
+        with budget_scope(self._timeout):
+            for start in range(0, len(texts), self._max_batch_size):
+                vectors.extend(await self._acall(texts[start:start + self._max_batch_size]))
         return vectors
 
     def embed_query(self, text: str) -> list[float]:
         return self._call([text])[0]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        vectors: list[list[float]] = []
-        for start in range(0, len(texts), self._max_batch_size):
-            vectors.extend(self._call(texts[start:start + self._max_batch_size]))
-        return vectors
+        return asyncio.run(self.aembed_documents(texts))

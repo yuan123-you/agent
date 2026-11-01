@@ -18,6 +18,11 @@ public class AgentAction {
     private String type;
     private String payload;
     private BigDecimal amount;
+    private BigDecimal originalAmount;
+    private String preparationKey;
+    private String preparationFingerprint;
+    private String preparationResult;
+    private Boolean nativeWorkflowManaged;
     private String status;
     private Instant expiresAt;
     private Long orderId;

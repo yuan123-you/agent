@@ -14,9 +14,12 @@ from fastapi import APIRouter, Response
 
 from app import rag as _rag
 from app.config import settings
+from app.resilience import budget_scope, run
+from app.rag.vectorstore import _milvus_sync
 
 router = APIRouter()
 logger = logging.getLogger("ai-service.health")
+_HEALTH_TIMEOUT_S = 3.0
 
 # 运行时依赖状态（main.lifespan 显式初始化时登记；name -> 降级原因，空列表即全部就绪）
 _degrade_reasons: dict[str, str] = {}
@@ -36,7 +39,11 @@ def degraded_list() -> list[str]:
 
 async def _check_milvus() -> bool:
     try:
-        await asyncio.to_thread(_rag.vectorstore.get_vectorstore().client.list_collections)
+        async def attempt(timeout):
+            def probe():
+                return _milvus_sync(_rag.vectorstore.get_vectorstore().client,"list_collections",timeout_s=timeout)
+            return await asyncio.to_thread(probe)
+        await run("health.milvus",attempt,replay_safe=True,max_attempts=1,attempt_timeout_s=_HEALTH_TIMEOUT_S)
         return True
     except Exception as e:
         logger.warning("milvus health check failed: %s", e)
@@ -46,11 +53,11 @@ async def _check_milvus() -> bool:
 
 async def _check_llm() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=3) as client:
-            r = await client.get(
-                f"{settings.llm_api_base.rstrip('/')}/models",
-                headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-            )
+        async with httpx.AsyncClient(timeout=_HEALTH_TIMEOUT_S,trust_env=False) as client:
+            async def attempt(timeout):
+                return await client.get(f"{settings.llm_api_base.rstrip('/')}/models",timeout=timeout,
+                                        headers={"Authorization": f"Bearer {settings.llm_api_key}"})
+            r = await run("health.model",attempt,replay_safe=True,max_attempts=1,attempt_timeout_s=_HEALTH_TIMEOUT_S)
             return r.status_code < 400
     except Exception as e:
         logger.warning("llm health check failed: %s", e)
@@ -60,8 +67,10 @@ async def _check_llm() -> bool:
 
 async def _check_backend() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=3) as client:
-            r = await client.get(f"{settings.backend_base_url.rstrip('/')}/actuator/health")
+        async with httpx.AsyncClient(timeout=_HEALTH_TIMEOUT_S,trust_env=False) as client:
+            async def attempt(timeout):
+                return await client.get(f"{settings.backend_base_url.rstrip('/')}/actuator/health",timeout=timeout)
+            r = await run("health.backend",attempt,replay_safe=True,max_attempts=1,attempt_timeout_s=_HEALTH_TIMEOUT_S)
             return r.status_code < 400 and r.json().get("status") == "UP"
     except Exception as e:
         logger.warning("backend health check failed: %s", e)
@@ -70,11 +79,16 @@ async def _check_backend() -> bool:
 
 
 async def _probe_all() -> dict[str, bool]:
-    return {
-        "milvus": await _check_milvus(),
-        "llm": await _check_llm(),
-        "backend": await _check_backend(),
-    }
+    statuses={name:False for name in ("milvus","llm","backend")}
+    async def probe(name,check):
+        statuses[name]=await check()
+    with budget_scope(_HEALTH_TIMEOUT_S,retry_tokens=0,inherit=False):
+        try:
+            async with asyncio.timeout(_HEALTH_TIMEOUT_S):
+                await asyncio.gather(probe("milvus",_check_milvus),probe("llm",_check_llm),probe("backend",_check_backend))
+        except TimeoutError:
+            logger.warning("health probe total deadline exhausted")
+    return statuses
 
 
 @router.get("/health/live")

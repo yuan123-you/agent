@@ -9,8 +9,18 @@ import java.time.Instant;
 
 @Mapper
 public interface AgentActionMapper extends BaseMapper<AgentAction> {
+    @Select("SELECT * FROM agent_action WHERE user_id = #{userId} AND conversation_id = #{conversationId} AND preparation_key = #{key}")
+    AgentAction selectPreparation(@Param("userId") Long userId, @Param("conversationId") Long conversationId, @Param("key") String key);
+
+    // Current read after a competing unique-key insert commits (also under MySQL REPEATABLE READ).
+    @Select("SELECT * FROM agent_action WHERE user_id = #{userId} AND conversation_id = #{conversationId} AND preparation_key = #{key} FOR UPDATE")
+    AgentAction selectPreparationForUpdate(@Param("userId") Long userId, @Param("conversationId") Long conversationId, @Param("key") String key);
+
     @Select("SELECT * FROM agent_action WHERE action_id = #{actionId} FOR UPDATE")
     AgentAction selectForUpdate(@Param("actionId") String actionId);
+
+    @Update("UPDATE agent_action SET native_workflow_managed = TRUE WHERE action_id = #{actionId} AND user_id = #{userId}")
+    int markNativeWorkflowManaged(@Param("userId") Long userId, @Param("actionId") String actionId);
 
     @Update("UPDATE agent_action SET status = 'CONFIRMED', order_id = #{orderId}, amount = #{amount}, " +
             "updated_at = NOW(3) WHERE action_id = #{actionId} AND status = 'PENDING'")
