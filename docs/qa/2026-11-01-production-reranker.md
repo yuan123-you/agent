@@ -1,6 +1,6 @@
 # Production RAG reranker activation — 2026-11-01
 
-Status: isolated real-model tests complete; production cutover pending verification.
+Status: production VERIFIED. Deployed code:2dbf495ba7aa77a098d8dd10d1d6180af6b102dd. First failed rollout remains recorded below.
 
 ## Scope
 
@@ -100,3 +100,34 @@ interactive query and768-dimensional outputs, with no index writes. Its cgroup r
 no memory-limit or OOM events during that test. This is not a universal latency guarantee.
 
 Follow-up engineering verification:582 AI tests passed;51 dedicated/auxiliary/hygiene tests passed. The product-scope fake-provider reader was adapted to the new Human data envelope without relaxing any product/citation assertions. Independent review found no actionable regression in these three scoped app changes.
+
+
+## Final production verification — passed
+
+- Published and deployed production-base code2dbf495; all deployed AI Python source hashes
+  and reranker source hashes match that commit. Only the three measured RAG integration
+  files changed in the application; original eight dependencies retained container IDs,
+  images and restart counts. No business/ownership/confirmation source changed.
+- Running AI hasRAG_RERANKER_ENABLED=true, modelBAAI/bge-reranker-v2-m3, internal URL
+  http://reranker:8001 and20s timeout. Dense20/BM2520/RRF10/final4 verified in runtime.
+- Real production factory/KB tool produced finite ordered scores
+  [0.986772,0.979239,0.929615,0.894951] for chunks[209,242,229,228]; the unknown invoice
+  query was unanswerable without a fake citation.
+- Actual backend/proxy HTTP SSE, exact previously failed question:17.37s, correctly denied
+  automatic timeout approval and retained a valid source233 reference. No transaction or
+  human-transfer tool was executed. This is a single measured case, not a latency SLA.
+- Actual unknown-invoice SSE:12.93s, evidence-insufficient response with no citations.
+- All32 runtime/source/read-only-chat/cleanup gates passed. All10 services healthy and
+  public product API healthy. Dedicated QA conversations closed and actorDISABLED.
+- Chat/intent remainsqwen2.5:1.5b; encoder remainsshaw/dmeta-embedding-zh/768. Both Milvus
+  collection names remain unchanged; the existing periodic product-index synchronization
+  remains enabled, using the smaller batches. No vector-space migration was performed.
+- Reranker measured memory1.112 GiB under its3 GiB limit. Shared model directory occupies
+  574048 KiB (about561 MiB). Owned evaluation containers and their temporary image tags
+  were removed; no shared/production model volume was deleted or duplicated.
+
+Known limits remain explicit: the unchanged confidence gate conservatively rejects the
+repair-postage wording in the sample, and the unchanged1.5B generator still has a safely
+rejected deadline-formatting case. This release enables and validates the coarse→fine
+retrieval path and fixes the reproduced input-layout inversion; it is not a claim that
+all generation, inference conditions or all conversational paraphrases are solved.
